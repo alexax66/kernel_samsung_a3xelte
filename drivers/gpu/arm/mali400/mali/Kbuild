@@ -29,6 +29,8 @@ EXTRA_DEFINES += -DMALI_FAKE_PLATFORM_DEVICE=1
 MALI_PLATFORM_FILES = $(subst $(src)/,,$(wildcard $(src)/platform/$(MALI_PLATFORM)/*.c))
 
 # For customer releases the Linux Device Drivers will be provided as ARM proprietary and GPL releases:
+# The in-tree driver will only use the GPL releases.
+ccflags-y += -I$(src)/linux/license/gpl
 
 mali-y += \
 	linux/mali_osk_atomics.o \
