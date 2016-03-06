@@ -11,7 +11,7 @@
 
 /dts-v1/;
 #include "exynos7580-reserve-1500MB.dtsi"
-#include "exynos7580-q.dtsi"
+#include "exynos7580.dtsi"
 #include "modem-isla-pdata.dtsi"
 #include "exynos7580-a3xelte_battery_rev01.dtsi"
 #include "exynos7580-a3xelte_eur_open_gpio_02.dtsi"
