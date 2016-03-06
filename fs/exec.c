@@ -1538,6 +1538,7 @@ out_nofile:
 EXPORT_SYMBOL(sec_check_execpath);
 
 #ifdef CONFIG_RKP_KDP
+#if 0
 static int rkp_restrict_fork(void)
 {
 	struct cred *shellcred;
@@ -1555,6 +1556,7 @@ static int rkp_restrict_fork(void)
 	}
 	return 0;
 }
+#endif
 #endif /*CONFIG_RKP_KDP*/
 static int sec_restrict_fork(void)
 {
@@ -1877,6 +1879,7 @@ SYSCALL_DEFINE3(execve,
 			}
 		}
 #endif	// End of CONFIG_SEC_RESTRICT_FORK
+#if 0
 #ifdef CONFIG_RKP_KDP
 		if(CHECK_ROOT_UID(current) && rkp_cred_enable) {
 			if(rkp_restrict_fork()){
@@ -1887,6 +1890,7 @@ SYSCALL_DEFINE3(execve,
 				return -EACCES;
 			}
 		}
+#endif
 #endif
 		error = do_execve(path->name, argv, envp);
 		putname(path);
