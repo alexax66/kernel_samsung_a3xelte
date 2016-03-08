@@ -143,8 +143,8 @@ void samsung_exynos_cal_dwc_usb2phy_enable(void __iomem *regs_base, u32 refclkfr
 void samsung_exynos_cal_dwc_usb2phy_reset(void __iomem *regs_base, enum samsung_usb_phy_type phy_type)
 {
 	u32 stdphyctrl;
-	u32 otglinkctrl;
-	u32 hostlinkctrl;
+	u32 otglinkctrl = 0;
+	u32 hostlinkctrl = 0;
 
 	stdphyctrl = readl(regs_base + SAMSUNG_PHY_STDPHYCTRL);
 

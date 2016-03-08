@@ -776,10 +776,10 @@ EXPORT_SYMBOL_GPL(eax_asoc_platform_unregister);
 static void eax_mixer_prepare(void)
 {
 	struct buf_info *bi;
-	short npcm_l, npcm_r;
+	short npcm_l = 0, npcm_r = 0;
 	int nmix_l, nmix_r;
 	short *nmix_buf;
-	int upcm_l, upcm_r;
+	int upcm_l = 0, upcm_r = 0;
 	long umix_l, umix_r;
 	int *umix_buf;
 	int n;

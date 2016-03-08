@@ -357,7 +357,7 @@ static int gotoAllCpu(void)
 
 int tzic_get_tamper_flag(void)
 {
-	u64 arg;
+	u64 arg = 0;
 	exynos_smc_read_oemflag(0x80010001, &arg);
 	return arg;
 }

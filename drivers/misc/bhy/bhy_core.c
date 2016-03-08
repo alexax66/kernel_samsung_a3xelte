@@ -1307,7 +1307,7 @@ static int check_watchdog_reset(struct bhy_client_data *client_data)
 static int mcu_monitor_thread(void *arg)
 {
 	struct bhy_client_data *client_data = (struct bhy_client_data *)arg;
-	u64 tmp_timestamp;
+	u64 tmp_timestamp = 0;
 	int ret = 0;
 	int i;
 	bool duplication_detected = false;

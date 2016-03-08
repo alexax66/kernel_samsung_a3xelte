@@ -58,7 +58,7 @@ int fimc_is_set_rate(struct platform_device *pdev,
 {
 	int ret = 0;
 	int id;
-	struct clk *target;
+	struct clk *target = NULL;
 
 	for ( id = 0; id < CLK_NUM; id++ ) {
 		if (!strcmp(conid, clk_g_list[id]))
@@ -86,7 +86,7 @@ ulong fimc_is_get_rate(struct platform_device *pdev,
 	const char *conid)
 {
 	int id;
-	struct clk *target;
+	struct clk *target = NULL;
 	ulong rate_target;
 
 	for ( id = 0; id < CLK_NUM; id++ ) {
@@ -111,7 +111,7 @@ int  fimc_is_enable(struct platform_device *pdev,
 {
 	int ret;
 	int id;
-	struct clk *target;
+	struct clk *target = NULL;
 
 	for ( id = 0; id < CLK_NUM; id++ ) {
 		if (!strcmp(conid, clk_g_list[id]))
@@ -143,7 +143,7 @@ int fimc_is_disable(struct platform_device *pdev,
 	const char *conid)
 {
 	int id;
-	struct clk *target;
+	struct clk *target = NULL;
 
 	for ( id = 0; id < CLK_NUM; id++ ) {
 		if (!strcmp(conid, clk_g_list[id]))
@@ -195,7 +195,7 @@ int fimc_is_set_rate_dt(struct platform_device *pdev,
 	const char *conid, unsigned int rate)
 {
 	int ret = 0;
-	struct clk *target;
+	struct clk *target = NULL;
 
 	target = clk_get(&pdev->dev, conid);
 	if (IS_ERR_OR_NULL(target)) {
@@ -218,7 +218,7 @@ int fimc_is_set_rate_dt(struct platform_device *pdev,
 ulong fimc_is_get_rate_dt(struct platform_device *pdev,
 	const char *conid)
 {
-	struct clk *target;
+	struct clk *target = NULL;
 	ulong rate_target;
 
 	target = clk_get(&pdev->dev, conid);
@@ -238,7 +238,7 @@ int  fimc_is_enable_dt(struct platform_device *pdev,
 	const char *conid)
 {
 	int ret;
-	struct clk *target;
+	struct clk *target = NULL;
 
 	target = clk_get(&pdev->dev, conid);
 	if (IS_ERR_OR_NULL(target)) {
@@ -265,7 +265,7 @@ int  fimc_is_enable_dt(struct platform_device *pdev,
 int fimc_is_disable_dt(struct platform_device *pdev,
 	const char *conid)
 {
-	struct clk *target;
+	struct clk *target = NULL;
 
 	target = clk_get(&pdev->dev, conid);
 	if (IS_ERR_OR_NULL(target)) {
