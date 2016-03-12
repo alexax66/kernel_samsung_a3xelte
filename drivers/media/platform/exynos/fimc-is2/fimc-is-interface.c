@@ -3601,7 +3601,6 @@ int fimc_is_hw_shot_nblk(struct fimc_is_interface *this,
 	msg.param1 = shot;
 	msg.param2 = fcount;
 	msg.param3 = rcount;
-	msg.param4 = 0;
 
 	ret = fimc_is_set_cmd_shot(this, &msg);
 

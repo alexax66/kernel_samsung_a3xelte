@@ -671,7 +671,7 @@ static enum mif_sim_mode get_sim_mode(struct device_node *of_node)
 {
 	enum mif_sim_mode mode = MIF_SIM_SINGLE;
 	int gpio_ds_det, gpio_tray_det;
-	int retval = 0;
+	int retval;
 
 	gpio_ds_det = of_get_named_gpio(of_node, "mif,gpio_ds_det", 0);
 	if (!gpio_is_valid(gpio_ds_det)) {

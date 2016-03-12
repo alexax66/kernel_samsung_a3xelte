@@ -1201,8 +1201,7 @@ static int s2mu003_charger_parse_dt(struct device *dev,
 {
 	struct device_node *np = of_find_node_by_name(NULL, "s2mu003-charger");
 	const u32 *p;
-	int i, len;
-	int ret = 0;
+	int ret, i, len;
 
 	if (of_find_property(np, "battery,is_1MHz_switching", NULL))
 		pdata->is_1MHz_switching = 1;

@@ -725,7 +725,7 @@ static void get_intensity_all_data(void *device_data)
 {
 	struct mms_ts_info *info = (struct mms_ts_info *)device_data;
 	int ret;
-	int length = 0;
+	int length;
 
 	cmd_clear_result(info);
 
@@ -755,7 +755,7 @@ static void get_rawdata_all_data(void *device_data)
 {
 	struct mms_ts_info *info = (struct mms_ts_info *)device_data;
 	int ret;
-	int length = 0;
+	int length;
 
 	cmd_clear_result(info);
 
@@ -784,7 +784,7 @@ static void get_cm_delta_all_data(void *device_data)
 {
 	struct mms_ts_info *info = (struct mms_ts_info *)device_data;
 	int ret;
-	int length = 0;
+	int length;
 
 	cmd_clear_result(info);
 
@@ -813,7 +813,7 @@ static void get_cm_abs_all_data(void *device_data)
 {
 	struct mms_ts_info *info = (struct mms_ts_info *)device_data;
 	int ret;
-	int length = 0;
+	int length;
 
 	cmd_clear_result(info);
 

@@ -1389,7 +1389,6 @@ void set_process_cpu_timer(struct task_struct *tsk, unsigned int clock_idx,
 {
 	union cpu_time_count now;
 
-	now.cpu = 0;
 	BUG_ON(clock_idx == CPUCLOCK_SCHED);
 	cpu_timer_sample_group(clock_idx, tsk, &now);
 

@@ -1973,8 +1973,8 @@ static int decon_prevent_size_mismatch
 {
 	unsigned long delay_time = 100;
 	unsigned long cnt = timeout / delay_time;
-	u32 decon_line = 0, dsim_line = 0;
-	u32 decon_hoz = 0, dsim_hoz = 0;
+	u32 decon_line, dsim_line;
+	u32 decon_hoz, dsim_hoz;
 	u32 need_save = true;
 	struct disp_ss_size_info info;
 

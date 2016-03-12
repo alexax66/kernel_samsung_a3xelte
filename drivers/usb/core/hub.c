@@ -3264,7 +3264,7 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 	struct usb_port *port_dev = hub->ports[udev->portnum  - 1];
 	int		port1 = udev->portnum;
 	int		status;
-	u16		portchange = 0, portstatus = 0;
+	u16		portchange, portstatus;
 
 	if (port_dev->did_runtime_put) {
 		status = pm_runtime_get_sync(&port_dev->dev);

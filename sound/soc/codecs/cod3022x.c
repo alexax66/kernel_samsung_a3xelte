@@ -3317,7 +3317,7 @@ static int cod3022x_i2c_probe(struct i2c_client *i2c,
 {
 	struct cod3022x_priv *cod3022x;
 	struct pinctrl *pinctrl;
-	int ret = 0;
+	int ret;
 
 	cod3022x = kzalloc(sizeof(struct cod3022x_priv), GFP_KERNEL);
 	if (cod3022x == NULL)

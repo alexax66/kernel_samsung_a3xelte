@@ -326,7 +326,7 @@ void ass_reset(int ip, int op)
 
 void lpass_reset(int ip, int op)
 {
-	u32 reg, val, bit = 0;
+	u32 reg, val, bit;
 	void __iomem *regs;
 
 	if (is_old_ass()) {

@@ -802,10 +802,6 @@ int dsim_reg_set_clocks(u32 id, struct dsim_clks *clks, u32 lane, u32 en)
 	struct dphy_timing_value t;
 	int ret;
 
-	pll.p = 0;
-	pll.m = 0;
-	pll.s = 0;
-
 	if (en) {
 		/* byte clock source must be DPHY PLL */
 		dsim_reg_set_byte_clk_src_is_pll(id);
@@ -877,10 +873,6 @@ int dsim_reg_prepare_clocks(struct dsim_clks_param *clks_param)
 	struct dsim_pll_param pll;
 	int ret;
 	u32 esc_div;
-
-	pll.p = 0;
-	pll.m = 0;
-	pll.s = 0;
 
 	/* calculate P,M,S for HS clock */
 	/* requested DPHY PLL frequency(HS clock) */
