@@ -30,10 +30,40 @@
 #include <linux/highmem.h>
 #include <linux/slab.h>
 #include <linux/lzo.h>
+#include <linux/lz4.h>
 #include <linux/string.h>
 #include <linux/vmalloc.h>
 
 #include "zram_drv.h"
+
+static inline int z_decompress_safe(const unsigned char *src, size_t src_len,
+			unsigned char *dest, size_t *dest_len)
+{
+#ifdef CONFIG_ZRAM_LZ4_COMPRESS
+	return lz4_decompress_unknownoutputsize(src, src_len, dest, dest_len);
+#else
+	return lzo1x_decompress_safe(src, src_len, dest, dest_len);
+#endif
+}
+
+static inline int z_compress(const unsigned char *src, size_t src_len,
+			unsigned char *dst, size_t *dst_len, void *wrkmem)
+{
+#ifdef CONFIG_ZRAM_LZ4_COMPRESS
+	return lz4_compress(src, src_len, dst, dst_len, wrkmem);
+#else
+	return lzo1x_1_compress(src, src_len, dst, dst_len, wrkmem);
+#endif
+}
+
+static inline size_t z_scratch_size(void)
+{
+#ifdef CONFIG_ZRAM_LZ4_COMPRESS
+	return LZ4_MEM_COMPRESS;
+#else
+	return LZO1X_MEM_COMPRESS;
+#endif
+}
 
 /* Globals */
 static int zram_major;
@@ -162,7 +192,7 @@ static int zram_decompress_page(struct zram *zram, char *mem, u32 index)
 	if (meta->table[index].size == PAGE_SIZE)
 		memcpy(mem, cmem, PAGE_SIZE);
 	else
-		ret = lzo1x_decompress_safe(cmem, meta->table[index].size,
+		ret = z_decompress_safe(cmem, meta->table[index].size,
 						mem, &clen);
 	zs_unmap_object(meta->mem_pool, handle);
 
@@ -278,7 +308,7 @@ static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
 		goto out;
 	}
 
-	ret = lzo1x_1_compress(uncmem, PAGE_SIZE, src, &clen,
+	ret = z_compress(uncmem, PAGE_SIZE, src, &clen,
 			       meta->compress_workmem);
 
 	if (!is_partial_io(bvec)) {
@@ -517,7 +547,7 @@ struct zram_meta *zram_meta_alloc(u64 disksize)
 	if (!meta)
 		goto out;
 
-	meta->compress_workmem = kzalloc(LZO1X_MEM_COMPRESS, GFP_KERNEL);
+	meta->compress_workmem = kzalloc(z_scratch_size(), GFP_KERNEL);
 	if (!meta->compress_workmem)
 		goto free_meta;
 
