@@ -340,7 +340,19 @@ config KSM_LEGACY
 	depends on KSM
 	help
 	The legacy KSM implementation from Redhat.
+
 endchoice
+
+config ADAPTIVE_KSM
+	bool "Enable Adaptive KSM"
+	depends on KSM_LEGACY
+	help
+	  Enable Adaptive KSM
+
+config KSM_MEMCMP
+	bool "memcmp for KSM"
+	help
+	  Using memcmp function that is only for KSM
 
 config DEFAULT_MMAP_MIN_ADDR
         int "Low address space to protect from user allocation"
