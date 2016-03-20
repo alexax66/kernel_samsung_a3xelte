@@ -1116,6 +1116,7 @@ static int decon_blank(int blank_mode, struct fb_info *info)
 	switch (blank_mode) {
 	case FB_BLANK_POWERDOWN:
 	case FB_BLANK_NORMAL:
+		lcd_notifier_call_chain(LCD_EVENT_OFF_START, NULL);
 		DISP_SS_EVENT_LOG(DISP_EVT_BLANK, &decon->sd, ktime_set(0, 0));
 		ret = decon_disable(decon);
 		if (ret) {
@@ -1125,6 +1126,7 @@ static int decon_blank(int blank_mode, struct fb_info *info)
 		lcd_notifier_call_chain(LCD_EVENT_OFF_END, NULL);
 		break;
 	case FB_BLANK_UNBLANK:
+		lcd_notifier_call_chain(LCD_EVENT_ON_START, NULL);
 		DISP_SS_EVENT_LOG(DISP_EVT_UNBLANK, &decon->sd, ktime_set(0, 0));
 		ret = decon_enable(decon);
 		if (ret) {
