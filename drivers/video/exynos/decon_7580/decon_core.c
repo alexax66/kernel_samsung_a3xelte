@@ -44,6 +44,7 @@
 #include "dsim.h"
 #include "decon_helper.h"
 #include "../../../staging/android/sw_sync.h"
+#include <linux/lcd_notify.h>
 
 #define MIN(x, y) (x < y ? x : y)
 
@@ -1121,6 +1122,7 @@ static int decon_blank(int blank_mode, struct fb_info *info)
 			decon_err("failed to disable decon\n");
 			goto blank_exit;
 		}
+		lcd_notifier_call_chain(LCD_EVENT_OFF_END, NULL);
 		break;
 	case FB_BLANK_UNBLANK:
 		DISP_SS_EVENT_LOG(DISP_EVT_UNBLANK, &decon->sd, ktime_set(0, 0));
@@ -1129,6 +1131,7 @@ static int decon_blank(int blank_mode, struct fb_info *info)
 			decon_err("failed to enable decon\n");
 			goto blank_exit;
 		}
+		lcd_notifier_call_chain(LCD_EVENT_ON_END, NULL);
 		break;
 	case FB_BLANK_VSYNC_SUSPEND:
 	case FB_BLANK_HSYNC_SUSPEND:
