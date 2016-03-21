@@ -20,7 +20,7 @@
 #include <linux/hrtimer.h>
 #include <linux/module.h>
 #include <linux/exynos-ss.h>
-
+#include <linux/sched.h>
 #include <trace/events/power.h>
 
 #include "cpuidle.h"
@@ -46,6 +46,12 @@ void disable_cpuidle(void)
 
 static int __cpuidle_register_device(struct cpuidle_device *dev);
 
+static void cpuidle_set_current_state(int cpu, int latency)
+{
+	struct sched_pm *stat = &per_cpu(sched_stat, cpu);
+
+	atomic_set(&(stat->wake_latency), latency);
+}
 /**
  * cpuidle_play_dead - cpu off-lining
  *
@@ -84,6 +90,9 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 	s64 diff;
 
 	exynos_ss_cpuidle(index, 0, 0, ESS_FLAG_IN);
+
+	cpuidle_set_current_state(dev->cpu, target_state->exit_latency);
+
 	time_start = ktime_get();
 
 	entered_state = target_state->enter(dev, drv, index);
@@ -91,6 +100,8 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 	time_end = ktime_get();
 	exynos_ss_cpuidle(index, entered_state,
 		(int)ktime_to_us(ktime_sub(time_end, time_start)), ESS_FLAG_OUT);
+
+	cpuidle_set_current_state(dev->cpu, 0);
 
 	local_irq_enable();
 
