@@ -151,6 +151,9 @@ config GENERIC_BUG
 	def_bool y
 	depends on BUG
 
+config KERNEL_MODE_NEON
+	def_bool y
+
 source "init/Kconfig"
 
 source "kernel/Kconfig.freezer"
