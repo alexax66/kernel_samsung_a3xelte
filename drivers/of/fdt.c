@@ -86,7 +86,7 @@ void *of_fdt_get_property(struct boot_param_header *blob,
  * On match, returns a non-zero value with smaller values returned for more
  * specific compatible values.
  */
-int of_fdt_is_compatible(const void *blob,
+int of_fdt_is_compatible(struct boot_param_header *blob,
 		      unsigned long node, const char *compat)
 {
 	const char *cp;
@@ -110,7 +110,7 @@ int of_fdt_is_compatible(const void *blob,
 /**
  * of_fdt_match - Return true if node matches a list of compatible values
  */
-int of_fdt_match(const void *blob, unsigned long node,
+int of_fdt_match(struct boot_param_header *blob, unsigned long node,
                  const char *const *compat)
 {
 	unsigned int tmp, score = 0;
@@ -149,7 +149,7 @@ static void *unflatten_dt_alloc(void **mem, unsigned long size,
  * @allnextpp: pointer to ->allnext from last allocated device_node
  * @fpsize: Size of the node path up at the current depth.
  */
-static void * unflatten_dt_node(void *blob,
+static void * unflatten_dt_node(struct boot_param_header *blob,
 				void *mem,
 				void **p,
 				struct device_node *dad,
@@ -358,7 +358,7 @@ static void * unflatten_dt_node(void *blob,
  * @dt_alloc: An allocator that provides a virtual address to memory
  * for the resulting tree
  */
-static void __unflatten_device_tree(void *blob,
+static void __unflatten_device_tree(struct boot_param_header *blob,
 			     struct device_node **mynodes,
 			     void * (*dt_alloc)(u64 size, u64 align))
 {
@@ -374,11 +374,11 @@ static void __unflatten_device_tree(void *blob,
 	}
 
 	pr_debug("Unflattening device tree:\n");
-	pr_debug("magic: %08x\n", fdt_magic(blob));
-	pr_debug("size: %08x\n", fdt_totalsize(blob));
-	pr_debug("version: %08x\n", fdt_version(blob));
+	pr_debug("magic: %08x\n", be32_to_cpu(blob->magic));
+	pr_debug("size: %08x\n", be32_to_cpu(blob->totalsize));
+	pr_debug("version: %08x\n", be32_to_cpu(blob->version));
 
-	if (fdt_check_header(blob)) {
+	if (be32_to_cpu(blob->magic) != OF_DT_HEADER) {
 		pr_err("Invalid device tree blob header\n");
 		return;
 	}
@@ -427,7 +427,9 @@ static void *kernel_tree_alloc(u64 size, u64 align)
 void of_fdt_unflatten_tree(unsigned long *blob,
 			struct device_node **mynodes)
 {
-	__unflatten_device_tree(blob, mynodes, &kernel_tree_alloc);
+	struct boot_param_header *device_tree =
+		(struct boot_param_header *)blob;
+	__unflatten_device_tree(device_tree, mynodes, &kernel_tree_alloc);
 }
 EXPORT_SYMBOL_GPL(of_fdt_unflatten_tree);
 
@@ -1018,7 +1020,7 @@ bool __init early_init_dt_scan(void *params)
 	initial_boot_params = params;
 
 	/* check device tree validity */
-	if (fdt_check_header(params)) {
+	if (be32_to_cpu(initial_boot_params->magic) != OF_DT_HEADER) {
 		initial_boot_params = NULL;
 		return false;
 	}
@@ -1073,9 +1075,9 @@ void __init unflatten_and_copy_device_tree(void)
 		return;
 	}
 
-	size = fdt_totalsize(initial_boot_params);
+	size = __be32_to_cpu(initial_boot_params->totalsize);
 	dt = early_init_dt_alloc_memory_arch(size,
-					     roundup_pow_of_two(FDT_V17_SIZE));
+		__alignof__(struct boot_param_header));
 
 	if (dt) {
 		memcpy(dt, initial_boot_params, size);
