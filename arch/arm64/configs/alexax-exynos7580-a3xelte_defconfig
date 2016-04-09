@@ -2279,6 +2279,7 @@ CONFIG_FB_DEFERRED_IO=y
 # CONFIG_FB_BACKLIGHT is not set
 # CONFIG_FB_MODE_HELPERS is not set
 # CONFIG_FB_TILEBLITTING is not set
+CONFIG_GPU_UNIFIED_SYSFS=y
 
 #
 # Frame buffer hardware drivers
