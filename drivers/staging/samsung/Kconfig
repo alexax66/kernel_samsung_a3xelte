@@ -61,7 +61,7 @@ config SEC_AVC_LOG
 	  This option enables additional log buffer for audit log.
 
 config SEC_DEBUG_TSP_LOG
-	default y
+	default n
 	bool "Enable tsp log support" if EMBEDDED
 	depends on SEC_EXT
 	help
