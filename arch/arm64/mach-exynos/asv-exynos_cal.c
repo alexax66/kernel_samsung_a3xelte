@@ -274,6 +274,8 @@ static void exynos_set_asv_info(struct asv_info *asv_inform, bool show_value)
 		if (asv_inform->asv_volt[i].asv_value == 0)
 			asv_inform->asv_volt[i].asv_value = asv_inform->max_volt_value;
 #endif
+		pr_alert("SET ASV INFO: ASV-TYPE=%d, VOLT-VALUE=%d, INDEX=%d\n", asv_inform->asv_type, asv_inform->asv_volt[i].asv_value, i);
+
 
 #ifdef CONFIG_EXYNOS_ASV_DYNAMIC_ABB
 		if (useABB) {
@@ -285,10 +287,12 @@ static void exynos_set_asv_info(struct asv_info *asv_inform, bool show_value)
 #ifdef CONFIG_EXYNOS_ASV_SUPPORT_RCC
 		asv_inform->asv_rcc[i].asv_freq = asv_inform->asv_volt[i].asv_freq;
 		asv_inform->asv_rcc[i].asv_value = asv_inform->ops_cal->get_rcc(asv_inform->asv_type, i);
+		pr_alert("SET ASV INFO: ASV-TYPE=%d, RCC-VALUE=%d, INDEX=%d\n", asv_inform->asv_type, asv_inform->asv_rcc[i].asv_value, i);
 #endif
 		/* get the asv group information */
 		asv_inform->asv_sub_grp[i].asv_sub_idx = asv_inform->ops_cal->get_sub_grp_idx(asv_inform->asv_type, i);
 		asv_inform->asv_sub_grp[i].asv_grp = asv_inform->ops_cal->get_group(asv_inform->asv_type, i);
+		pr_alert("SET ASV INFO: ASV-TYPE=%d, ASV-SUB-IDX=%d, ASV-GROUP=%d, INDEX=%d\n", asv_inform->asv_type, asv_inform->asv_sub_grp[i].asv_sub_idx, asv_inform->asv_sub_grp[i].asv_grp, i);
 	}
 
 	if (show_value)
