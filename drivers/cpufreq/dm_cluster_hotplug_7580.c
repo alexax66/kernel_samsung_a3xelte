@@ -1,6 +1,7 @@
 #include <linux/atomic.h>
 #include <linux/cpu.h>
 #include <linux/cpufreq.h>
+#include <linux/cpufreq_kt.h>
 #include <linux/fb.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -366,6 +367,7 @@ static int fb_state_change(struct notifier_block *nb,
 				hotplug_enter_hstate(false, target_state);
 			}
 			mutex_unlock(&hotplug_lock);
+			screen_is_on = false;
 			break;
 		case FB_BLANK_UNBLANK:
 			lcd_on = true;
@@ -377,6 +379,7 @@ static int fb_state_change(struct notifier_block *nb,
 				hotplug_enter_hstate(true, H0);
 #endif
 			mutex_unlock(&hotplug_lock);
+			screen_is_on = true;
 			break;
 		}
 	}
