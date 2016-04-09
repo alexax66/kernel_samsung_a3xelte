@@ -1961,7 +1961,7 @@ static int __cpufreq_set_policy(struct cpufreq_policy *data,
 		policy->user_policy.min = GLOBALKT_MIN_FREQ_LIMIT[policy->cpu];
 	if (policy->user_policy.max > GLOBALKT_MAX_FREQ_LIMIT[policy->cpu])
 		policy->user_policy.max = GLOBALKT_MAX_FREQ_LIMIT[policy->cpu];
-	pr_alert("SET POLICY6 - NewMIN=%d - NewMAX=%d - OrigMIN=%d - OrigMAX=%d - CPU=%d\n", policy->min, policy->max, data->min, data->max, policy->cpu);
+	//pr_alert("SET POLICY6 - NewMIN=%d - NewMAX=%d - OrigMIN=%d - OrigMAX=%d - CPU=%d\n", policy->min, policy->max, data->min, data->max, policy->cpu);
 
 	/* notification of the new policy */
 	blocking_notifier_call_chain(&cpufreq_policy_notifier_list,
