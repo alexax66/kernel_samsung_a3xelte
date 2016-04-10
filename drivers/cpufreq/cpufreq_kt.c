@@ -24,7 +24,6 @@ static int fb_state_change(struct notifier_block *nb,
 
 	switch (blank) {
 	case FB_BLANK_POWERDOWN:
-		cpufreq_screen_is_on(false);
 		if (ktoonservative_is_active)
 		{
 			pr_alert("KT GOT SCREEN OFF-0\n");
@@ -43,7 +42,6 @@ static int fb_state_change(struct notifier_block *nb,
 			//ktoonservative_screen_is_on(true, 4);
 		}
 		screen_is_on = true;
-		cpufreq_screen_is_on(true);
 		break;
 	default:
 		break;
