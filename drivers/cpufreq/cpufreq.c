@@ -53,7 +53,7 @@ struct hotplug_data {
 	unsigned int work_speed_max;
 	unsigned int work_speed_core_start;
 	unsigned int work_speed_core_stop;
-	bool work_screen_going_off;
+	unsigned int work_screen_going_off;
 };
 static struct hotplug_data *hotplug_data_cl0;
 static struct hotplug_data *hotplug_data_cl1;
@@ -520,14 +520,29 @@ static void __cpuinit set_cpu_min_max_work_fn(struct work_struct *work)
 					//pr_alert("SET EXTRA CORES 3 - %d - %d - %d - %d - %d - %d - %d", cpu, policyorig->cpu, new_policy.min, new_policy.max, policyorig->min, policyorig->max, policyorig->user_policy.max);
 				}
 			}
-			if (broughtCoreup && !data->work_screen_going_off)
+			if (broughtCoreup && data->work_screen_going_off == 1)
 				cpu_down(cpu);				
 			main_cpufreq_control[cpu] = 0;
 		}
 	}
+	if (ktoonservative_is_active && data->work_speed_core_start == 4)
+	{
+		if (data->work_screen_going_off == 1)
+		{
+			pr_alert("KT GOT SCREEN OFF\n");
+			ktoonservative_screen_is_on(false, 0);
+			screen_is_on = false;
+		}
+		else if (data->work_screen_going_off == 0)
+		{
+			pr_alert("KT GOT SCREEN ON\n");
+			ktoonservative_screen_is_on(true, 0);
+			screen_is_on = true;
+		}
+	}
 }
 
-static void set_cpu_min_max(unsigned int min, unsigned int max, unsigned int core_start, unsigned int core_stop, bool screen_going_off, struct hotplug_data *data)
+static void set_cpu_min_max(unsigned int min, unsigned int max, unsigned int core_start, unsigned int core_stop, unsigned int screen_going_off, struct hotplug_data *data)
 {
 	data->work_speed_min = min;
 	data->work_speed_max = max;
@@ -2255,10 +2270,19 @@ void cpufreq_gov_resume(void)
 			vfreq_lock = 0;
 			vfreq_lock_tempOFF = true;
 		}
-		set_cpu_min_max(0, Lscreen_off_scaling_mhz_orig_cl0, 0, 0, true, hotplug_data_cl0);
+		set_cpu_min_max(0, Lscreen_off_scaling_mhz_orig_cl0, 0, 0, 0, hotplug_data_cl0);
 		//pr_alert("CPUFREQ_GOV_RESUME_FREQ-CL0: %u\n", Lscreen_off_scaling_mhz_orig_cl0);
-		set_cpu_min_max(0, Lscreen_off_scaling_mhz_orig_cl1, 4, 4, true, hotplug_data_cl1);
+		set_cpu_min_max(0, Lscreen_off_scaling_mhz_orig_cl1, 4, 4, 0, hotplug_data_cl1);
 		//pr_alert("CPUFREQ_GOV_RESUME_FREQ-CL1: %u\n", Lscreen_off_scaling_mhz_orig_cl1);
+	}
+	else
+	{
+		if (ktoonservative_is_active)
+		{
+			pr_alert("KT GOT SCREEN OFF\n");
+			ktoonservative_screen_is_on(true, 0);
+		}
+		screen_is_on = true;
 	}
 }
 
@@ -2271,10 +2295,19 @@ void cpufreq_gov_suspend(void)
 			vfreq_lock = 0;
 			vfreq_lock_tempOFF = true;
 		}
-		set_cpu_min_max(0, Lscreen_off_scaling_mhz_cl0, 0, 0, false, hotplug_data_cl0);
+		set_cpu_min_max(0, Lscreen_off_scaling_mhz_cl0, 0, 0, 1, hotplug_data_cl0);
 		//pr_alert("CPUFREQ_GOV_SUSPEND_FREQ-CL0: %u\n", Lscreen_off_scaling_mhz_cl0);
-		set_cpu_min_max(0, Lscreen_off_scaling_mhz_cl1, 4, 4, false, hotplug_data_cl1);
+		set_cpu_min_max(0, Lscreen_off_scaling_mhz_cl1, 4, 4, 1, hotplug_data_cl1);
 		//pr_alert("CPUFREQ_GOV_SUSPEND_FREQ-CL1: %u\n", Lscreen_off_scaling_mhz_cl1);
+	}
+	else
+	{
+		if (ktoonservative_is_active)
+		{
+			pr_alert("KT GOT SCREEN ON\n");
+			ktoonservative_screen_is_on(false, 0);
+		}
+		screen_is_on = false;
 	}
 }
 
