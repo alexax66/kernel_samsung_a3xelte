@@ -13,6 +13,7 @@
  *
  */
 #include "input_booster.h"
+#include <linux/cpufreq_kt.h>
 
 static const char * const booster_device_name[BOOSTER_DEVICE_MAX] = {
 	"key",
@@ -20,6 +21,8 @@ static const char * const booster_device_name[BOOSTER_DEVICE_MAX] = {
 	"touch",
 	"pen",
 };
+
+bool ktoonservative_first_seen = false;
 
 static unsigned int dbg_level;
 static s32 sysfs_level=BOOSTER_LEVEL2;	//default level
@@ -628,24 +631,45 @@ static void input_booster_event_work(struct work_struct *work)
 		data->front = (data->front + 1) % data->buffer_size;
 		spin_unlock(&data->buffer_lock);
 
-		DVFS_DEV_DBG(DBG_EVENT, data->dev, "%s :[%d] Device type[%s] mode[%d]\n", __func__,
-			i, booster_device_name[event.device_type], event.mode);
 
-		switch (event.device_type) {
-		case BOOSTER_DEVICE_KEY:
-			DVFS_WORK_FUNC(SET, KEY)(data, event.mode);
-		break;
-		case BOOSTER_DEVICE_TOUCHKEY:
-			DVFS_WORK_FUNC(SET, TOUCHKEY)(data, event.mode);
-		break;
-		case BOOSTER_DEVICE_TOUCH:
-			DVFS_WORK_FUNC(SET, TOUCH)(data, event.mode);
-		break;
-		case BOOSTER_DEVICE_PEN:
-			DVFS_WORK_FUNC(SET, PEN)(data, event.mode);
-		break;
-		default:
-		break;
+		if (ktoonservative_is_active)
+		{
+			if (!ktoonservative_first_seen && event.mode == BOOSTER_MODE_OFF)
+				ktoonservative_first_seen = true;
+			else
+			{
+				if (event.mode == BOOSTER_MODE_ON)
+				{
+					if (event.device_type == BOOSTER_DEVICE_TOUCH)
+						ktoonservative_boostpulse(false);
+					else
+						ktoonservative_boostpulse(true);
+				}
+				return;
+			}
+		}
+		else
+		{
+			ktoonservative_first_seen = false;
+			DVFS_DEV_DBG(DBG_EVENT, data->dev, "%s :[%d] Device type[%s] mode[%d]\n", __func__,
+				i, booster_device_name[event.device_type], event.mode);
+
+			switch (event.device_type) {
+			case BOOSTER_DEVICE_KEY:
+				DVFS_WORK_FUNC(SET, KEY)(data, event.mode);
+			break;
+			case BOOSTER_DEVICE_TOUCHKEY:
+				DVFS_WORK_FUNC(SET, TOUCHKEY)(data, event.mode);
+			break;
+			case BOOSTER_DEVICE_TOUCH:
+				DVFS_WORK_FUNC(SET, TOUCH)(data, event.mode);
+			break;
+			case BOOSTER_DEVICE_PEN:
+				DVFS_WORK_FUNC(SET, PEN)(data, event.mode);
+			break;
+			default:
+			break;
+			}
 		}
 	}
 }

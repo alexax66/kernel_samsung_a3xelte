@@ -56,6 +56,8 @@ static RAW_NOTIFIER_HEAD(cpu_chain);
  */
 static int cpu_hotplug_disabled;
 
+unsigned int cpu_core_smp_status[8] = { 1, 1, 1, 1, 1, 1, 1, 1 };
+
 #ifdef CONFIG_HOTPLUG_CPU
 
 static struct {
@@ -370,6 +372,7 @@ int __ref cpu_down(unsigned int cpu)
 {
 	int err;
 
+	cpu_core_smp_status[cpu] = 0;
 	cpu_maps_update_begin();
 
 	if (cpu_hotplug_disabled) {
@@ -394,6 +397,7 @@ static int __cpuinit _cpu_up(unsigned int cpu, int tasks_frozen)
 	unsigned long mod = tasks_frozen ? CPU_TASKS_FROZEN : 0;
 	struct task_struct *idle;
 
+	cpu_core_smp_status[cpu] = 1;
 	cpu_hotplug_begin();
 
 	if (cpu_online(cpu) || !cpu_present(cpu)) {

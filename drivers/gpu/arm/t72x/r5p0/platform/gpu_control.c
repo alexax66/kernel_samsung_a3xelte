@@ -25,11 +25,14 @@
 #include "gpu_dvfs_handler.h"
 #include "gpu_control.h"
 
+static struct kbase_device *GBLkbdev;
 static struct gpu_control_ops *ctr_ops;
 
 unsigned int gpu_min_override = 266;
 unsigned int gpu_max_override = 668;
 unsigned int gpu_max_override_screen_off = 0;
+unsigned int cur_gpu_step = 0;
+int boost_level = -1;
 
 #ifdef CONFIG_MALI_RT_PM
 static struct exynos_pm_domain *gpu_get_pm_domain(void)
@@ -105,6 +108,17 @@ int gpu_control_set_voltage(struct kbase_device *kbdev, int voltage)
 	return ret;
 }
 
+void boost_the_gpu(int freq, bool getfreq)
+{
+	if (getfreq)
+	{
+		boost_level = freq;
+		//gpu_control_set_clock(GBLkbdev, freq);
+	}
+	else
+		boost_level = -1;
+}
+
 int gpu_control_set_clock(struct kbase_device *kbdev, int clock)
 {
 	int ret = 0;
@@ -126,6 +140,7 @@ int gpu_control_set_clock(struct kbase_device *kbdev, int clock)
 		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "%s: mismatch clock error (%d)\n", __func__, clock);
 		return -1;
 	}
+	// Check for Min/Max override
 	if (clock < gpu_min_override)
 		clock = gpu_min_override;
 	if (screen_is_on || gpu_max_override_screen_off == 0)
@@ -138,6 +153,11 @@ int gpu_control_set_clock(struct kbase_device *kbdev, int clock)
 		if (clock > gpu_max_override_screen_off)
 			clock = gpu_max_override_screen_off;
 	}
+	//Check for boost override
+	if (boost_level != -1 && boost_level > clock && clock > 0)
+		clock = boost_level;
+	
+	cur_gpu_step = clock;
 
 	is_up = prev_clock < clock;
 
@@ -304,6 +324,7 @@ int gpu_control_module_init(struct kbase_device *kbdev)
 		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "%s: failed to initialize clock\n", __func__);
 		goto out;
 	}
+	GBLkbdev = kbdev;
 
 #ifdef CONFIG_REGULATOR
 	if (gpu_regulator_init(platform) < 0) {
