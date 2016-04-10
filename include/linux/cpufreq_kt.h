@@ -22,3 +22,4 @@ extern bool ktoonservative_is_active;
 extern unsigned int ktoonservative_hp_active;
 extern void ktoonservative_boostpulse(bool boost_for_button);
 extern void ktoonservative_screen_is_on(bool state, int cpu);
+extern void cpufreq_screen_is_on(bool state);
