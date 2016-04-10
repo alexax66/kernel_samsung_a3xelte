@@ -72,6 +72,8 @@ void set_core_flag_down(unsigned int cpu, unsigned int val);
 static unsigned int kt_cpu_core_smp_status[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 extern unsigned int cpu_core_smp_status[];
 static unsigned int cpus_online;	/* number of CPUs using this policy */
+bool force_cores_down = false;
+
 /*
  * The polling frequency of this governor depends on the capability of
  * the processor. Default polling frequency is 1000 times the transition
@@ -2146,6 +2148,11 @@ void ktoonservative_screen_is_on(bool state, int cpu)
 				set_core_flag_up(cpuloop, 1);
 				need_to_queue_up = true;
 			}
+			if (tunables->no_extra_cores_screen_off)
+			{
+				set_core_flag_up(cpuloop, 0);
+				need_to_queue_up = false;
+			}
 			if ((hotplug_cpu_lockout[cpuloop] == 2 || tunables->no_extra_cores_screen_off) && !main_cpufreq_control[cpuloop])
 			{
 				set_core_flag_down(cpuloop, 1);
@@ -2155,7 +2162,10 @@ void ktoonservative_screen_is_on(bool state, int cpu)
 		if (need_to_queue_up)
 			queue_work_on(0, dbs_wq, &hotplug_online_work);
 		if (need_to_queue_down)
+		{
+			force_cores_down = true;
 			queue_work_on(0, dbs_wq, &hotplug_offline_work);
+		}
 
 		boost_the_gpu(tunables->touch_boost_gpu, false);
 		stored_sampling_rate = tunables->sampling_rate;
@@ -2167,8 +2177,20 @@ void ktoonservative_boostpulse(bool boost_for_button)
 {
 	unsigned int cpu;
 	struct cpufreq_ktoonservative_cpuinfo *pcpu = &per_cpu(cpuinfo, 0);
-	struct cpufreq_ktoonservative_tunables *tunables =
-		pcpu->policy->governor_data;
+	struct cpufreq_ktoonservative_tunables *tunables;
+	
+	if (pcpu == NULL)
+		return;
+	if (pcpu->policy == NULL)
+		return;
+		
+	tunables = pcpu->policy->governor_data;
+	if (tunables == NULL)
+		return;
+	
+	if (!screen_is_on && !boost_for_button)
+		return;
+		
 	if (!boostpulse_relayf)
 	{
 		if (tunables->touch_boost_gpu > 0)  // && screen_is_on
@@ -2246,10 +2268,10 @@ static void __cpuinit hotplug_offline_work_fn(struct work_struct *work)
 	for (cpu = CPUS_AVAILABLE-1; cpu > 0; cpu--)
 	{
 		if (likely(cpu_online(cpu) && (cpu))) {
-			if (hotplug_cpu_single_down[cpu] && !hotplug_cpu_single_up[cpu] && !main_cpufreq_control[cpu])
+			if (hotplug_cpu_single_down[cpu] && ((!hotplug_cpu_single_up[cpu] && !main_cpufreq_control[cpu]) || force_cores_down))
 			{
 				if (debug_is_enabled)
-					pr_alert("BOOST CORES DOWN WORK FUNC %d - %d - %d - %d\n", cpu, hotplug_cpu_single_down[1], hotplug_cpu_single_down[2], hotplug_cpu_single_down[3]);
+					pr_alert("BOOST CORES DOWN WORK FUNC %d - %d - %d - %d - %d - %d - %d - %d\n", cpu, hotplug_cpu_single_down[1], hotplug_cpu_single_down[2], hotplug_cpu_single_down[3], hotplug_cpu_single_down[4], hotplug_cpu_single_down[5], hotplug_cpu_single_down[6], hotplug_cpu_single_down[7]);
 				cpu_down(cpu);
 				set_core_flag_down(cpu, 0);
 			}
@@ -2257,6 +2279,8 @@ static void __cpuinit hotplug_offline_work_fn(struct work_struct *work)
 		if (hotplug_cpu_single_up[cpu])
 			set_core_flag_up(cpu, 0);
 	}
+	if (force_cores_down)
+		force_cores_down = false;
 	hotplugInProgress = false;
 }
 
