@@ -2838,7 +2838,7 @@ struct cpufreq_governor cpufreq_gov_ktoonservative = {
 
 static int __init cpufreq_gov_dbs_init(void)
 {
-	dbs_wq = alloc_workqueue("ktoonservative_dbs_wq", WQ_HIGHPRI | WQ_CPU_INTENSIVE, 0);
+	dbs_wq = alloc_workqueue("ktoonservative_dbs_wq", WQ_HIGHPRI | WQ_UNBOUND, 0);
 	if (!dbs_wq) {
 		printk(KERN_ERR "Failed to create ktoonservative_dbs_wq workqueue\n");
 		return -EFAULT;
