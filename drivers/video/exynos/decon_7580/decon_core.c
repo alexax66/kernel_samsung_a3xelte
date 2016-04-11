@@ -932,7 +932,6 @@ int decon_enable(struct decon_device *decon)
 			goto err;
 		}
 	} else if (decon->out_type == DECON_OUT_DSI) {
-		decon->force_fullupdate = 0;
 		pm_stay_awake(decon->dev);
 		dev_warn(decon->dev, "pm_stay_awake");
 		ret = v4l2_subdev_call(decon->output_sd, video, s_stream, 1);
@@ -1739,11 +1738,6 @@ static void decon_set_win_update_config(struct decon_device *decon,
 	struct decon_win_config temp_config;
 	struct decon_rect r1, r2;
 	struct decon_lcd *lcd_info = decon->lcd_info;
-
-	if (decon->out_type == DECON_OUT_DSI) {
-		if (decon->force_fullupdate)
-			memset(update_config, 0, sizeof(struct decon_win_config));
-	}
 
 	decon_calibrate_win_update_size(decon, win_config, update_config);
 
@@ -3159,13 +3153,12 @@ static int decon_esd_panel_reset(struct decon_device *decon)
 		decon->ignore_vsync = false;
 
 #ifdef CONFIG_FB_WINDOW_UPDATE
-	decon->need_update = true;
+	decon->need_update = false;
 	decon->update_win.x = 0;
 	decon->update_win.y = 0;
 	decon->update_win.w = decon->lcd_info->xres;
 	decon->update_win.h = decon->lcd_info->yres;
 #endif
-	decon->force_fullupdate = 1;
 #if 0
 	if (decon->pdata->trig_mode == DECON_HW_TRIG)
 		decon_reg_set_trigger(decon->id, decon->pdata->dsi_mode,
@@ -3764,7 +3757,6 @@ decon_init_done:
 		if (!decon->cam_status[0])
 			decon_info("Failed to get CAM0-STAT Reg\n");
 	}
-	decon->force_fullupdate = 0;
 
 #ifdef CONFIG_CPU_IDLE
 	decon->lpc_nb = exynos_decon_lpc_nb;
