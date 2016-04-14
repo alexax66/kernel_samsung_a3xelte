@@ -40,6 +40,9 @@
 #include <linux/swap.h>
 #include <linux/rcupdate.h>
 #include <linux/notifier.h>
+#ifdef CONFIG_ANDROID_LOW_MEMORY_KILLER_DO_NOT_KILL_PROCESS
+#include <linux/string.h>
+#endif
 
 #ifdef CONFIG_SEC_OOM_KILLER
 #define MULTIPLE_OOM_KILLER
@@ -76,6 +79,76 @@ static int lowmem_minfree_size = 6;
 static uint32_t lowmem_lmkcount = 0;
 
 static unsigned long lowmem_deathpending_timeout;
+
+#ifdef CONFIG_ANDROID_LOW_MEMORY_KILLER_DO_NOT_KILL_PROCESS
+#define MAX_NOT_KILLABLE_PROCESSES	25	/* Max number of not killable processes */
+#define MANAGED_PROCESS_TYPES		3	/* Numer of managed process types (lowmem_process_type) */
+
+/*
+ * Enumerator for the managed process types
+ */
+enum lowmem_process_type {
+	KILLABLE_PROCESS,
+	DO_NOT_KILL_PROCESS,
+	DO_NOT_KILL_SYSTEM_PROCESS
+};
+
+/*
+ * Data struct for the management of not killable processes
+ */
+struct donotkill {
+	uint enabled;
+	char *names[MAX_NOT_KILLABLE_PROCESSES];
+	int names_count;
+};
+
+static struct donotkill donotkill_proc;		/* User processes to preserve from killing */
+static struct donotkill donotkill_sysproc;	/* System processes to preserve from killing */
+
+/*
+ * Checks if a process name is inside a list of processes to be preserved from killing
+ */
+static bool is_in_donotkill_list(char *proc_name, struct donotkill *donotkill_proc)
+{
+	int i = 0;
+
+	/* If the do not kill feature is enabled and the process names to be preserved
+	 * is not empty, then check if the passed process name is contained inside it */
+	if (donotkill_proc->enabled && donotkill_proc->names_count > 0) {
+		for (i = 0; i < donotkill_proc->names_count; i++) {
+			if (strstr(donotkill_proc->names[i], proc_name) != NULL)
+				return true; /* The process must be preserved from killing */
+		}
+	}
+
+	return false; /* The process is not contained inside the process names list */
+}
+
+/*
+ * Checks if a process name is inside a list of user processes to be preserved from killing
+ */
+static bool is_in_donotkill_proc_list(char *proc_name)
+{
+	return is_in_donotkill_list(proc_name, &donotkill_proc);
+}
+
+/*
+ * Checks if a process name is inside a list of system processes to be preserved from killing
+ */
+static bool is_in_donotkill_sysproc_list(char *proc_name)
+{
+	return is_in_donotkill_list(proc_name, &donotkill_sysproc);
+}
+#else
+#define MANAGED_PROCESS_TYPES		1	/* Numer of managed process types (lowmem_process_type) */
+
+/*
+ * Enumerator for the managed process types
+ */
+enum lowmem_process_type {
+	KILLABLE_PROCESS
+};
+#endif
 
 #define lowmem_print(level, x...)			\
 	do {						\
@@ -123,7 +196,7 @@ static struct task_struct *pick_last_task(void);
 static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 {
 	struct task_struct *tsk;
-	struct task_struct *selected = NULL;
+	struct task_struct *selected[MANAGED_PROCESS_TYPES] = {NULL};
 	const struct cred *pcred;
 	unsigned int uid = 0;
 	int rem = 0;
@@ -131,8 +204,9 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	int i;
 	short min_score_adj = OOM_SCORE_ADJ_MAX + 1;
 	int minfree = 0;
-	int selected_tasksize = 0;
-	short selected_oom_score_adj;
+	enum lowmem_process_type proc_type = KILLABLE_PROCESS;
+	int selected_tasksize[MANAGED_PROCESS_TYPES] = {0};
+	int selected_oom_score_adj[MANAGED_PROCESS_TYPES];
 	int array_size = ARRAY_SIZE(lowmem_adj);
 	int other_free = global_page_state(NR_FREE_PAGES);
 	int other_file = global_page_state(NR_FILE_PAGES) -
@@ -170,7 +244,10 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			     sc->nr_to_scan, sc->gfp_mask, rem);
 		return rem;
 	}
-	selected_oom_score_adj = min_score_adj;
+
+	/* Set the initial oom_score_adj for each managed process type */
+	for (proc_type = KILLABLE_PROCESS; proc_type < MANAGED_PROCESS_TYPES; proc_type++)
+		selected_oom_score_adj[proc_type] = min_score_adj;
 
 	rcu_read_lock();
 #ifdef CONFIG_ANDROID_LMK_ADJ_RBTREE
@@ -218,62 +295,88 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		task_unlock(p);
 		if (tasksize <= 0)
 			continue;
-		if (selected) {
-			if (oom_score_adj < selected_oom_score_adj)
+
+		/* Initially consider the process as killable */
+		proc_type = KILLABLE_PROCESS;
+
+#ifdef CONFIG_ANDROID_LOW_MEMORY_KILLER_DO_NOT_KILL_PROCESS
+		/* Check if the process name is contained inside the process to be preserved lists */
+		if (is_in_donotkill_proc_list(p->comm)) {
+			/* This user process must be preserved from killing */
+			proc_type = DO_NOT_KILL_PROCESS;
+			lowmem_print(2, "The process '%s' is inside the donotkill_proc_names", p->comm);
+		} else if (is_in_donotkill_sysproc_list(p->comm)) {
+			/* This system process must be preserved from killing */
+			proc_type = DO_NOT_KILL_SYSTEM_PROCESS;
+			lowmem_print(2, "The process '%s' is inside the donotkill_sysproc_names", p->comm);
+		}
+#endif
+
+		if (selected[proc_type]) {
+			if (oom_score_adj < selected_oom_score_adj[proc_type])
 #ifdef CONFIG_ANDROID_LMK_ADJ_RBTREE
 				break;
 #else
 				continue;
 #endif
-			if (oom_score_adj == selected_oom_score_adj &&
-			    tasksize <= selected_tasksize)
+			if (oom_score_adj == selected_oom_score_adj[proc_type] &&
+			    tasksize <= selected_tasksize[proc_type])
 				continue;
 		}
 		pcred = __task_cred(p);
 		uid = pcred->uid;
 		if (avoid_to_kill(uid) || protected_apps(p->comm)){
 			if (tasksize * (long)(PAGE_SIZE / 1024) >= 100000){
-				selected = p;
-				selected_tasksize = tasksize;
-				selected_oom_score_adj = oom_score_adj;
+				selected[proc_type] = p;
+				selected_tasksize[proc_type] = tasksize;
+				selected_oom_score_adj[proc_type] = oom_score_adj;
 				lowmem_print(3, "select protected %d (%s), adj %hd, size %d, to kill\n",
 				     	p->pid, p->comm, oom_score_adj, tasksize);
 			} else
 			lowmem_print(3, "skip protected %d (%s), adj %hd, size %d, to kill\n",
 			     	p->pid, p->comm, oom_score_adj, tasksize);
 		} else {
-			selected = p;
-			selected_tasksize = tasksize;
-			selected_oom_score_adj = oom_score_adj;
+			selected[proc_type] = p;
+			selected_tasksize[proc_type] = tasksize;
+			selected_oom_score_adj[proc_type] = oom_score_adj;
 			lowmem_print(3, "select %d (%s), adj %hd, size %d, to kill\n",
 			     	p->pid, p->comm, oom_score_adj, tasksize);
 		}
 	}
-	if (selected) {
-		lowmem_print(1, "Killing '%s' (%d), adj %hd,\n" \
-				"   to free %ldkB on behalf of '%s' (%d) because\n" \
-				"   cache %ldkB is below limit %ldkB for oom_score_adj %hd\n" \
-				"   Free memory is %ldkB above reserved\n",
-			     selected->comm, selected->pid,
-			     selected_oom_score_adj,
-			     selected_tasksize * (long)(PAGE_SIZE / 1024),
-			     current->comm, current->pid,
-			     other_file * (long)(PAGE_SIZE / 1024),
-			     minfree * (long)(PAGE_SIZE / 1024),
-			     min_score_adj,
-			     other_free * (long)(PAGE_SIZE / 1024));
-		lowmem_deathpending_timeout = jiffies + HZ;
-		send_sig(SIGKILL, selected, 0);
-		set_tsk_thread_flag(selected, TIF_MEMDIE);
-		rem -= selected_tasksize;
-		lowmem_lmkcount++;
+
+	/* For each managed process type check if a process to be killed has been found:
+	 * - check first if a standard killable process has been found, if so kill it
+	 * - if there is no killable process, then check if a user process has been found,
+	 *   if so kill it to prevent system slowdowns, hangs, etc.
+	 * - if there is no killable and user process, then check if a system process has been found,
+	 *   if so kill it to prevent system slowdowns, hangs, etc. */
+	for (proc_type = KILLABLE_PROCESS; proc_type < MANAGED_PROCESS_TYPES; proc_type++) {
+		if (selected[proc_type]) {
+			lowmem_print(1, "Killing '%s' (%d), adj %d,\n" \
+					"   to free %ldkB on behalf of '%s' (%d) because\n" \
+					"   cache %ldkB is below limit %ldkB for oom_score_adj %d\n" \
+					"   Free memory is %ldkB above reserved\n",
+					 selected[proc_type]->comm, selected[proc_type]->pid,
+					 selected_oom_score_adj[proc_type],
+					 selected_tasksize[proc_type] * (long)(PAGE_SIZE / 1024),
+					 current->comm, current->pid,
+					 other_file * (long)(PAGE_SIZE / 1024),
+					 minfree * (long)(PAGE_SIZE / 1024),
+					 min_score_adj,
+					 other_free * (long)(PAGE_SIZE / 1024));
+			lowmem_deathpending_timeout = jiffies + HZ;
+			send_sig(SIGKILL, selected[proc_type], 0);
+			set_tsk_thread_flag(selected[proc_type], TIF_MEMDIE);
+			rem -= selected_tasksize[proc_type];
+			lowmem_lmkcount++;
+			break;
+		}
 	}
 	lowmem_print(4, "lowmem_shrink %lu, %x, return %d\n",
 		     sc->nr_to_scan, sc->gfp_mask, rem);
 	rcu_read_unlock();
 	return rem;
 }
-
 
 /*
  * CONFIG_SEC_OOM_KILLER : klaatu@sec
@@ -674,6 +777,14 @@ module_param_array_named(minfree, lowmem_minfree, uint, &lowmem_minfree_size,
 			 S_IRUGO | S_IWUSR);
 module_param_named(debug_level, lowmem_debug_level, uint, S_IRUGO | S_IWUSR);
 module_param_named(lmkcount, lowmem_lmkcount, uint, S_IRUGO);
+#ifdef CONFIG_ANDROID_LOW_MEMORY_KILLER_DO_NOT_KILL_PROCESS
+module_param_named(donotkill_proc, donotkill_proc.enabled, uint, S_IRUGO | S_IWUSR);
+module_param_array_named(donotkill_proc_names, donotkill_proc.names, charp,
+			 &donotkill_proc.names_count, S_IRUGO | S_IWUSR);
+module_param_named(donotkill_sysproc, donotkill_sysproc.enabled, uint, S_IRUGO | S_IWUSR);
+module_param_array_named(donotkill_sysproc_names, donotkill_sysproc.names, charp,
+			 &donotkill_sysproc.names_count, S_IRUGO | S_IWUSR);
+#endif
 #ifdef OOM_COUNT_READ
 module_param_named(oomcount, oom_count, uint, S_IRUGO);
 #endif
