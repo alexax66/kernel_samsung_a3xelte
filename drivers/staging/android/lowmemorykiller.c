@@ -222,10 +222,8 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 #endif
 
 	si_meminfo(&si);
-	si_swapinfo(&si);
 
 	other_free += other_file;
-	other_free += si.freeswap;
 
 	if (lowmem_adj_size < array_size)
 		array_size = lowmem_adj_size;
