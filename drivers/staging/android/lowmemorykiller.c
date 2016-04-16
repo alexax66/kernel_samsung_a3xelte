@@ -252,7 +252,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	rcu_read_lock();
 #ifdef CONFIG_ANDROID_LMK_ADJ_RBTREE
 	for (tsk = pick_first_task();
-		tsk != pick_last_task();
+		tsk != pick_last_task() && tsk != NULL;
 		tsk = pick_next_from_adj_tree(tsk)) {
 #else
 	for_each_process(tsk) {
@@ -483,6 +483,13 @@ static int android_oom_handler(struct notifier_block *nb,
 
 		oom_score_adj = p->signal->oom_score_adj;
 		if (oom_score_adj < min_score_adj) {
+			task_unlock(p);
+			continue;
+		}
+		if (fatal_signal_pending(p) ||
+				((p->flags & PF_EXITING) &&
+					test_tsk_thread_flag(p, TIF_MEMDIE))) {
+			lowmem_print(2, "skip slow dying process %d\n", p->pid);
 			task_unlock(p);
 			continue;
 		}
