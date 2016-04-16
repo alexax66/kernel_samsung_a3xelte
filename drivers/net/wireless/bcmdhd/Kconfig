@@ -124,6 +124,13 @@ config BCM4335BT
 	---help---
 	  This is a configuration for bt lock enable.
 
+config BCMDHD_WIFI_PM
+	bool "Enable support for changing the WiFi power mode"
+	depends on BCM4343
+	default y
+	---help---
+	Enable support for changing the WiFi power mode for screen-off.
+
 config WIFI_BROADCOM_COB
   bool "BROADCOM COB type chip is enabled"
   depends on (BCM4330 || BCM4334 || BCM4335 || BCM4339 || BCM4354 || BCM43241 || BCM43454 || BCM43455 || BCM4343)
