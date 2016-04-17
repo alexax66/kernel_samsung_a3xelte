@@ -2340,9 +2340,13 @@ struct request *blk_fetch_request(struct request_queue *q)
 
 	rq = blk_peek_request(q);
 	if (rq) {
-		if (rq->cmd_flags & REQ_URGENT) {
-			WARN_ON(q->dispatched_urgent);
+		/*
+		 * Assumption: the next request fetched from scheduler after we
+		 * notified "urgent request pending" - will be the urgent one
+		 */
+		if (q->notified_urgent && !q->dispatched_urgent) {
 			q->dispatched_urgent = true;
+			(void)blk_mark_rq_urgent(rq);
 		}
 		blk_start_request(rq);
 	}
