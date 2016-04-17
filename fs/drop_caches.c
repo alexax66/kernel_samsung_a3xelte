@@ -70,15 +70,46 @@ int drop_caches_sysctl_handler(ctl_table *table, int write,
 
 static void drop_caches_suspend(struct work_struct *work);
 static DECLARE_WORK(drop_caches_suspend_work, drop_caches_suspend);
+static void drop_caches_resume(struct work_struct *work);
+static DECLARE_WORK(drop_caches_resume_work, drop_caches_resume);
+
+static int Pdirty_background_ratio;
+static unsigned long Pdirty_background_bytes;
+static int Pvm_dirty_ratio;
+static unsigned long Pvm_dirty_bytes;
+static unsigned int Pdirty_expire_interval;
 
 static void drop_caches_suspend(struct work_struct *work)
 {
 	/* sleep for 200ms */
 	msleep(200);
+
+	/* loosen writeback */
+	Pdirty_background_ratio = dirty_background_ratio;
+	Pdirty_background_bytes = dirty_background_bytes;
+	Pvm_dirty_ratio = vm_dirty_ratio;
+	Pvm_dirty_bytes = vm_dirty_bytes;
+	Pdirty_expire_interval = dirty_expire_interval;
+
+	dirty_background_ratio = 0;
+	dirty_background_bytes = 1 * 1024 * 1024; /* 1MB */
+	vm_dirty_ratio = 0;
+	vm_dirty_bytes = 1 * 1024 * 1024; /* 1MB */
+	dirty_expire_interval = 1 * 100; /* 1 second */
+
 	/* sync */
 	emergency_sync();
 	/* echo "1" > /proc/sys/vm/drop_caches */
 	iterate_supers(drop_pagecache_sb, NULL);
+}
+static void drop_caches_resume(struct work_struct *work)
+{
+	/* restore previous writeback tunables */
+	dirty_background_ratio = Pdirty_background_ratio;
+	dirty_background_bytes = Pdirty_background_bytes;
+	vm_dirty_ratio = Pvm_dirty_ratio;
+	vm_dirty_bytes = Pvm_dirty_bytes;
+	dirty_expire_interval = Pdirty_expire_interval;
 }
 
 static int fb_notifier(struct notifier_block *self,
@@ -91,7 +122,8 @@ static int fb_notifier(struct notifier_block *self,
 
 		if (blank == FB_BLANK_POWERDOWN) {
 			schedule_work_on(0, &drop_caches_suspend_work);
-			return NOTIFY_OK;
+		} else if (blank == FB_BLANK_UNBLANK) {
+			schedule_work_on(0, &drop_caches_resume_work);
 		}
 		return NOTIFY_OK;
 	}
@@ -106,6 +138,13 @@ static struct notifier_block fb_notifier_block = {
 static int __init drop_caches_init(void)
 {
 	fb_register_client(&fb_notifier_block);
+
+	Pdirty_background_ratio = dirty_background_ratio;
+	Pdirty_background_bytes = dirty_background_bytes;
+	Pvm_dirty_ratio = vm_dirty_ratio;
+	Pvm_dirty_bytes = vm_dirty_bytes;
+	Pdirty_expire_interval = dirty_expire_interval;
+
 	return 0;
 }
 late_initcall(drop_caches_init);
