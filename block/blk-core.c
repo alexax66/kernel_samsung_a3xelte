@@ -1225,16 +1225,6 @@ void blk_requeue_request(struct request_queue *q, struct request *rq)
 
 	BUG_ON(blk_queued_rq(rq));
 
-	if (rq->cmd_flags & REQ_URGENT) {
-		/*
-		 * It's not compliant with the design to re-insert
-		 * urgent requests. We want to be able to track this
-		 * down.
-		 */
-		pr_err("%s(): requeueing an URGENT request", __func__);
-		WARN_ON(!q->dispatched_urgent);
-		q->dispatched_urgent = false;
-	}
 	elv_requeue_request(q, rq);
 }
 EXPORT_SYMBOL(blk_requeue_request);
@@ -1263,16 +1253,6 @@ int blk_reinsert_request(struct request_queue *q, struct request *rq)
 
 	BUG_ON(blk_queued_rq(rq));
 
-	if (rq->cmd_flags & REQ_URGENT) {
-		/*
-		 * It's not compliant with the design to re-insert
-		 * urgent requests. We want to be able to track this
-		 * down.
-		 */
-		pr_err("%s(): requeueing an URGENT request", __func__);
-		WARN_ON(!q->dispatched_urgent);
-		q->dispatched_urgent = false;
-	}
 	return elv_reinsert_request(q, rq);
 }
 EXPORT_SYMBOL(blk_reinsert_request);
