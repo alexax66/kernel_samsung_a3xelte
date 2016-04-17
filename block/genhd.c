@@ -642,6 +642,21 @@ void add_disk(struct gendisk *disk)
 				   "bdi");
 	WARN_ON(retval);
 
+	/*
+	 * Limit default readahead size for small devices.
+	 *        disk size    readahead size
+	 *               1M                8k
+	 *               4M               16k
+	 *              16M               32k
+	 *              64M               64k
+	 *             256M              128k
+	 *               1G              256k
+	 *               4G              512k
+	 *              16G             1024k
+	 *              64G             2048k
+	 *             256G             4096k
+	 */
+
 	disk_add_events(disk);
 }
 EXPORT_SYMBOL(add_disk);
