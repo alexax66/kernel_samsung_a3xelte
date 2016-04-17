@@ -343,9 +343,7 @@ static void lazyplug_work_fn(struct work_struct *work)
 	if (lazyplug_active) {
 		nr_run_stat = calculate_thread_stats();
 		update_per_cpu_stat();
-#ifdef CONFIG_EXYNOS5_DYNAMIC_CPU_HOTPLUG
-	exynos_dm_hotplug_disable();
-#endif
+
 #ifdef DEBUG_LAZYPLUG
 		pr_info("nr_run_stat: %u\n", nr_run_stat);
 #endif
@@ -362,7 +360,7 @@ static void lazyplug_work_fn(struct work_struct *work)
 					idle_count++;
 
 				if (idle_count == DEF_IDLE_COUNT && persist_count == 0) {
-					/* take down A57 first */
+					/* take down cpu Cluster 1 first */
 					cpu_down(7);
 					cpu_down(6);
 					cpu_down(5);
@@ -402,20 +400,6 @@ static void lazyplug_work_fn(struct work_struct *work)
 	}
 	queue_delayed_work_on(0, lazyplug_wq, &lazyplug_work,
 		msecs_to_jiffies(sampling_time));
-}
-
-static void wakeup_boost(void)
-{
-	unsigned int cpu;
-	struct cpufreq_policy *policy;
-	struct ip_cpu_info *l_ip_info;
-
-	for_each_online_cpu(cpu) {
-		policy = cpufreq_cpu_get(cpu);
-		l_ip_info = &per_cpu(ip_info, cpu);
-		policy->cur = l_ip_info->cur_max;
-		cpufreq_update_policy(cpu);
-	}
 }
 
 #if defined(CONFIG_POWERSUSPEND) || defined(CONFIG_HAS_EARLYSUSPEND)
@@ -491,7 +475,7 @@ void lazyplug_enter_lazy(bool enter)
 		touch_boost_active = false;
 		lazymode = true;
 
-		/* take down A57 */
+		/* take down cpu Cluster 1 */
 		cpu_down(7);
 		cpu_down(6);
 		cpu_down(5);

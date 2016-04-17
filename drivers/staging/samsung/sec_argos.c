@@ -291,13 +291,17 @@ int argos_task_affinity_apply(int dev_num, bool enable)
 	list_for_each_entry(this, head, entry) {
 		if (enable) {
 			if (*hotplug_disable == false) {
+#ifdef CONFIG_EXYNOS7580_DYNAMIC_CLUSTER_HOTPLUG
 				__set_force_hstate(0);
+#endif
 				*hotplug_disable = true;
 			}
 			mask = this->affinity_cpu_mask;
 		} else {
 			if (*hotplug_disable == true) {
+#ifdef CONFIG_EXYNOS7580_DYNAMIC_CLUSTER_HOTPLUG
 				__set_force_hstate(-1);
+#endif
 				*hotplug_disable = false;
 			}
 			mask = this->default_cpu_mask;
@@ -329,13 +333,17 @@ int argos_irq_affinity_apply(int dev_num, bool enable)
 	list_for_each_entry(this, head, entry) {
 		if (enable) {
 			if (*hotplug_disable == false) {
+#ifdef CONFIG_EXYNOS7580_DYNAMIC_CLUSTER_HOTPLUG
 				__set_force_hstate(0);
+#endif
 				*hotplug_disable = true;
 			}
 			mask = this->affinity_cpu_mask;
 		} else {
 			if (*hotplug_disable == true) {
+#ifdef CONFIG_EXYNOS7580_DYNAMIC_CLUSTER_HOTPLUG
 				__set_force_hstate(-1);
+#endif
 				*hotplug_disable = false;
 			}
 			mask = this->default_cpu_mask;
