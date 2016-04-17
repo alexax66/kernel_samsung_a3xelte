@@ -1231,7 +1231,7 @@ void blk_requeue_request(struct request_queue *q, struct request *rq)
 		 * urgent requests. We want to be able to track this
 		 * down.
 		 */
-		pr_debug("%s(): reinserting an URGENT request", __func__);
+		pr_err("%s(): reinserting an URGENT request", __func__);
 		WARN_ON(!q->dispatched_urgent);
 		q->dispatched_urgent = false;
 	}
@@ -1269,7 +1269,7 @@ int blk_reinsert_request(struct request_queue *q, struct request *rq)
 		 * urgent requests. We want to be able to track this
 		 * down.
 		 */
-		pr_debug("%s(): requeueing an URGENT request", __func__);
+		pr_err("%s(): requeueing an URGENT request", __func__);
 		WARN_ON(!q->dispatched_urgent);
 		q->dispatched_urgent = false;
 	}
