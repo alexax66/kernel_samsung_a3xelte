@@ -99,10 +99,10 @@ static DEFINE_MUTEX(lazyplug_mutex);
 static DEFINE_MUTEX(lazymode_mutex);
 
 static struct delayed_work lazyplug_work;
-static struct delayed_work lazyplug_boost;
+static struct delayed_work lazyplug_cac;
 
 static struct workqueue_struct *lazyplug_wq;
-static struct workqueue_struct *lazyplug_boost_wq;
+static struct workqueue_struct *lazyplug_cac_wq;
 
 static unsigned int __read_mostly lazyplug_active = 0;
 module_param(lazyplug_active, uint, 0664);
@@ -119,6 +119,8 @@ static unsigned int __read_mostly sampling_time = DEF_SAMPLING_MS;
 static int persist_count = 0;
 
 static bool __read_mostly suspended = false;
+static bool __read_mostly cac_bool = true;
+static bool __read_mostly lazymode = false;
 
 struct ip_cpu_info {
 	unsigned int sys_max;
@@ -232,8 +234,15 @@ static void __ref cpu_all_ctrl(bool online) {
 
 	if (online) {
 		/* start from the smaller ones */
-		for(cpu = 1; cpu <= nr_cpu_ids - 1; cpu++) {
-			cpu_up(cpu);
+		if (lazymode) {
+			/* Mess around with A53 only */
+			for(cpu = 1; cpu <= 3; cpu++) {
+				cpu_up(cpu);
+			}
+		} else {
+			for(cpu = 1; cpu <= nr_cpu_ids - 1; cpu++) {
+				cpu_up(cpu);
+			}
 		}
 	} else {
 		/* kill from the bigger ones */
@@ -251,21 +260,18 @@ static unsigned int calculate_thread_stats(void)
 	unsigned int *current_profile;
 
 	current_profile = nr_run_profiles[nr_run_profile_sel];
-	if (num_possible_cpus() > 2) {
-		if (nr_run_profile_sel >= NR_RUN_ECO_MODE_PROFILE)
-			threshold_size =
-				ARRAY_SIZE(nr_run_thresholds_eco);
-		else
-			threshold_size =
-				ARRAY_SIZE(nr_run_thresholds_balance);
-	} else
+
+	if (nr_run_profile_sel >= NR_RUN_ECO_MODE_PROFILE)
 		threshold_size =
 			ARRAY_SIZE(nr_run_thresholds_eco);
+	else
+		threshold_size =
+			ARRAY_SIZE(nr_run_thresholds_balance);
 
 	if (nr_run_profile_sel >= NR_RUN_ECO_MODE_PROFILE)
 		nr_fshift = 1;
 	else
-		nr_fshift = num_possible_cpus() - 1;
+		nr_fshift = 3;
 
 	for (nr_run = 1; nr_run < threshold_size; nr_run++) {
 		unsigned int nr_threshold;
@@ -281,9 +287,9 @@ static unsigned int calculate_thread_stats(void)
 	return nr_run;
 }
 
-static void lazyplug_boost_fn(struct work_struct *work)
+static void lazyplug_cac_fn(struct work_struct *work)
 {
-	cpu_all_ctrl(true);
+	cpu_all_ctrl(cac_bool);
 }
 
 /*
@@ -356,6 +362,11 @@ static void lazyplug_work_fn(struct work_struct *work)
 					idle_count++;
 
 				if (idle_count == DEF_IDLE_COUNT && persist_count == 0) {
+					/* take down A57 first */
+					cpu_down(7);
+					cpu_down(6);
+					cpu_down(5);
+					cpu_down(4);
 					/* take down everyone */
 					unplug_cpu(0);
 #ifdef DEBUG_LAZYPLUG
@@ -423,17 +434,10 @@ static void lazyplug_suspend(struct early_suspend *handler)
 		mutex_unlock(&lazyplug_mutex);
 
 		// put rest of the cores to sleep unconditionally!
-		cpu_all_ctrl(false);
+		cac_bool = false;
+		queue_delayed_work_on(0, lazyplug_wq, &lazyplug_cac,
+			msecs_to_jiffies(0));
 	}
-}
-
-static void cpu_all_up(struct work_struct *work);
-static DECLARE_WORK(cpu_all_up_work, cpu_all_up);
-
-static void cpu_all_up(struct work_struct *work)
-{
-	cpu_all_ctrl(true);
-	wakeup_boost();
 }
 
 #ifdef CONFIG_POWERSUSPEND
@@ -450,10 +454,12 @@ static void lazyplug_resume(struct early_suspend *handler)
 		suspended = false;
 		mutex_unlock(&lazyplug_mutex);
 
-		schedule_work(&cpu_all_up_work);
+		cac_bool = true;
+		queue_delayed_work_on(0, lazyplug_wq, &lazyplug_cac,
+			msecs_to_jiffies(10));
 	}
 	queue_delayed_work_on(0, lazyplug_wq, &lazyplug_work,
-		msecs_to_jiffies(10));
+		msecs_to_jiffies(0));
 }
 #endif
 
@@ -474,22 +480,31 @@ static struct early_suspend lazyplug_early_suspend_driver = {
 
 static unsigned int Lnr_run_profile_sel = 0;
 static unsigned int Ltouch_boost_active = true;
-static bool Lprevious_state = false;
 void lazyplug_enter_lazy(bool enter)
 {
 	mutex_lock(&lazymode_mutex);
-	if (enter && !Lprevious_state) {
+	if (enter && !lazymode) {
 		pr_info("lazyplug: entering lazy mode\n");
 		Lnr_run_profile_sel = nr_run_profile_sel;
 		Ltouch_boost_active = touch_boost_active;
 		nr_run_profile_sel = 2; /* conversative profile */
 		touch_boost_active = false;
-		Lprevious_state = true;
-	} else if (!enter && Lprevious_state) {
+		lazymode = true;
+
+		/* take down A57 */
+		cpu_down(7);
+		cpu_down(6);
+		cpu_down(5);
+		cpu_down(4);
+	} else if (!enter && lazymode) {
 		pr_info("lazyplug: exiting lazy mode\n");
 		touch_boost_active = Ltouch_boost_active;
 		nr_run_profile_sel = Lnr_run_profile_sel;
-		Lprevious_state = false;
+		lazymode = false;
+
+		cac_bool = true;
+		queue_delayed_work_on(0, lazyplug_wq, &lazyplug_cac,
+			msecs_to_jiffies(10));
 	}
 	mutex_unlock(&lazymode_mutex);
 }
@@ -503,7 +518,8 @@ static void lazyplug_input_event(struct input_handle *handle,
 
 	if (lazyplug_active && touch_boost_active && !suspended) {
 		idle_count = 0;
-		queue_delayed_work_on(0, lazyplug_wq, &lazyplug_boost,
+		cac_bool = true;
+		queue_delayed_work_on(0, lazyplug_wq, &lazyplug_cac,
 			msecs_to_jiffies(10));
 	}
 }
@@ -576,7 +592,7 @@ int __init lazyplug_init(void)
 {
 	int rc;
 
-	nr_possible_cores = num_possible_cpus();
+	nr_possible_cores = 4;
 
 	pr_info("lazyplug: version %d.%d by arter97\n"
 		"          based on intelli_plug by faux123\n",
@@ -600,12 +616,11 @@ int __init lazyplug_init(void)
 	register_early_suspend(&lazyplug_early_suspend_driver);
 #endif
 
-	lazyplug_wq = alloc_workqueue("lazyplug",
-				WQ_HIGHPRI | WQ_UNBOUND, 1);
-	lazyplug_boost_wq = alloc_workqueue("lplug_boost",
-				WQ_HIGHPRI | WQ_UNBOUND, 1);
+	lazyplug_wq = alloc_workqueue("lazyplug", WQ_HIGHPRI, 1);
+	lazyplug_cac_wq = alloc_workqueue("lplug_cac", WQ_HIGHPRI, 1);
 	INIT_DELAYED_WORK(&lazyplug_work, lazyplug_work_fn);
-	INIT_DELAYED_WORK(&lazyplug_boost, lazyplug_boost_fn);
+	INIT_DELAYED_WORK(&lazyplug_cac, lazyplug_cac_fn);
+
 	queue_delayed_work_on(0, lazyplug_wq, &lazyplug_work,
 		msecs_to_jiffies(10));
 
