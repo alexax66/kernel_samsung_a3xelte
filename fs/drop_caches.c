@@ -99,8 +99,9 @@ static void drop_caches_suspend(struct work_struct *work)
 
 	/* sync */
 	emergency_sync();
-	/* echo "1" > /proc/sys/vm/drop_caches */
+	/* echo "3" > /proc/sys/vm/drop_caches */
 	iterate_supers(drop_pagecache_sb, NULL);
+	drop_slab();
 }
 static void drop_caches_resume(struct work_struct *work)
 {
