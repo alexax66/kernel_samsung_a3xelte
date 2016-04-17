@@ -23,7 +23,7 @@
     <meta name="viewport" content="width=1020">
     
     
-    <title>Perseus-halaszk-universal5433/row-iosched.c at cec4ecba59739671b7c8a4b8b328451c7593021d · halaszk/Perseus-halaszk-universal5433 · GitHub</title>
+    <title>Perseus-halaszk-universal5433/row-iosched.c at 5e373fc4a2be427473a97ca0285a347f114c52f2 · halaszk/Perseus-halaszk-universal5433 · GitHub</title>
     <link rel="search" type="application/opensearchdescription+xml" href="/opensearch.xml" title="GitHub">
     <link rel="fluid-icon" href="https://github.com/fluidicon.png" title="GitHub">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -55,7 +55,7 @@
 <meta name="google-site-verification" content="ZzhVyEFwb7w3e0-uOTltm8Jsck2F5StVihD0exw2fsA">
     <meta name="google-analytics" content="UA-3769691-2">
 
-<meta content="collector.githubapp.com" name="octolytics-host" /><meta content="github" name="octolytics-app-id" /><meta content="B9879416:4DC0:12D17E1D:5713874C" name="octolytics-dimension-request_id" />
+<meta content="collector.githubapp.com" name="octolytics-host" /><meta content="github" name="octolytics-app-id" /><meta content="B9879416:4DBC:E516D64:571387CF" name="octolytics-dimension-request_id" />
 <meta content="/&lt;user-name&gt;/&lt;repo-name&gt;/blob/show" data-pjax-transient="true" name="analytics-location" />
 
 
@@ -68,12 +68,12 @@
     <meta name="user-login" content="">
 
         <meta name="expected-hostname" content="github.com">
-      <meta name="js-proxy-site-detection-payload" content="ZGQxZDM1YmY4NDI4YzAwMjczNWRkNDEwM2RjNDUxYWM1MGQ3YThkYjA3MTRjNTJlNWVjZjQ2ZWI4NjRlYTlkNnx7InJlbW90ZV9hZGRyZXNzIjoiMTg1LjEzNS4xNDguMjIiLCJyZXF1ZXN0X2lkIjoiQjk4Nzk0MTY6NERDMDoxMkQxN0UxRDo1NzEzODc0QyIsInRpbWVzdGFtcCI6MTQ2MDg5NzYxMn0=">
+      <meta name="js-proxy-site-detection-payload" content="NjIxODIzODk2MjJkOGFiY2RiYWUyNGYwMWVhZmU2Yjk0NGU4Y2I1MTExZWYyNmZmZDBhMTc1MTg3ZjUyNGIwZnx7InJlbW90ZV9hZGRyZXNzIjoiMTg1LjEzNS4xNDguMjIiLCJyZXF1ZXN0X2lkIjoiQjk4Nzk0MTY6NERCQzpFNTE2RDY0OjU3MTM4N0NGIiwidGltZXN0YW1wIjoxNDYwODk3NzQ0fQ==">
 
       <link rel="mask-icon" href="https://assets-cdn.github.com/pinned-octocat.svg" color="#4078c0">
       <link rel="icon" type="image/x-icon" href="https://assets-cdn.github.com/favicon.ico">
 
-    <meta content="b6830e32a45df3dd8e050154c2f4550ae013f84f" name="form-nonce" />
+    <meta content="8a5b65f9394db849bdf673b31262d9732cf03aa4" name="form-nonce" />
 
     <meta http-equiv="x-pjax-version" content="c5556203ffb088df326f25d0f95aea97">
     
@@ -83,10 +83,10 @@
   <meta name="go-import" content="github.com/halaszk/Perseus-halaszk-universal5433 git https://github.com/halaszk/Perseus-halaszk-universal5433.git">
 
   <meta content="232720" name="octolytics-dimension-user_id" /><meta content="halaszk" name="octolytics-dimension-user_login" /><meta content="28389718" name="octolytics-dimension-repository_id" /><meta content="halaszk/Perseus-halaszk-universal5433" name="octolytics-dimension-repository_nwo" /><meta content="true" name="octolytics-dimension-repository_public" /><meta content="false" name="octolytics-dimension-repository_is_fork" /><meta content="28389718" name="octolytics-dimension-repository_network_root_id" /><meta content="halaszk/Perseus-halaszk-universal5433" name="octolytics-dimension-repository_network_root_nwo" />
-  <link href="https://github.com/halaszk/Perseus-halaszk-universal5433/commits/cec4ecba59739671b7c8a4b8b328451c7593021d.atom" rel="alternate" title="Recent Commits to Perseus-halaszk-universal5433:cec4ecba59739671b7c8a4b8b328451c7593021d" type="application/atom+xml">
+  <link href="https://github.com/halaszk/Perseus-halaszk-universal5433/commits/5e373fc4a2be427473a97ca0285a347f114c52f2.atom" rel="alternate" title="Recent Commits to Perseus-halaszk-universal5433:5e373fc4a2be427473a97ca0285a347f114c52f2" type="application/atom+xml">
 
 
-      <link rel="canonical" href="https://github.com/halaszk/Perseus-halaszk-universal5433/blob/cec4ecba59739671b7c8a4b8b328451c7593021d/block/row-iosched.c" data-pjax-transient>
+      <link rel="canonical" href="https://github.com/halaszk/Perseus-halaszk-universal5433/blob/5e373fc4a2be427473a97ca0285a347f114c52f2/block/row-iosched.c" data-pjax-transient>
   </head>
 
 
@@ -124,7 +124,7 @@
 
       <div class="site-header-actions">
             <a class="btn btn-primary site-header-actions-btn" href="/join?source=header-repo" data-ga-click="(Logged out) Header, clicked Sign up, text:sign-up">Sign up</a>
-          <a class="btn site-header-actions-btn mr-2" href="/login?return_to=%2Fhalaszk%2FPerseus-halaszk-universal5433%2Fblob%2Fcec4ecba59739671b7c8a4b8b328451c7593021d%2Fblock%2Frow-iosched.c" data-ga-click="(Logged out) Header, clicked Sign in, text:sign-in">Sign in</a>
+          <a class="btn site-header-actions-btn mr-2" href="/login?return_to=%2Fhalaszk%2FPerseus-halaszk-universal5433%2Fblob%2F5e373fc4a2be427473a97ca0285a347f114c52f2%2Fblock%2Frow-iosched.c" data-ga-click="(Logged out) Header, clicked Sign in, text:sign-in">Sign in</a>
       </div>
 
         <nav class="site-header-nav site-header-nav-secondary">
@@ -277,9 +277,9 @@
 
     
 
-<a href="/halaszk/Perseus-halaszk-universal5433/blob/cec4ecba59739671b7c8a4b8b328451c7593021d/block/row-iosched.c" class="hidden js-permalink-shortcut" data-hotkey="y">Permalink</a>
+<a href="/halaszk/Perseus-halaszk-universal5433/blob/5e373fc4a2be427473a97ca0285a347f114c52f2/block/row-iosched.c" class="hidden js-permalink-shortcut" data-hotkey="y">Permalink</a>
 
-<!-- blob contrib key: blob_contributors:v21:737c5897389120a47945f7b378cad9ed -->
+<!-- blob contrib key: blob_contributors:v21:8ea37f6c01f98b07703cbd537818ae89 -->
 
 <div class="file-navigation js-zeroclipboard-container">
   
@@ -288,7 +288,7 @@
     title=""
     type="button" aria-label="Switch branches or tags" tabindex="0" aria-haspopup="true">
     <i>Tree:</i>
-    <span class="js-select-button css-truncate-target">cec4ecba59</span>
+    <span class="js-select-button css-truncate-target">5e373fc4a2</span>
   </button>
 
   <div class="select-menu-modal-holder js-menu-content js-navigation-container" data-pjax aria-hidden="true">
@@ -379,7 +379,7 @@
 </div>
 
   <div class="btn-group right">
-    <a href="/halaszk/Perseus-halaszk-universal5433/find/cec4ecba59739671b7c8a4b8b328451c7593021d"
+    <a href="/halaszk/Perseus-halaszk-universal5433/find/5e373fc4a2be427473a97ca0285a347f114c52f2"
           class="js-pjax-capture-input btn btn-sm"
           data-pjax
           data-hotkey="t">
@@ -388,11 +388,11 @@
     <button aria-label="Copy file path to clipboard" class="js-zeroclipboard btn btn-sm zeroclipboard-button tooltipped tooltipped-s" data-copied-hint="Copied!" type="button">Copy path</button>
   </div>
   <div class="breadcrumb js-zeroclipboard-target">
-    <span class="repo-root js-repo-root"><span class="js-path-segment"><a href="/halaszk/Perseus-halaszk-universal5433/tree/cec4ecba59739671b7c8a4b8b328451c7593021d"><span>Perseus-halaszk-universal5433</span></a></span></span><span class="separator">/</span><span class="js-path-segment"><a href="/halaszk/Perseus-halaszk-universal5433/tree/cec4ecba59739671b7c8a4b8b328451c7593021d/block"><span>block</span></a></span><span class="separator">/</span><strong class="final-path">row-iosched.c</strong>
+    <span class="repo-root js-repo-root"><span class="js-path-segment"><a href="/halaszk/Perseus-halaszk-universal5433/tree/5e373fc4a2be427473a97ca0285a347f114c52f2"><span>Perseus-halaszk-universal5433</span></a></span></span><span class="separator">/</span><span class="js-path-segment"><a href="/halaszk/Perseus-halaszk-universal5433/tree/5e373fc4a2be427473a97ca0285a347f114c52f2/block"><span>block</span></a></span><span class="separator">/</span><strong class="final-path">row-iosched.c</strong>
   </div>
 </div>
 
-<include-fragment class="commit-tease" src="/halaszk/Perseus-halaszk-universal5433/contributors/cec4ecba59739671b7c8a4b8b328451c7593021d/block/row-iosched.c">
+<include-fragment class="commit-tease" src="/halaszk/Perseus-halaszk-universal5433/contributors/5e373fc4a2be427473a97ca0285a347f114c52f2/block/row-iosched.c">
   <div>
     Fetching contributors&hellip;
   </div>
@@ -407,9 +407,9 @@
   <div class="file-actions">
 
     <div class="btn-group">
-      <a href="/halaszk/Perseus-halaszk-universal5433/raw/cec4ecba59739671b7c8a4b8b328451c7593021d/block/row-iosched.c" class="btn btn-sm " id="raw-url">Raw</a>
-        <a href="/halaszk/Perseus-halaszk-universal5433/blame/cec4ecba59739671b7c8a4b8b328451c7593021d/block/row-iosched.c" class="btn btn-sm js-update-url-with-hash">Blame</a>
-      <a href="/halaszk/Perseus-halaszk-universal5433/commits/cec4ecba59739671b7c8a4b8b328451c7593021d/block/row-iosched.c" class="btn btn-sm " rel="nofollow">History</a>
+      <a href="/halaszk/Perseus-halaszk-universal5433/raw/5e373fc4a2be427473a97ca0285a347f114c52f2/block/row-iosched.c" class="btn btn-sm " id="raw-url">Raw</a>
+        <a href="/halaszk/Perseus-halaszk-universal5433/blame/5e373fc4a2be427473a97ca0285a347f114c52f2/block/row-iosched.c" class="btn btn-sm js-update-url-with-hash">Blame</a>
+      <a href="/halaszk/Perseus-halaszk-universal5433/commits/5e373fc4a2be427473a97ca0285a347f114c52f2/block/row-iosched.c" class="btn btn-sm " rel="nofollow">History</a>
     </div>
 
 
@@ -424,9 +424,9 @@
   </div>
 
   <div class="file-info">
-      682 lines (598 sloc)
+      689 lines (605 sloc)
       <span class="file-info-divider"></span>
-    18.6 KB
+    18.8 KB
   </div>
 </div>
 
@@ -2040,138 +2040,136 @@
       </tr>
       <tr>
         <td id="L390" class="blob-num js-line-number" data-line-number="390"></td>
-        <td id="LC390" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">row_log_rowq</span>(rd, currq,</td>
+        <td id="LC390" class="blob-code blob-code-inner js-file-line">			<span class="pl-k">if</span> (force) {</td>
       </tr>
       <tr>
         <td id="L391" class="blob-num js-line-number" data-line-number="391"></td>
-        <td id="LC391" class="blob-code blob-code-inner js-file-line">				     <span class="pl-s"><span class="pl-pds">&quot;</span>Delayed work pending. Exiting<span class="pl-pds">&quot;</span></span>);</td>
+        <td id="LC391" class="blob-code blob-code-inner js-file-line">				(<span class="pl-k">void</span>)<span class="pl-c1">cancel_delayed_work</span>(</td>
       </tr>
       <tr>
         <td id="L392" class="blob-num js-line-number" data-line-number="392"></td>
-        <td id="LC392" class="blob-code blob-code-inner js-file-line">			<span class="pl-k">goto</span> done;</td>
+        <td id="LC392" class="blob-code blob-code-inner js-file-line">				&amp;rd-&gt;read_idle.<span class="pl-smi">idle_work</span>);</td>
       </tr>
       <tr>
         <td id="L393" class="blob-num js-line-number" data-line-number="393"></td>
-        <td id="LC393" class="blob-code blob-code-inner js-file-line">		}</td>
+        <td id="LC393" class="blob-code blob-code-inner js-file-line">				<span class="pl-c1">row_log_rowq</span>(rd, currq,</td>
       </tr>
       <tr>
         <td id="L394" class="blob-num js-line-number" data-line-number="394"></td>
-        <td id="LC394" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC394" class="blob-code blob-code-inner js-file-line">					<span class="pl-s"><span class="pl-pds">&quot;</span>Canceled delayed work - forced dispatch<span class="pl-pds">&quot;</span></span>);</td>
       </tr>
       <tr>
         <td id="L395" class="blob-num js-line-number" data-line-number="395"></td>
-        <td id="LC395" class="blob-code blob-code-inner js-file-line">		<span class="pl-k">if</span> (queue_idling_enabled[currq] &amp;&amp;</td>
+        <td id="LC395" class="blob-code blob-code-inner js-file-line">			} <span class="pl-k">else</span> {</td>
       </tr>
       <tr>
         <td id="L396" class="blob-num js-line-number" data-line-number="396"></td>
-        <td id="LC396" class="blob-code blob-code-inner js-file-line">		    rd-&gt;row_queues[currq].<span class="pl-smi">rqueue</span>.<span class="pl-smi">idle_data</span>.<span class="pl-smi">begin_idling</span>) {</td>
+        <td id="LC396" class="blob-code blob-code-inner js-file-line">				<span class="pl-c1">row_log_rowq</span>(rd, currq,</td>
       </tr>
       <tr>
         <td id="L397" class="blob-num js-line-number" data-line-number="397"></td>
-        <td id="LC397" class="blob-code blob-code-inner js-file-line">			<span class="pl-k">if</span> (!<span class="pl-c1">queue_delayed_work</span>(rd-&gt;read_idle.<span class="pl-smi">idle_workqueue</span>,</td>
+        <td id="LC397" class="blob-code blob-code-inner js-file-line">						 <span class="pl-s"><span class="pl-pds">&quot;</span>Delayed work pending. Exiting<span class="pl-pds">&quot;</span></span>);</td>
       </tr>
       <tr>
         <td id="L398" class="blob-num js-line-number" data-line-number="398"></td>
-        <td id="LC398" class="blob-code blob-code-inner js-file-line">			    &amp;rd-&gt;read_idle.<span class="pl-smi">idle_work</span>,</td>
+        <td id="LC398" class="blob-code blob-code-inner js-file-line">				<span class="pl-k">goto</span> done;</td>
       </tr>
       <tr>
         <td id="L399" class="blob-num js-line-number" data-line-number="399"></td>
-        <td id="LC399" class="blob-code blob-code-inner js-file-line">			    jiffies +</td>
+        <td id="LC399" class="blob-code blob-code-inner js-file-line">			}</td>
       </tr>
       <tr>
         <td id="L400" class="blob-num js-line-number" data-line-number="400"></td>
-        <td id="LC400" class="blob-code blob-code-inner js-file-line">			    <span class="pl-c1">msecs_to_jiffies</span>(rd-&gt;read_idle.<span class="pl-smi">idle_time</span>))) {</td>
+        <td id="LC400" class="blob-code blob-code-inner js-file-line">		}</td>
       </tr>
       <tr>
         <td id="L401" class="blob-num js-line-number" data-line-number="401"></td>
-        <td id="LC401" class="blob-code blob-code-inner js-file-line">				<span class="pl-c1">row_log_rowq</span>(rd, currq,</td>
+        <td id="LC401" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L402" class="blob-num js-line-number" data-line-number="402"></td>
-        <td id="LC402" class="blob-code blob-code-inner js-file-line">					     <span class="pl-s"><span class="pl-pds">&quot;</span>Work already on queue!<span class="pl-pds">&quot;</span></span>);</td>
+        <td id="LC402" class="blob-code blob-code-inner js-file-line">		<span class="pl-k">if</span> (!force &amp;&amp; queue_idling_enabled[currq] &amp;&amp;</td>
       </tr>
       <tr>
         <td id="L403" class="blob-num js-line-number" data-line-number="403"></td>
-        <td id="LC403" class="blob-code blob-code-inner js-file-line">				<span class="pl-c1">pr_err</span>(<span class="pl-s"><span class="pl-pds">&quot;</span>ROW_BUG: Work already on queue!<span class="pl-pds">&quot;</span></span>);</td>
+        <td id="LC403" class="blob-code blob-code-inner js-file-line">		    rd-&gt;row_queues[currq].<span class="pl-smi">rqueue</span>.<span class="pl-smi">idle_data</span>.<span class="pl-smi">begin_idling</span>) {</td>
       </tr>
       <tr>
         <td id="L404" class="blob-num js-line-number" data-line-number="404"></td>
-        <td id="LC404" class="blob-code blob-code-inner js-file-line">			} <span class="pl-k">else</span></td>
+        <td id="LC404" class="blob-code blob-code-inner js-file-line">			<span class="pl-k">if</span> (!<span class="pl-c1">queue_delayed_work</span>(rd-&gt;read_idle.<span class="pl-smi">idle_workqueue</span>,</td>
       </tr>
       <tr>
         <td id="L405" class="blob-num js-line-number" data-line-number="405"></td>
-        <td id="LC405" class="blob-code blob-code-inner js-file-line">				<span class="pl-c1">row_log_rowq</span>(rd, currq,</td>
+        <td id="LC405" class="blob-code blob-code-inner js-file-line">			    &amp;rd-&gt;read_idle.<span class="pl-smi">idle_work</span>,</td>
       </tr>
       <tr>
         <td id="L406" class="blob-num js-line-number" data-line-number="406"></td>
-        <td id="LC406" class="blob-code blob-code-inner js-file-line">				     <span class="pl-s"><span class="pl-pds">&quot;</span>Scheduled delayed work. exiting<span class="pl-pds">&quot;</span></span>);</td>
+        <td id="LC406" class="blob-code blob-code-inner js-file-line">			    jiffies +</td>
       </tr>
       <tr>
         <td id="L407" class="blob-num js-line-number" data-line-number="407"></td>
-        <td id="LC407" class="blob-code blob-code-inner js-file-line">			<span class="pl-k">goto</span> done;</td>
+        <td id="LC407" class="blob-code blob-code-inner js-file-line">			    <span class="pl-c1">msecs_to_jiffies</span>(rd-&gt;read_idle.<span class="pl-smi">idle_time</span>))) {</td>
       </tr>
       <tr>
         <td id="L408" class="blob-num js-line-number" data-line-number="408"></td>
-        <td id="LC408" class="blob-code blob-code-inner js-file-line">		} <span class="pl-k">else</span> {</td>
+        <td id="LC408" class="blob-code blob-code-inner js-file-line">				<span class="pl-c1">row_log_rowq</span>(rd, currq,</td>
       </tr>
       <tr>
         <td id="L409" class="blob-num js-line-number" data-line-number="409"></td>
-        <td id="LC409" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">row_log_rowq</span>(rd, currq,</td>
+        <td id="LC409" class="blob-code blob-code-inner js-file-line">					     <span class="pl-s"><span class="pl-pds">&quot;</span>Work already on queue!<span class="pl-pds">&quot;</span></span>);</td>
       </tr>
       <tr>
         <td id="L410" class="blob-num js-line-number" data-line-number="410"></td>
-        <td id="LC410" class="blob-code blob-code-inner js-file-line">				     <span class="pl-s"><span class="pl-pds">&quot;</span>Currq empty. Choose next queue<span class="pl-pds">&quot;</span></span>);</td>
+        <td id="LC410" class="blob-code blob-code-inner js-file-line">				<span class="pl-c1">pr_err</span>(<span class="pl-s"><span class="pl-pds">&quot;</span>ROW_BUG: Work already on queue!<span class="pl-pds">&quot;</span></span>);</td>
       </tr>
       <tr>
         <td id="L411" class="blob-num js-line-number" data-line-number="411"></td>
-        <td id="LC411" class="blob-code blob-code-inner js-file-line">			ret = <span class="pl-c1">row_choose_queue</span>(rd);</td>
+        <td id="LC411" class="blob-code blob-code-inner js-file-line">			} <span class="pl-k">else</span></td>
       </tr>
       <tr>
         <td id="L412" class="blob-num js-line-number" data-line-number="412"></td>
-        <td id="LC412" class="blob-code blob-code-inner js-file-line">			<span class="pl-k">if</span> (!ret)</td>
+        <td id="LC412" class="blob-code blob-code-inner js-file-line">				<span class="pl-c1">row_log_rowq</span>(rd, currq,</td>
       </tr>
       <tr>
         <td id="L413" class="blob-num js-line-number" data-line-number="413"></td>
-        <td id="LC413" class="blob-code blob-code-inner js-file-line">				<span class="pl-k">goto</span> done;</td>
+        <td id="LC413" class="blob-code blob-code-inner js-file-line">				     <span class="pl-s"><span class="pl-pds">&quot;</span>Scheduled delayed work. exiting<span class="pl-pds">&quot;</span></span>);</td>
       </tr>
       <tr>
         <td id="L414" class="blob-num js-line-number" data-line-number="414"></td>
-        <td id="LC414" class="blob-code blob-code-inner js-file-line">		}</td>
+        <td id="LC414" class="blob-code blob-code-inner js-file-line">			<span class="pl-k">goto</span> done;</td>
       </tr>
       <tr>
         <td id="L415" class="blob-num js-line-number" data-line-number="415"></td>
-        <td id="LC415" class="blob-code blob-code-inner js-file-line">	}</td>
+        <td id="LC415" class="blob-code blob-code-inner js-file-line">		} <span class="pl-k">else</span> {</td>
       </tr>
       <tr>
         <td id="L416" class="blob-num js-line-number" data-line-number="416"></td>
-        <td id="LC416" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC416" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">row_log_rowq</span>(rd, currq,</td>
       </tr>
       <tr>
         <td id="L417" class="blob-num js-line-number" data-line-number="417"></td>
-        <td id="LC417" class="blob-code blob-code-inner js-file-line">	ret = <span class="pl-c1">1</span>;</td>
+        <td id="LC417" class="blob-code blob-code-inner js-file-line">				     <span class="pl-s"><span class="pl-pds">&quot;</span>Currq empty. Choose next queue<span class="pl-pds">&quot;</span></span>);</td>
       </tr>
       <tr>
         <td id="L418" class="blob-num js-line-number" data-line-number="418"></td>
-        <td id="LC418" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">row_dispatch_insert</span>(rd);</td>
+        <td id="LC418" class="blob-code blob-code-inner js-file-line">			ret = <span class="pl-c1">row_choose_queue</span>(rd);</td>
       </tr>
       <tr>
         <td id="L419" class="blob-num js-line-number" data-line-number="419"></td>
-        <td id="LC419" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC419" class="blob-code blob-code-inner js-file-line">			<span class="pl-k">if</span> (!ret)</td>
       </tr>
       <tr>
         <td id="L420" class="blob-num js-line-number" data-line-number="420"></td>
-        <td id="LC420" class="blob-code blob-code-inner js-file-line">done:</td>
+        <td id="LC420" class="blob-code blob-code-inner js-file-line">				<span class="pl-k">goto</span> done;</td>
       </tr>
       <tr>
         <td id="L421" class="blob-num js-line-number" data-line-number="421"></td>
-        <td id="LC421" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> ret;</td>
+        <td id="LC421" class="blob-code blob-code-inner js-file-line">		}</td>
       </tr>
       <tr>
         <td id="L422" class="blob-num js-line-number" data-line-number="422"></td>
-        <td id="LC422" class="blob-code blob-code-inner js-file-line">}</td>
+        <td id="LC422" class="blob-code blob-code-inner js-file-line">	}</td>
       </tr>
       <tr>
         <td id="L423" class="blob-num js-line-number" data-line-number="423"></td>
@@ -2180,1066 +2178,1096 @@
       </tr>
       <tr>
         <td id="L424" class="blob-num js-line-number" data-line-number="424"></td>
-        <td id="LC424" class="blob-code blob-code-inner js-file-line"><span class="pl-c">/*</span></td>
+        <td id="LC424" class="blob-code blob-code-inner js-file-line">	ret = <span class="pl-c1">1</span>;</td>
       </tr>
       <tr>
         <td id="L425" class="blob-num js-line-number" data-line-number="425"></td>
-        <td id="LC425" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * row_init_queue() - Init scheduler data structures</span></td>
+        <td id="LC425" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">row_dispatch_insert</span>(rd);</td>
       </tr>
       <tr>
         <td id="L426" class="blob-num js-line-number" data-line-number="426"></td>
-        <td id="LC426" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @q:	requests queue</span></td>
+        <td id="LC426" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L427" class="blob-num js-line-number" data-line-number="427"></td>
-        <td id="LC427" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> *</span></td>
+        <td id="LC427" class="blob-code blob-code-inner js-file-line">done:</td>
       </tr>
       <tr>
         <td id="L428" class="blob-num js-line-number" data-line-number="428"></td>
-        <td id="LC428" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * Return pointer to struct row_data to be saved in elevator for</span></td>
+        <td id="LC428" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> ret;</td>
       </tr>
       <tr>
         <td id="L429" class="blob-num js-line-number" data-line-number="429"></td>
-        <td id="LC429" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * this dispatch queue</span></td>
+        <td id="LC429" class="blob-code blob-code-inner js-file-line">}</td>
       </tr>
       <tr>
         <td id="L430" class="blob-num js-line-number" data-line-number="430"></td>
-        <td id="LC430" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> *</span></td>
+        <td id="LC430" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L431" class="blob-num js-line-number" data-line-number="431"></td>
-        <td id="LC431" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> */</span></td>
+        <td id="LC431" class="blob-code blob-code-inner js-file-line"><span class="pl-c">/*</span></td>
       </tr>
       <tr>
         <td id="L432" class="blob-num js-line-number" data-line-number="432"></td>
-        <td id="LC432" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">int</span> <span class="pl-en">row_init_queue</span>(<span class="pl-k">struct</span> request_queue *q)</td>
+        <td id="LC432" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * row_init_queue() - Init scheduler data structures</span></td>
       </tr>
       <tr>
         <td id="L433" class="blob-num js-line-number" data-line-number="433"></td>
-        <td id="LC433" class="blob-code blob-code-inner js-file-line">{</td>
+        <td id="LC433" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @q:	requests queue</span></td>
       </tr>
       <tr>
         <td id="L434" class="blob-num js-line-number" data-line-number="434"></td>
-        <td id="LC434" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC434" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> *</span></td>
       </tr>
       <tr>
         <td id="L435" class="blob-num js-line-number" data-line-number="435"></td>
-        <td id="LC435" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">struct</span> row_data *rdata;</td>
+        <td id="LC435" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * Return pointer to struct row_data to be saved in elevator for</span></td>
       </tr>
       <tr>
         <td id="L436" class="blob-num js-line-number" data-line-number="436"></td>
-        <td id="LC436" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">int</span> i;</td>
+        <td id="LC436" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * this dispatch queue</span></td>
       </tr>
       <tr>
         <td id="L437" class="blob-num js-line-number" data-line-number="437"></td>
-        <td id="LC437" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC437" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> *</span></td>
       </tr>
       <tr>
         <td id="L438" class="blob-num js-line-number" data-line-number="438"></td>
-        <td id="LC438" class="blob-code blob-code-inner js-file-line">	rdata = <span class="pl-c1">kmalloc_node</span>(<span class="pl-k">sizeof</span>(*rdata),</td>
+        <td id="LC438" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> */</span></td>
       </tr>
       <tr>
         <td id="L439" class="blob-num js-line-number" data-line-number="439"></td>
-        <td id="LC439" class="blob-code blob-code-inner js-file-line">			     GFP_KERNEL | __GFP_ZERO, q-&gt;node);</td>
+        <td id="LC439" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">int</span> <span class="pl-en">row_init_queue</span>(<span class="pl-k">struct</span> request_queue *q)</td>
       </tr>
       <tr>
         <td id="L440" class="blob-num js-line-number" data-line-number="440"></td>
-        <td id="LC440" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">if</span> (!rdata)</td>
+        <td id="LC440" class="blob-code blob-code-inner js-file-line">{</td>
       </tr>
       <tr>
         <td id="L441" class="blob-num js-line-number" data-line-number="441"></td>
-        <td id="LC441" class="blob-code blob-code-inner js-file-line">		<span class="pl-k">return</span> -ENOMEM;</td>
+        <td id="LC441" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L442" class="blob-num js-line-number" data-line-number="442"></td>
-        <td id="LC442" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC442" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">struct</span> row_data *rdata;</td>
       </tr>
       <tr>
         <td id="L443" class="blob-num js-line-number" data-line-number="443"></td>
-        <td id="LC443" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">for</span> (i = <span class="pl-c1">0</span>; i &lt; ROWQ_MAX_PRIO; i++) {</td>
+        <td id="LC443" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">int</span> i;</td>
       </tr>
       <tr>
         <td id="L444" class="blob-num js-line-number" data-line-number="444"></td>
-        <td id="LC444" class="blob-code blob-code-inner js-file-line">		<span class="pl-c1">INIT_LIST_HEAD</span>(&amp;rdata-&gt;row_queues[i].<span class="pl-smi">rqueue</span>.<span class="pl-smi">fifo</span>);</td>
+        <td id="LC444" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L445" class="blob-num js-line-number" data-line-number="445"></td>
-        <td id="LC445" class="blob-code blob-code-inner js-file-line">		rdata-&gt;row_queues[i].<span class="pl-smi">disp_quantum</span> = queue_quantum[i];</td>
+        <td id="LC445" class="blob-code blob-code-inner js-file-line">	rdata = <span class="pl-c1">kmalloc_node</span>(<span class="pl-k">sizeof</span>(*rdata),</td>
       </tr>
       <tr>
         <td id="L446" class="blob-num js-line-number" data-line-number="446"></td>
-        <td id="LC446" class="blob-code blob-code-inner js-file-line">		rdata-&gt;row_queues[i].<span class="pl-smi">rqueue</span>.<span class="pl-smi">rdata</span> = rdata;</td>
+        <td id="LC446" class="blob-code blob-code-inner js-file-line">			     GFP_KERNEL | __GFP_ZERO, q-&gt;node);</td>
       </tr>
       <tr>
         <td id="L447" class="blob-num js-line-number" data-line-number="447"></td>
-        <td id="LC447" class="blob-code blob-code-inner js-file-line">		rdata-&gt;row_queues[i].<span class="pl-smi">rqueue</span>.<span class="pl-smi">prio</span> = i;</td>
+        <td id="LC447" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">if</span> (!rdata)</td>
       </tr>
       <tr>
         <td id="L448" class="blob-num js-line-number" data-line-number="448"></td>
-        <td id="LC448" class="blob-code blob-code-inner js-file-line">		rdata-&gt;row_queues[i].<span class="pl-smi">rqueue</span>.<span class="pl-smi">idle_data</span>.<span class="pl-smi">begin_idling</span> = <span class="pl-c1">false</span>;</td>
+        <td id="LC448" class="blob-code blob-code-inner js-file-line">		<span class="pl-k">return</span> -ENOMEM;</td>
       </tr>
       <tr>
         <td id="L449" class="blob-num js-line-number" data-line-number="449"></td>
-        <td id="LC449" class="blob-code blob-code-inner js-file-line">	}</td>
+        <td id="LC449" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L450" class="blob-num js-line-number" data-line-number="450"></td>
-        <td id="LC450" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC450" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">for</span> (i = <span class="pl-c1">0</span>; i &lt; ROWQ_MAX_PRIO; i++) {</td>
       </tr>
       <tr>
         <td id="L451" class="blob-num js-line-number" data-line-number="451"></td>
-        <td id="LC451" class="blob-code blob-code-inner js-file-line">	<span class="pl-c">/*</span></td>
+        <td id="LC451" class="blob-code blob-code-inner js-file-line">		<span class="pl-c1">INIT_LIST_HEAD</span>(&amp;rdata-&gt;row_queues[i].<span class="pl-smi">rqueue</span>.<span class="pl-smi">fifo</span>);</td>
       </tr>
       <tr>
         <td id="L452" class="blob-num js-line-number" data-line-number="452"></td>
-        <td id="LC452" class="blob-code blob-code-inner js-file-line"><span class="pl-c">	 * Currently idling is enabled only for READ queues. If we want to</span></td>
+        <td id="LC452" class="blob-code blob-code-inner js-file-line">		rdata-&gt;row_queues[i].<span class="pl-smi">disp_quantum</span> = queue_quantum[i];</td>
       </tr>
       <tr>
         <td id="L453" class="blob-num js-line-number" data-line-number="453"></td>
-        <td id="LC453" class="blob-code blob-code-inner js-file-line"><span class="pl-c">	 * enable it for write queues also, note that idling frequency will</span></td>
+        <td id="LC453" class="blob-code blob-code-inner js-file-line">		rdata-&gt;row_queues[i].<span class="pl-smi">rqueue</span>.<span class="pl-smi">rdata</span> = rdata;</td>
       </tr>
       <tr>
         <td id="L454" class="blob-num js-line-number" data-line-number="454"></td>
-        <td id="LC454" class="blob-code blob-code-inner js-file-line"><span class="pl-c">	 * be the same in both cases</span></td>
+        <td id="LC454" class="blob-code blob-code-inner js-file-line">		rdata-&gt;row_queues[i].<span class="pl-smi">rqueue</span>.<span class="pl-smi">prio</span> = i;</td>
       </tr>
       <tr>
         <td id="L455" class="blob-num js-line-number" data-line-number="455"></td>
-        <td id="LC455" class="blob-code blob-code-inner js-file-line"><span class="pl-c">	 */</span></td>
+        <td id="LC455" class="blob-code blob-code-inner js-file-line">		rdata-&gt;row_queues[i].<span class="pl-smi">rqueue</span>.<span class="pl-smi">idle_data</span>.<span class="pl-smi">begin_idling</span> = <span class="pl-c1">false</span>;</td>
       </tr>
       <tr>
         <td id="L456" class="blob-num js-line-number" data-line-number="456"></td>
-        <td id="LC456" class="blob-code blob-code-inner js-file-line">	rdata-&gt;read_idle.<span class="pl-smi">idle_time</span> = ROW_IDLE_TIME;</td>
+        <td id="LC456" class="blob-code blob-code-inner js-file-line">	}</td>
       </tr>
       <tr>
         <td id="L457" class="blob-num js-line-number" data-line-number="457"></td>
-        <td id="LC457" class="blob-code blob-code-inner js-file-line">	rdata-&gt;read_idle.<span class="pl-smi">freq</span> = ROW_READ_FREQ;</td>
+        <td id="LC457" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L458" class="blob-num js-line-number" data-line-number="458"></td>
-        <td id="LC458" class="blob-code blob-code-inner js-file-line">	rdata-&gt;read_idle.<span class="pl-smi">idle_workqueue</span> = <span class="pl-c1">alloc_workqueue</span>(<span class="pl-s"><span class="pl-pds">&quot;</span>row_idle_work<span class="pl-pds">&quot;</span></span>,</td>
+        <td id="LC458" class="blob-code blob-code-inner js-file-line">	<span class="pl-c">/*</span></td>
       </tr>
       <tr>
         <td id="L459" class="blob-num js-line-number" data-line-number="459"></td>
-        <td id="LC459" class="blob-code blob-code-inner js-file-line">					    WQ_MEM_RECLAIM | WQ_HIGHPRI, <span class="pl-c1">0</span>);</td>
+        <td id="LC459" class="blob-code blob-code-inner js-file-line"><span class="pl-c">	 * Currently idling is enabled only for READ queues. If we want to</span></td>
       </tr>
       <tr>
         <td id="L460" class="blob-num js-line-number" data-line-number="460"></td>
-        <td id="LC460" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">if</span> (!rdata-&gt;read_idle.<span class="pl-smi">idle_workqueue</span>)</td>
+        <td id="LC460" class="blob-code blob-code-inner js-file-line"><span class="pl-c">	 * enable it for write queues also, note that idling frequency will</span></td>
       </tr>
       <tr>
         <td id="L461" class="blob-num js-line-number" data-line-number="461"></td>
-        <td id="LC461" class="blob-code blob-code-inner js-file-line">		<span class="pl-c1">panic</span>(<span class="pl-s"><span class="pl-pds">&quot;</span>Failed to create idle workqueue<span class="pl-cce">\n</span><span class="pl-pds">&quot;</span></span>);</td>
+        <td id="LC461" class="blob-code blob-code-inner js-file-line"><span class="pl-c">	 * be the same in both cases</span></td>
       </tr>
       <tr>
         <td id="L462" class="blob-num js-line-number" data-line-number="462"></td>
-        <td id="LC462" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">INIT_DELAYED_WORK</span>(&amp;rdata-&gt;read_idle.<span class="pl-smi">idle_work</span>, kick_queue);</td>
+        <td id="LC462" class="blob-code blob-code-inner js-file-line"><span class="pl-c">	 */</span></td>
       </tr>
       <tr>
         <td id="L463" class="blob-num js-line-number" data-line-number="463"></td>
-        <td id="LC463" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC463" class="blob-code blob-code-inner js-file-line">	rdata-&gt;read_idle.<span class="pl-smi">idle_time</span> = ROW_IDLE_TIME;</td>
       </tr>
       <tr>
         <td id="L464" class="blob-num js-line-number" data-line-number="464"></td>
-        <td id="LC464" class="blob-code blob-code-inner js-file-line">	rdata-&gt;curr_queue = ROWQ_PRIO_HIGH_READ;</td>
+        <td id="LC464" class="blob-code blob-code-inner js-file-line">	rdata-&gt;read_idle.<span class="pl-smi">freq</span> = ROW_READ_FREQ;</td>
       </tr>
       <tr>
         <td id="L465" class="blob-num js-line-number" data-line-number="465"></td>
-        <td id="LC465" class="blob-code blob-code-inner js-file-line">	rdata-&gt;dispatch_queue = q;</td>
+        <td id="LC465" class="blob-code blob-code-inner js-file-line">	rdata-&gt;read_idle.<span class="pl-smi">idle_workqueue</span> = <span class="pl-c1">alloc_workqueue</span>(<span class="pl-s"><span class="pl-pds">&quot;</span>row_idle_work<span class="pl-pds">&quot;</span></span>,</td>
       </tr>
       <tr>
         <td id="L466" class="blob-num js-line-number" data-line-number="466"></td>
-        <td id="LC466" class="blob-code blob-code-inner js-file-line">	q-&gt;elevator-&gt;elevator_data = rdata;</td>
+        <td id="LC466" class="blob-code blob-code-inner js-file-line">					    WQ_MEM_RECLAIM | WQ_HIGHPRI, <span class="pl-c1">0</span>);</td>
       </tr>
       <tr>
         <td id="L467" class="blob-num js-line-number" data-line-number="467"></td>
-        <td id="LC467" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC467" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">if</span> (!rdata-&gt;read_idle.<span class="pl-smi">idle_workqueue</span>)</td>
       </tr>
       <tr>
         <td id="L468" class="blob-num js-line-number" data-line-number="468"></td>
-        <td id="LC468" class="blob-code blob-code-inner js-file-line">	rdata-&gt;nr_reqs[READ] = rdata-&gt;nr_reqs[WRITE] = <span class="pl-c1">0</span>;</td>
+        <td id="LC468" class="blob-code blob-code-inner js-file-line">		<span class="pl-c1">panic</span>(<span class="pl-s"><span class="pl-pds">&quot;</span>Failed to create idle workqueue<span class="pl-cce">\n</span><span class="pl-pds">&quot;</span></span>);</td>
       </tr>
       <tr>
         <td id="L469" class="blob-num js-line-number" data-line-number="469"></td>
-        <td id="LC469" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC469" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">INIT_DELAYED_WORK</span>(&amp;rdata-&gt;read_idle.<span class="pl-smi">idle_work</span>, kick_queue);</td>
       </tr>
       <tr>
         <td id="L470" class="blob-num js-line-number" data-line-number="470"></td>
-        <td id="LC470" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> <span class="pl-c1">0</span>;</td>
+        <td id="LC470" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L471" class="blob-num js-line-number" data-line-number="471"></td>
-        <td id="LC471" class="blob-code blob-code-inner js-file-line">}</td>
+        <td id="LC471" class="blob-code blob-code-inner js-file-line">	rdata-&gt;curr_queue = ROWQ_PRIO_HIGH_READ;</td>
       </tr>
       <tr>
         <td id="L472" class="blob-num js-line-number" data-line-number="472"></td>
-        <td id="LC472" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC472" class="blob-code blob-code-inner js-file-line">	rdata-&gt;dispatch_queue = q;</td>
       </tr>
       <tr>
         <td id="L473" class="blob-num js-line-number" data-line-number="473"></td>
-        <td id="LC473" class="blob-code blob-code-inner js-file-line"><span class="pl-c">/*</span></td>
+        <td id="LC473" class="blob-code blob-code-inner js-file-line">	q-&gt;elevator-&gt;elevator_data = rdata;</td>
       </tr>
       <tr>
         <td id="L474" class="blob-num js-line-number" data-line-number="474"></td>
-        <td id="LC474" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * row_exit_queue() - called on unloading the RAW scheduler</span></td>
+        <td id="LC474" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L475" class="blob-num js-line-number" data-line-number="475"></td>
-        <td id="LC475" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @e:	poiner to struct elevator_queue</span></td>
+        <td id="LC475" class="blob-code blob-code-inner js-file-line">	rdata-&gt;nr_reqs[READ] = rdata-&gt;nr_reqs[WRITE] = <span class="pl-c1">0</span>;</td>
       </tr>
       <tr>
         <td id="L476" class="blob-num js-line-number" data-line-number="476"></td>
-        <td id="LC476" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> *</span></td>
+        <td id="LC476" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L477" class="blob-num js-line-number" data-line-number="477"></td>
-        <td id="LC477" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> */</span></td>
+        <td id="LC477" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> <span class="pl-c1">0</span>;</td>
       </tr>
       <tr>
         <td id="L478" class="blob-num js-line-number" data-line-number="478"></td>
-        <td id="LC478" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">void</span> <span class="pl-en">row_exit_queue</span>(<span class="pl-k">struct</span> elevator_queue *e)</td>
+        <td id="LC478" class="blob-code blob-code-inner js-file-line">}</td>
       </tr>
       <tr>
         <td id="L479" class="blob-num js-line-number" data-line-number="479"></td>
-        <td id="LC479" class="blob-code blob-code-inner js-file-line">{</td>
+        <td id="LC479" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L480" class="blob-num js-line-number" data-line-number="480"></td>
-        <td id="LC480" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">struct</span> row_data *rd = (<span class="pl-k">struct</span> row_data *)e-&gt;elevator_data;</td>
+        <td id="LC480" class="blob-code blob-code-inner js-file-line"><span class="pl-c">/*</span></td>
       </tr>
       <tr>
         <td id="L481" class="blob-num js-line-number" data-line-number="481"></td>
-        <td id="LC481" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">int</span> i;</td>
+        <td id="LC481" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * row_exit_queue() - called on unloading the RAW scheduler</span></td>
       </tr>
       <tr>
         <td id="L482" class="blob-num js-line-number" data-line-number="482"></td>
-        <td id="LC482" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC482" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @e:	poiner to struct elevator_queue</span></td>
       </tr>
       <tr>
         <td id="L483" class="blob-num js-line-number" data-line-number="483"></td>
-        <td id="LC483" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">for</span> (i = <span class="pl-c1">0</span>; i &lt; ROWQ_MAX_PRIO; i++)</td>
+        <td id="LC483" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> *</span></td>
       </tr>
       <tr>
         <td id="L484" class="blob-num js-line-number" data-line-number="484"></td>
-        <td id="LC484" class="blob-code blob-code-inner js-file-line">		<span class="pl-c1">BUG_ON</span>(!<span class="pl-c1">list_empty</span>(&amp;rd-&gt;row_queues[i].<span class="pl-smi">rqueue</span>.<span class="pl-smi">fifo</span>));</td>
+        <td id="LC484" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> */</span></td>
       </tr>
       <tr>
         <td id="L485" class="blob-num js-line-number" data-line-number="485"></td>
-        <td id="LC485" class="blob-code blob-code-inner js-file-line">	(<span class="pl-k">void</span>)<span class="pl-c1">cancel_delayed_work_sync</span>(&amp;rd-&gt;read_idle.<span class="pl-smi">idle_work</span>);</td>
+        <td id="LC485" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">void</span> <span class="pl-en">row_exit_queue</span>(<span class="pl-k">struct</span> elevator_queue *e)</td>
       </tr>
       <tr>
         <td id="L486" class="blob-num js-line-number" data-line-number="486"></td>
-        <td id="LC486" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">kfree</span>(rd);</td>
+        <td id="LC486" class="blob-code blob-code-inner js-file-line">{</td>
       </tr>
       <tr>
         <td id="L487" class="blob-num js-line-number" data-line-number="487"></td>
-        <td id="LC487" class="blob-code blob-code-inner js-file-line">}</td>
+        <td id="LC487" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">struct</span> row_data *rd = (<span class="pl-k">struct</span> row_data *)e-&gt;elevator_data;</td>
       </tr>
       <tr>
         <td id="L488" class="blob-num js-line-number" data-line-number="488"></td>
-        <td id="LC488" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC488" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">int</span> i;</td>
       </tr>
       <tr>
         <td id="L489" class="blob-num js-line-number" data-line-number="489"></td>
-        <td id="LC489" class="blob-code blob-code-inner js-file-line"><span class="pl-c">/*</span></td>
+        <td id="LC489" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L490" class="blob-num js-line-number" data-line-number="490"></td>
-        <td id="LC490" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * row_merged_requests() - Called when 2 requests are merged</span></td>
+        <td id="LC490" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">for</span> (i = <span class="pl-c1">0</span>; i &lt; ROWQ_MAX_PRIO; i++)</td>
       </tr>
       <tr>
         <td id="L491" class="blob-num js-line-number" data-line-number="491"></td>
-        <td id="LC491" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @q:		requests queue</span></td>
+        <td id="LC491" class="blob-code blob-code-inner js-file-line">		<span class="pl-c1">BUG_ON</span>(!<span class="pl-c1">list_empty</span>(&amp;rd-&gt;row_queues[i].<span class="pl-smi">rqueue</span>.<span class="pl-smi">fifo</span>));</td>
       </tr>
       <tr>
         <td id="L492" class="blob-num js-line-number" data-line-number="492"></td>
-        <td id="LC492" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @rq:		request the two requests were merged into</span></td>
+        <td id="LC492" class="blob-code blob-code-inner js-file-line">	(<span class="pl-k">void</span>)<span class="pl-c1">cancel_delayed_work_sync</span>(&amp;rd-&gt;read_idle.<span class="pl-smi">idle_work</span>);</td>
       </tr>
       <tr>
         <td id="L493" class="blob-num js-line-number" data-line-number="493"></td>
-        <td id="LC493" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @next:	request that was merged</span></td>
+        <td id="LC493" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">kfree</span>(rd);</td>
       </tr>
       <tr>
         <td id="L494" class="blob-num js-line-number" data-line-number="494"></td>
-        <td id="LC494" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> */</span></td>
+        <td id="LC494" class="blob-code blob-code-inner js-file-line">}</td>
       </tr>
       <tr>
         <td id="L495" class="blob-num js-line-number" data-line-number="495"></td>
-        <td id="LC495" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">void</span> <span class="pl-en">row_merged_requests</span>(<span class="pl-k">struct</span> request_queue *q, <span class="pl-k">struct</span> request *rq,</td>
+        <td id="LC495" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L496" class="blob-num js-line-number" data-line-number="496"></td>
-        <td id="LC496" class="blob-code blob-code-inner js-file-line">				 <span class="pl-k">struct</span> request *next)</td>
+        <td id="LC496" class="blob-code blob-code-inner js-file-line"><span class="pl-c">/*</span></td>
       </tr>
       <tr>
         <td id="L497" class="blob-num js-line-number" data-line-number="497"></td>
-        <td id="LC497" class="blob-code blob-code-inner js-file-line">{</td>
+        <td id="LC497" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * row_merged_requests() - Called when 2 requests are merged</span></td>
       </tr>
       <tr>
         <td id="L498" class="blob-num js-line-number" data-line-number="498"></td>
-        <td id="LC498" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">struct</span> row_queue   *rqueue = <span class="pl-c1">RQ_ROWQ</span>(next);</td>
+        <td id="LC498" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @q:		requests queue</span></td>
       </tr>
       <tr>
         <td id="L499" class="blob-num js-line-number" data-line-number="499"></td>
-        <td id="LC499" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC499" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @rq:		request the two requests were merged into</span></td>
       </tr>
       <tr>
         <td id="L500" class="blob-num js-line-number" data-line-number="500"></td>
-        <td id="LC500" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">list_del_init</span>(&amp;next-&gt;queuelist);</td>
+        <td id="LC500" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @next:	request that was merged</span></td>
       </tr>
       <tr>
         <td id="L501" class="blob-num js-line-number" data-line-number="501"></td>
-        <td id="LC501" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC501" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> */</span></td>
       </tr>
       <tr>
         <td id="L502" class="blob-num js-line-number" data-line-number="502"></td>
-        <td id="LC502" class="blob-code blob-code-inner js-file-line">	rqueue-&gt;rdata-&gt;nr_reqs[<span class="pl-c1">rq_data_dir</span>(rq)]--;</td>
+        <td id="LC502" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">void</span> <span class="pl-en">row_merged_requests</span>(<span class="pl-k">struct</span> request_queue *q, <span class="pl-k">struct</span> request *rq,</td>
       </tr>
       <tr>
         <td id="L503" class="blob-num js-line-number" data-line-number="503"></td>
-        <td id="LC503" class="blob-code blob-code-inner js-file-line">}</td>
+        <td id="LC503" class="blob-code blob-code-inner js-file-line">				 <span class="pl-k">struct</span> request *next)</td>
       </tr>
       <tr>
         <td id="L504" class="blob-num js-line-number" data-line-number="504"></td>
-        <td id="LC504" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC504" class="blob-code blob-code-inner js-file-line">{</td>
       </tr>
       <tr>
         <td id="L505" class="blob-num js-line-number" data-line-number="505"></td>
-        <td id="LC505" class="blob-code blob-code-inner js-file-line"><span class="pl-c">/*</span></td>
+        <td id="LC505" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">struct</span> row_queue   *rqueue = <span class="pl-c1">RQ_ROWQ</span>(next);</td>
       </tr>
       <tr>
         <td id="L506" class="blob-num js-line-number" data-line-number="506"></td>
-        <td id="LC506" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * get_queue_type() - Get queue type for a given request</span></td>
+        <td id="LC506" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L507" class="blob-num js-line-number" data-line-number="507"></td>
-        <td id="LC507" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> *</span></td>
+        <td id="LC507" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">list_del_init</span>(&amp;next-&gt;queuelist);</td>
       </tr>
       <tr>
         <td id="L508" class="blob-num js-line-number" data-line-number="508"></td>
-        <td id="LC508" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * This is a helping function which purpose is to determine what</span></td>
+        <td id="LC508" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L509" class="blob-num js-line-number" data-line-number="509"></td>
-        <td id="LC509" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * ROW queue the given request should be added to (and</span></td>
+        <td id="LC509" class="blob-code blob-code-inner js-file-line">	rqueue-&gt;rdata-&gt;nr_reqs[<span class="pl-c1">rq_data_dir</span>(rq)]--;</td>
       </tr>
       <tr>
         <td id="L510" class="blob-num js-line-number" data-line-number="510"></td>
-        <td id="LC510" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * dispatched from leter on)</span></td>
+        <td id="LC510" class="blob-code blob-code-inner js-file-line">}</td>
       </tr>
       <tr>
         <td id="L511" class="blob-num js-line-number" data-line-number="511"></td>
-        <td id="LC511" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> *</span></td>
+        <td id="LC511" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L512" class="blob-num js-line-number" data-line-number="512"></td>
-        <td id="LC512" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * TODO: Right now only 3 queues are used REG_READ, REG_WRITE</span></td>
+        <td id="LC512" class="blob-code blob-code-inner js-file-line"><span class="pl-c">/*</span></td>
       </tr>
       <tr>
         <td id="L513" class="blob-num js-line-number" data-line-number="513"></td>
-        <td id="LC513" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * and REG_SWRITE</span></td>
+        <td id="LC513" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * get_queue_type() - Get queue type for a given request</span></td>
       </tr>
       <tr>
         <td id="L514" class="blob-num js-line-number" data-line-number="514"></td>
-        <td id="LC514" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> */</span></td>
+        <td id="LC514" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> *</span></td>
       </tr>
       <tr>
         <td id="L515" class="blob-num js-line-number" data-line-number="515"></td>
-        <td id="LC515" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">enum</span> row_queue_prio <span class="pl-en">get_queue_type</span>(<span class="pl-k">struct</span> request *rq)</td>
+        <td id="LC515" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * This is a helping function which purpose is to determine what</span></td>
       </tr>
       <tr>
         <td id="L516" class="blob-num js-line-number" data-line-number="516"></td>
-        <td id="LC516" class="blob-code blob-code-inner js-file-line">{</td>
+        <td id="LC516" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * ROW queue the given request should be added to (and</span></td>
       </tr>
       <tr>
         <td id="L517" class="blob-num js-line-number" data-line-number="517"></td>
-        <td id="LC517" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">const</span> <span class="pl-k">int</span> data_dir = <span class="pl-c1">rq_data_dir</span>(rq);</td>
+        <td id="LC517" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * dispatched from leter on)</span></td>
       </tr>
       <tr>
         <td id="L518" class="blob-num js-line-number" data-line-number="518"></td>
-        <td id="LC518" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">const</span> <span class="pl-k">bool</span> is_sync = <span class="pl-c1">rq_is_sync</span>(rq);</td>
+        <td id="LC518" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> *</span></td>
       </tr>
       <tr>
         <td id="L519" class="blob-num js-line-number" data-line-number="519"></td>
-        <td id="LC519" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC519" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * TODO: Right now only 3 queues are used REG_READ, REG_WRITE</span></td>
       </tr>
       <tr>
         <td id="L520" class="blob-num js-line-number" data-line-number="520"></td>
-        <td id="LC520" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">if</span> (data_dir == READ)</td>
+        <td id="LC520" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * and REG_SWRITE</span></td>
       </tr>
       <tr>
         <td id="L521" class="blob-num js-line-number" data-line-number="521"></td>
-        <td id="LC521" class="blob-code blob-code-inner js-file-line">		<span class="pl-k">return</span> ROWQ_PRIO_REG_READ;</td>
+        <td id="LC521" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> */</span></td>
       </tr>
       <tr>
         <td id="L522" class="blob-num js-line-number" data-line-number="522"></td>
-        <td id="LC522" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">else</span> <span class="pl-k">if</span> (is_sync)</td>
+        <td id="LC522" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">enum</span> row_queue_prio <span class="pl-en">get_queue_type</span>(<span class="pl-k">struct</span> request *rq)</td>
       </tr>
       <tr>
         <td id="L523" class="blob-num js-line-number" data-line-number="523"></td>
-        <td id="LC523" class="blob-code blob-code-inner js-file-line">		<span class="pl-k">return</span> ROWQ_PRIO_REG_SWRITE;</td>
+        <td id="LC523" class="blob-code blob-code-inner js-file-line">{</td>
       </tr>
       <tr>
         <td id="L524" class="blob-num js-line-number" data-line-number="524"></td>
-        <td id="LC524" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">else</span></td>
+        <td id="LC524" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">const</span> <span class="pl-k">int</span> data_dir = <span class="pl-c1">rq_data_dir</span>(rq);</td>
       </tr>
       <tr>
         <td id="L525" class="blob-num js-line-number" data-line-number="525"></td>
-        <td id="LC525" class="blob-code blob-code-inner js-file-line">		<span class="pl-k">return</span> ROWQ_PRIO_REG_WRITE;</td>
+        <td id="LC525" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">const</span> <span class="pl-k">bool</span> is_sync = <span class="pl-c1">rq_is_sync</span>(rq);</td>
       </tr>
       <tr>
         <td id="L526" class="blob-num js-line-number" data-line-number="526"></td>
-        <td id="LC526" class="blob-code blob-code-inner js-file-line">}</td>
+        <td id="LC526" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L527" class="blob-num js-line-number" data-line-number="527"></td>
-        <td id="LC527" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC527" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">if</span> (data_dir == READ)</td>
       </tr>
       <tr>
         <td id="L528" class="blob-num js-line-number" data-line-number="528"></td>
-        <td id="LC528" class="blob-code blob-code-inner js-file-line"><span class="pl-c">/*</span></td>
+        <td id="LC528" class="blob-code blob-code-inner js-file-line">		<span class="pl-k">return</span> ROWQ_PRIO_REG_READ;</td>
       </tr>
       <tr>
         <td id="L529" class="blob-num js-line-number" data-line-number="529"></td>
-        <td id="LC529" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * row_set_request() - Set ROW data structures associated with this request.</span></td>
+        <td id="LC529" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">else</span> <span class="pl-k">if</span> (is_sync)</td>
       </tr>
       <tr>
         <td id="L530" class="blob-num js-line-number" data-line-number="530"></td>
-        <td id="LC530" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @q:		requests queue</span></td>
+        <td id="LC530" class="blob-code blob-code-inner js-file-line">		<span class="pl-k">return</span> ROWQ_PRIO_REG_SWRITE;</td>
       </tr>
       <tr>
         <td id="L531" class="blob-num js-line-number" data-line-number="531"></td>
-        <td id="LC531" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @rq:		pointer to the request</span></td>
+        <td id="LC531" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">else</span></td>
       </tr>
       <tr>
         <td id="L532" class="blob-num js-line-number" data-line-number="532"></td>
-        <td id="LC532" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @gfp_mask:	ignored</span></td>
+        <td id="LC532" class="blob-code blob-code-inner js-file-line">		<span class="pl-k">return</span> ROWQ_PRIO_REG_WRITE;</td>
       </tr>
       <tr>
         <td id="L533" class="blob-num js-line-number" data-line-number="533"></td>
-        <td id="LC533" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> *</span></td>
+        <td id="LC533" class="blob-code blob-code-inner js-file-line">}</td>
       </tr>
       <tr>
         <td id="L534" class="blob-num js-line-number" data-line-number="534"></td>
-        <td id="LC534" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> */</span></td>
+        <td id="LC534" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L535" class="blob-num js-line-number" data-line-number="535"></td>
-        <td id="LC535" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">int</span></td>
+        <td id="LC535" class="blob-code blob-code-inner js-file-line"><span class="pl-c">/*</span></td>
       </tr>
       <tr>
         <td id="L536" class="blob-num js-line-number" data-line-number="536"></td>
-        <td id="LC536" class="blob-code blob-code-inner js-file-line"><span class="pl-en">row_set_request</span>(<span class="pl-k">struct</span> request_queue *q, <span class="pl-k">struct</span> request *rq, <span class="pl-k">struct</span> bio *bio,</td>
+        <td id="LC536" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * row_set_request() - Set ROW data structures associated with this request.</span></td>
       </tr>
       <tr>
         <td id="L537" class="blob-num js-line-number" data-line-number="537"></td>
-        <td id="LC537" class="blob-code blob-code-inner js-file-line">		<span class="pl-c1">gfp_t</span> gfp_mask)</td>
+        <td id="LC537" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @q:		requests queue</span></td>
       </tr>
       <tr>
         <td id="L538" class="blob-num js-line-number" data-line-number="538"></td>
-        <td id="LC538" class="blob-code blob-code-inner js-file-line">{</td>
+        <td id="LC538" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @rq:		pointer to the request</span></td>
       </tr>
       <tr>
         <td id="L539" class="blob-num js-line-number" data-line-number="539"></td>
-        <td id="LC539" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">struct</span> row_data *rd = (<span class="pl-k">struct</span> row_data *)q-&gt;elevator-&gt;elevator_data;</td>
+        <td id="LC539" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> * @gfp_mask:	ignored</span></td>
       </tr>
       <tr>
         <td id="L540" class="blob-num js-line-number" data-line-number="540"></td>
-        <td id="LC540" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">unsigned</span> <span class="pl-k">long</span> flags;</td>
+        <td id="LC540" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> *</span></td>
       </tr>
       <tr>
         <td id="L541" class="blob-num js-line-number" data-line-number="541"></td>
-        <td id="LC541" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC541" class="blob-code blob-code-inner js-file-line"><span class="pl-c"> */</span></td>
       </tr>
       <tr>
         <td id="L542" class="blob-num js-line-number" data-line-number="542"></td>
-        <td id="LC542" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">spin_lock_irqsave</span>(q-&gt;queue_lock, flags);</td>
+        <td id="LC542" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">int</span></td>
       </tr>
       <tr>
         <td id="L543" class="blob-num js-line-number" data-line-number="543"></td>
-        <td id="LC543" class="blob-code blob-code-inner js-file-line">	rq-&gt;elv.<span class="pl-smi">priv</span>[<span class="pl-c1">0</span>] =</td>
+        <td id="LC543" class="blob-code blob-code-inner js-file-line"><span class="pl-en">row_set_request</span>(<span class="pl-k">struct</span> request_queue *q, <span class="pl-k">struct</span> request *rq, <span class="pl-k">struct</span> bio *bio,</td>
       </tr>
       <tr>
         <td id="L544" class="blob-num js-line-number" data-line-number="544"></td>
-        <td id="LC544" class="blob-code blob-code-inner js-file-line">		(<span class="pl-k">void</span> *)(&amp;rd-&gt;row_queues[<span class="pl-c1">get_queue_type</span>(rq)]);</td>
+        <td id="LC544" class="blob-code blob-code-inner js-file-line">		<span class="pl-c1">gfp_t</span> gfp_mask)</td>
       </tr>
       <tr>
         <td id="L545" class="blob-num js-line-number" data-line-number="545"></td>
-        <td id="LC545" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">spin_unlock_irqrestore</span>(q-&gt;queue_lock, flags);</td>
+        <td id="LC545" class="blob-code blob-code-inner js-file-line">{</td>
       </tr>
       <tr>
         <td id="L546" class="blob-num js-line-number" data-line-number="546"></td>
-        <td id="LC546" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC546" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">struct</span> row_data *rd = (<span class="pl-k">struct</span> row_data *)q-&gt;elevator-&gt;elevator_data;</td>
       </tr>
       <tr>
         <td id="L547" class="blob-num js-line-number" data-line-number="547"></td>
-        <td id="LC547" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> <span class="pl-c1">0</span>;</td>
+        <td id="LC547" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">unsigned</span> <span class="pl-k">long</span> flags;</td>
       </tr>
       <tr>
         <td id="L548" class="blob-num js-line-number" data-line-number="548"></td>
-        <td id="LC548" class="blob-code blob-code-inner js-file-line">}</td>
+        <td id="LC548" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L549" class="blob-num js-line-number" data-line-number="549"></td>
-        <td id="LC549" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC549" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">spin_lock_irqsave</span>(q-&gt;queue_lock, flags);</td>
       </tr>
       <tr>
         <td id="L550" class="blob-num js-line-number" data-line-number="550"></td>
-        <td id="LC550" class="blob-code blob-code-inner js-file-line"><span class="pl-c">/********** Helping sysfs functions/defenitions for ROW attributes ******/</span></td>
+        <td id="LC550" class="blob-code blob-code-inner js-file-line">	rq-&gt;elv.<span class="pl-smi">priv</span>[<span class="pl-c1">0</span>] =</td>
       </tr>
       <tr>
         <td id="L551" class="blob-num js-line-number" data-line-number="551"></td>
-        <td id="LC551" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-c1">ssize_t</span> <span class="pl-en">row_var_show</span>(<span class="pl-k">int</span> var, <span class="pl-k">char</span> *page)</td>
+        <td id="LC551" class="blob-code blob-code-inner js-file-line">		(<span class="pl-k">void</span> *)(&amp;rd-&gt;row_queues[<span class="pl-c1">get_queue_type</span>(rq)]);</td>
       </tr>
       <tr>
         <td id="L552" class="blob-num js-line-number" data-line-number="552"></td>
-        <td id="LC552" class="blob-code blob-code-inner js-file-line">{</td>
+        <td id="LC552" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">spin_unlock_irqrestore</span>(q-&gt;queue_lock, flags);</td>
       </tr>
       <tr>
         <td id="L553" class="blob-num js-line-number" data-line-number="553"></td>
-        <td id="LC553" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> <span class="pl-c1">snprintf</span>(page, <span class="pl-c1">100</span>, <span class="pl-s"><span class="pl-pds">&quot;</span><span class="pl-c1">%d</span><span class="pl-cce">\n</span><span class="pl-pds">&quot;</span></span>, var);</td>
+        <td id="LC553" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L554" class="blob-num js-line-number" data-line-number="554"></td>
-        <td id="LC554" class="blob-code blob-code-inner js-file-line">}</td>
+        <td id="LC554" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> <span class="pl-c1">0</span>;</td>
       </tr>
       <tr>
         <td id="L555" class="blob-num js-line-number" data-line-number="555"></td>
-        <td id="LC555" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC555" class="blob-code blob-code-inner js-file-line">}</td>
       </tr>
       <tr>
         <td id="L556" class="blob-num js-line-number" data-line-number="556"></td>
-        <td id="LC556" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-c1">ssize_t</span> <span class="pl-en">row_var_store</span>(<span class="pl-k">int</span> *var, <span class="pl-k">const</span> <span class="pl-k">char</span> *page, <span class="pl-c1">size_t</span> count)</td>
+        <td id="LC556" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L557" class="blob-num js-line-number" data-line-number="557"></td>
-        <td id="LC557" class="blob-code blob-code-inner js-file-line">{</td>
+        <td id="LC557" class="blob-code blob-code-inner js-file-line"><span class="pl-c">/********** Helping sysfs functions/defenitions for ROW attributes ******/</span></td>
       </tr>
       <tr>
         <td id="L558" class="blob-num js-line-number" data-line-number="558"></td>
-        <td id="LC558" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">int</span> err;</td>
+        <td id="LC558" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-c1">ssize_t</span> <span class="pl-en">row_var_show</span>(<span class="pl-k">int</span> var, <span class="pl-k">char</span> *page)</td>
       </tr>
       <tr>
         <td id="L559" class="blob-num js-line-number" data-line-number="559"></td>
-        <td id="LC559" class="blob-code blob-code-inner js-file-line">	err = <span class="pl-c1">kstrtoul</span>(page, <span class="pl-c1">10</span>, (<span class="pl-k">unsigned</span> <span class="pl-k">long</span> *)var);</td>
+        <td id="LC559" class="blob-code blob-code-inner js-file-line">{</td>
       </tr>
       <tr>
         <td id="L560" class="blob-num js-line-number" data-line-number="560"></td>
-        <td id="LC560" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC560" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> <span class="pl-c1">snprintf</span>(page, <span class="pl-c1">100</span>, <span class="pl-s"><span class="pl-pds">&quot;</span><span class="pl-c1">%d</span><span class="pl-cce">\n</span><span class="pl-pds">&quot;</span></span>, var);</td>
       </tr>
       <tr>
         <td id="L561" class="blob-num js-line-number" data-line-number="561"></td>
-        <td id="LC561" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> count;</td>
+        <td id="LC561" class="blob-code blob-code-inner js-file-line">}</td>
       </tr>
       <tr>
         <td id="L562" class="blob-num js-line-number" data-line-number="562"></td>
-        <td id="LC562" class="blob-code blob-code-inner js-file-line">}</td>
+        <td id="LC562" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L563" class="blob-num js-line-number" data-line-number="563"></td>
-        <td id="LC563" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC563" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-c1">ssize_t</span> <span class="pl-en">row_var_store</span>(<span class="pl-k">int</span> *var, <span class="pl-k">const</span> <span class="pl-k">char</span> *page, <span class="pl-c1">size_t</span> count)</td>
       </tr>
       <tr>
         <td id="L564" class="blob-num js-line-number" data-line-number="564"></td>
-        <td id="LC564" class="blob-code blob-code-inner js-file-line">#<span class="pl-k">define</span> <span class="pl-en">SHOW_FUNCTION</span>(<span class="pl-v">__FUNC, __VAR, __CONV</span>)				\</td>
+        <td id="LC564" class="blob-code blob-code-inner js-file-line">{</td>
       </tr>
       <tr>
         <td id="L565" class="blob-num js-line-number" data-line-number="565"></td>
-        <td id="LC565" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-c1">ssize_t</span> <span class="pl-en">__FUNC</span>(<span class="pl-k">struct</span> elevator_queue *e, <span class="pl-k">char</span> *page)		\</td>
+        <td id="LC565" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">int</span> err;</td>
       </tr>
       <tr>
         <td id="L566" class="blob-num js-line-number" data-line-number="566"></td>
-        <td id="LC566" class="blob-code blob-code-inner js-file-line">{									\</td>
+        <td id="LC566" class="blob-code blob-code-inner js-file-line">	err = <span class="pl-c1">kstrtoul</span>(page, <span class="pl-c1">10</span>, (<span class="pl-k">unsigned</span> <span class="pl-k">long</span> *)var);</td>
       </tr>
       <tr>
         <td id="L567" class="blob-num js-line-number" data-line-number="567"></td>
-        <td id="LC567" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">struct</span> row_data *rowd = e-&gt;elevator_data;			\</td>
+        <td id="LC567" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L568" class="blob-num js-line-number" data-line-number="568"></td>
-        <td id="LC568" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">int</span> __data = __VAR;						\</td>
+        <td id="LC568" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> count;</td>
       </tr>
       <tr>
         <td id="L569" class="blob-num js-line-number" data-line-number="569"></td>
-        <td id="LC569" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">if</span> (__CONV)							\</td>
+        <td id="LC569" class="blob-code blob-code-inner js-file-line">}</td>
       </tr>
       <tr>
         <td id="L570" class="blob-num js-line-number" data-line-number="570"></td>
-        <td id="LC570" class="blob-code blob-code-inner js-file-line">		__data = <span class="pl-c1">jiffies_to_msecs</span>(__data);			\</td>
+        <td id="LC570" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L571" class="blob-num js-line-number" data-line-number="571"></td>
-        <td id="LC571" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> <span class="pl-c1">row_var_show</span>(__data, (page));			\</td>
+        <td id="LC571" class="blob-code blob-code-inner js-file-line">#<span class="pl-k">define</span> <span class="pl-en">SHOW_FUNCTION</span>(<span class="pl-v">__FUNC, __VAR, __CONV</span>)				\</td>
       </tr>
       <tr>
         <td id="L572" class="blob-num js-line-number" data-line-number="572"></td>
-        <td id="LC572" class="blob-code blob-code-inner js-file-line">}</td>
+        <td id="LC572" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-c1">ssize_t</span> <span class="pl-en">__FUNC</span>(<span class="pl-k">struct</span> elevator_queue *e, <span class="pl-k">char</span> *page)		\</td>
       </tr>
       <tr>
         <td id="L573" class="blob-num js-line-number" data-line-number="573"></td>
-        <td id="LC573" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_hp_read_quantum_show,</td>
+        <td id="LC573" class="blob-code blob-code-inner js-file-line">{									\</td>
       </tr>
       <tr>
         <td id="L574" class="blob-num js-line-number" data-line-number="574"></td>
-        <td id="LC574" class="blob-code blob-code-inner js-file-line">	rowd-&gt;row_queues[ROWQ_PRIO_HIGH_READ].disp_quantum, <span class="pl-c1">0</span>);</td>
+        <td id="LC574" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">struct</span> row_data *rowd = e-&gt;elevator_data;			\</td>
       </tr>
       <tr>
         <td id="L575" class="blob-num js-line-number" data-line-number="575"></td>
-        <td id="LC575" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_rp_read_quantum_show,</td>
+        <td id="LC575" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">int</span> __data = __VAR;						\</td>
       </tr>
       <tr>
         <td id="L576" class="blob-num js-line-number" data-line-number="576"></td>
-        <td id="LC576" class="blob-code blob-code-inner js-file-line">	rowd-&gt;row_queues[ROWQ_PRIO_REG_READ].disp_quantum, <span class="pl-c1">0</span>);</td>
+        <td id="LC576" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">if</span> (__CONV)							\</td>
       </tr>
       <tr>
         <td id="L577" class="blob-num js-line-number" data-line-number="577"></td>
-        <td id="LC577" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_hp_swrite_quantum_show,</td>
+        <td id="LC577" class="blob-code blob-code-inner js-file-line">		__data = <span class="pl-c1">jiffies_to_msecs</span>(__data);			\</td>
       </tr>
       <tr>
         <td id="L578" class="blob-num js-line-number" data-line-number="578"></td>
-        <td id="LC578" class="blob-code blob-code-inner js-file-line">	rowd-&gt;row_queues[ROWQ_PRIO_HIGH_SWRITE].disp_quantum, <span class="pl-c1">0</span>);</td>
+        <td id="LC578" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> <span class="pl-c1">row_var_show</span>(__data, (page));			\</td>
       </tr>
       <tr>
         <td id="L579" class="blob-num js-line-number" data-line-number="579"></td>
-        <td id="LC579" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_rp_swrite_quantum_show,</td>
+        <td id="LC579" class="blob-code blob-code-inner js-file-line">}</td>
       </tr>
       <tr>
         <td id="L580" class="blob-num js-line-number" data-line-number="580"></td>
-        <td id="LC580" class="blob-code blob-code-inner js-file-line">	rowd-&gt;row_queues[ROWQ_PRIO_REG_SWRITE].disp_quantum, <span class="pl-c1">0</span>);</td>
+        <td id="LC580" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_hp_read_quantum_show,</td>
       </tr>
       <tr>
         <td id="L581" class="blob-num js-line-number" data-line-number="581"></td>
-        <td id="LC581" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_rp_write_quantum_show,</td>
+        <td id="LC581" class="blob-code blob-code-inner js-file-line">	rowd-&gt;row_queues[ROWQ_PRIO_HIGH_READ].disp_quantum, <span class="pl-c1">0</span>);</td>
       </tr>
       <tr>
         <td id="L582" class="blob-num js-line-number" data-line-number="582"></td>
-        <td id="LC582" class="blob-code blob-code-inner js-file-line">	rowd-&gt;row_queues[ROWQ_PRIO_REG_WRITE].disp_quantum, <span class="pl-c1">0</span>);</td>
+        <td id="LC582" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_rp_read_quantum_show,</td>
       </tr>
       <tr>
         <td id="L583" class="blob-num js-line-number" data-line-number="583"></td>
-        <td id="LC583" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_lp_read_quantum_show,</td>
+        <td id="LC583" class="blob-code blob-code-inner js-file-line">	rowd-&gt;row_queues[ROWQ_PRIO_REG_READ].disp_quantum, <span class="pl-c1">0</span>);</td>
       </tr>
       <tr>
         <td id="L584" class="blob-num js-line-number" data-line-number="584"></td>
-        <td id="LC584" class="blob-code blob-code-inner js-file-line">	rowd-&gt;row_queues[ROWQ_PRIO_LOW_READ].disp_quantum, <span class="pl-c1">0</span>);</td>
+        <td id="LC584" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_hp_swrite_quantum_show,</td>
       </tr>
       <tr>
         <td id="L585" class="blob-num js-line-number" data-line-number="585"></td>
-        <td id="LC585" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_lp_swrite_quantum_show,</td>
+        <td id="LC585" class="blob-code blob-code-inner js-file-line">	rowd-&gt;row_queues[ROWQ_PRIO_HIGH_SWRITE].disp_quantum, <span class="pl-c1">0</span>);</td>
       </tr>
       <tr>
         <td id="L586" class="blob-num js-line-number" data-line-number="586"></td>
-        <td id="LC586" class="blob-code blob-code-inner js-file-line">	rowd-&gt;row_queues[ROWQ_PRIO_LOW_SWRITE].disp_quantum, <span class="pl-c1">0</span>);</td>
+        <td id="LC586" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_rp_swrite_quantum_show,</td>
       </tr>
       <tr>
         <td id="L587" class="blob-num js-line-number" data-line-number="587"></td>
-        <td id="LC587" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_read_idle_show, rowd-&gt;read_idle.idle_time, <span class="pl-c1">1</span>);</td>
+        <td id="LC587" class="blob-code blob-code-inner js-file-line">	rowd-&gt;row_queues[ROWQ_PRIO_REG_SWRITE].disp_quantum, <span class="pl-c1">0</span>);</td>
       </tr>
       <tr>
         <td id="L588" class="blob-num js-line-number" data-line-number="588"></td>
-        <td id="LC588" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_read_idle_freq_show, rowd-&gt;read_idle.freq, <span class="pl-c1">1</span>);</td>
+        <td id="LC588" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_rp_write_quantum_show,</td>
       </tr>
       <tr>
         <td id="L589" class="blob-num js-line-number" data-line-number="589"></td>
-        <td id="LC589" class="blob-code blob-code-inner js-file-line">#<span class="pl-k">undef</span> SHOW_FUNCTION</td>
+        <td id="LC589" class="blob-code blob-code-inner js-file-line">	rowd-&gt;row_queues[ROWQ_PRIO_REG_WRITE].disp_quantum, <span class="pl-c1">0</span>);</td>
       </tr>
       <tr>
         <td id="L590" class="blob-num js-line-number" data-line-number="590"></td>
-        <td id="LC590" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC590" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_lp_read_quantum_show,</td>
       </tr>
       <tr>
         <td id="L591" class="blob-num js-line-number" data-line-number="591"></td>
-        <td id="LC591" class="blob-code blob-code-inner js-file-line">#<span class="pl-k">define</span> <span class="pl-en">STORE_FUNCTION</span>(<span class="pl-v">__FUNC, __PTR, MIN, MAX, __CONV</span>)			\</td>
+        <td id="LC591" class="blob-code blob-code-inner js-file-line">	rowd-&gt;row_queues[ROWQ_PRIO_LOW_READ].disp_quantum, <span class="pl-c1">0</span>);</td>
       </tr>
       <tr>
         <td id="L592" class="blob-num js-line-number" data-line-number="592"></td>
-        <td id="LC592" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-c1">ssize_t</span> <span class="pl-en">__FUNC</span>(<span class="pl-k">struct</span> elevator_queue *e,				\</td>
+        <td id="LC592" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_lp_swrite_quantum_show,</td>
       </tr>
       <tr>
         <td id="L593" class="blob-num js-line-number" data-line-number="593"></td>
-        <td id="LC593" class="blob-code blob-code-inner js-file-line">		<span class="pl-k">const</span> <span class="pl-k">char</span> *page, <span class="pl-c1">size_t</span> count)				\</td>
+        <td id="LC593" class="blob-code blob-code-inner js-file-line">	rowd-&gt;row_queues[ROWQ_PRIO_LOW_SWRITE].disp_quantum, <span class="pl-c1">0</span>);</td>
       </tr>
       <tr>
         <td id="L594" class="blob-num js-line-number" data-line-number="594"></td>
-        <td id="LC594" class="blob-code blob-code-inner js-file-line">{									\</td>
+        <td id="LC594" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_read_idle_show, rowd-&gt;read_idle.idle_time, <span class="pl-c1">1</span>);</td>
       </tr>
       <tr>
         <td id="L595" class="blob-num js-line-number" data-line-number="595"></td>
-        <td id="LC595" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">struct</span> row_data *rowd = e-&gt;elevator_data;			\</td>
+        <td id="LC595" class="blob-code blob-code-inner js-file-line"><span class="pl-en">SHOW_FUNCTION</span>(row_read_idle_freq_show, rowd-&gt;read_idle.freq, <span class="pl-c1">1</span>);</td>
       </tr>
       <tr>
         <td id="L596" class="blob-num js-line-number" data-line-number="596"></td>
-        <td id="LC596" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">int</span> __data;						\</td>
+        <td id="LC596" class="blob-code blob-code-inner js-file-line">#<span class="pl-k">undef</span> SHOW_FUNCTION</td>
       </tr>
       <tr>
         <td id="L597" class="blob-num js-line-number" data-line-number="597"></td>
-        <td id="LC597" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">int</span> ret = <span class="pl-c1">row_var_store</span>(&amp;__data, (page), count);		\</td>
+        <td id="LC597" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L598" class="blob-num js-line-number" data-line-number="598"></td>
-        <td id="LC598" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">if</span> (__CONV)							\</td>
+        <td id="LC598" class="blob-code blob-code-inner js-file-line">#<span class="pl-k">define</span> <span class="pl-en">STORE_FUNCTION</span>(<span class="pl-v">__FUNC, __PTR, MIN, MAX, __CONV</span>)			\</td>
       </tr>
       <tr>
         <td id="L599" class="blob-num js-line-number" data-line-number="599"></td>
-        <td id="LC599" class="blob-code blob-code-inner js-file-line">		__data = (<span class="pl-k">int</span>)<span class="pl-c1">msecs_to_jiffies</span>(__data);			\</td>
+        <td id="LC599" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-c1">ssize_t</span> <span class="pl-en">__FUNC</span>(<span class="pl-k">struct</span> elevator_queue *e,				\</td>
       </tr>
       <tr>
         <td id="L600" class="blob-num js-line-number" data-line-number="600"></td>
-        <td id="LC600" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">if</span> (__data &lt; (MIN))						\</td>
+        <td id="LC600" class="blob-code blob-code-inner js-file-line">		<span class="pl-k">const</span> <span class="pl-k">char</span> *page, <span class="pl-c1">size_t</span> count)				\</td>
       </tr>
       <tr>
         <td id="L601" class="blob-num js-line-number" data-line-number="601"></td>
-        <td id="LC601" class="blob-code blob-code-inner js-file-line">		__data = (MIN);						\</td>
+        <td id="LC601" class="blob-code blob-code-inner js-file-line">{									\</td>
       </tr>
       <tr>
         <td id="L602" class="blob-num js-line-number" data-line-number="602"></td>
-        <td id="LC602" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">else</span> <span class="pl-k">if</span> (__data &gt; (MAX))					\</td>
+        <td id="LC602" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">struct</span> row_data *rowd = e-&gt;elevator_data;			\</td>
       </tr>
       <tr>
         <td id="L603" class="blob-num js-line-number" data-line-number="603"></td>
-        <td id="LC603" class="blob-code blob-code-inner js-file-line">		__data = (MAX);						\</td>
+        <td id="LC603" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">int</span> __data;						\</td>
       </tr>
       <tr>
         <td id="L604" class="blob-num js-line-number" data-line-number="604"></td>
-        <td id="LC604" class="blob-code blob-code-inner js-file-line">	*(__PTR) = __data;						\</td>
+        <td id="LC604" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">int</span> ret = <span class="pl-c1">row_var_store</span>(&amp;__data, (page), count);		\</td>
       </tr>
       <tr>
         <td id="L605" class="blob-num js-line-number" data-line-number="605"></td>
-        <td id="LC605" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> ret;							\</td>
+        <td id="LC605" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">if</span> (__CONV)							\</td>
       </tr>
       <tr>
         <td id="L606" class="blob-num js-line-number" data-line-number="606"></td>
-        <td id="LC606" class="blob-code blob-code-inner js-file-line">}</td>
+        <td id="LC606" class="blob-code blob-code-inner js-file-line">		__data = (<span class="pl-k">int</span>)<span class="pl-c1">msecs_to_jiffies</span>(__data);			\</td>
       </tr>
       <tr>
         <td id="L607" class="blob-num js-line-number" data-line-number="607"></td>
-        <td id="LC607" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_hp_read_quantum_store,</td>
+        <td id="LC607" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">if</span> (__data &lt; (MIN))						\</td>
       </tr>
       <tr>
         <td id="L608" class="blob-num js-line-number" data-line-number="608"></td>
-        <td id="LC608" class="blob-code blob-code-inner js-file-line">&amp;rowd-&gt;row_queues[ROWQ_PRIO_HIGH_READ].disp_quantum, <span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">0</span>);</td>
+        <td id="LC608" class="blob-code blob-code-inner js-file-line">		__data = (MIN);						\</td>
       </tr>
       <tr>
         <td id="L609" class="blob-num js-line-number" data-line-number="609"></td>
-        <td id="LC609" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_rp_read_quantum_store,</td>
+        <td id="LC609" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">else</span> <span class="pl-k">if</span> (__data &gt; (MAX))					\</td>
       </tr>
       <tr>
         <td id="L610" class="blob-num js-line-number" data-line-number="610"></td>
-        <td id="LC610" class="blob-code blob-code-inner js-file-line">			&amp;rowd-&gt;row_queues[ROWQ_PRIO_REG_READ].disp_quantum,</td>
+        <td id="LC610" class="blob-code blob-code-inner js-file-line">		__data = (MAX);						\</td>
       </tr>
       <tr>
         <td id="L611" class="blob-num js-line-number" data-line-number="611"></td>
-        <td id="LC611" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">0</span>);</td>
+        <td id="LC611" class="blob-code blob-code-inner js-file-line">	*(__PTR) = __data;						\</td>
       </tr>
       <tr>
         <td id="L612" class="blob-num js-line-number" data-line-number="612"></td>
-        <td id="LC612" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_hp_swrite_quantum_store,</td>
+        <td id="LC612" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> ret;							\</td>
       </tr>
       <tr>
         <td id="L613" class="blob-num js-line-number" data-line-number="613"></td>
-        <td id="LC613" class="blob-code blob-code-inner js-file-line">			&amp;rowd-&gt;row_queues[ROWQ_PRIO_HIGH_SWRITE].disp_quantum,</td>
+        <td id="LC613" class="blob-code blob-code-inner js-file-line">}</td>
       </tr>
       <tr>
         <td id="L614" class="blob-num js-line-number" data-line-number="614"></td>
-        <td id="LC614" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">0</span>);</td>
+        <td id="LC614" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_hp_read_quantum_store,</td>
       </tr>
       <tr>
         <td id="L615" class="blob-num js-line-number" data-line-number="615"></td>
-        <td id="LC615" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_rp_swrite_quantum_store,</td>
+        <td id="LC615" class="blob-code blob-code-inner js-file-line">&amp;rowd-&gt;row_queues[ROWQ_PRIO_HIGH_READ].disp_quantum, <span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">0</span>);</td>
       </tr>
       <tr>
         <td id="L616" class="blob-num js-line-number" data-line-number="616"></td>
-        <td id="LC616" class="blob-code blob-code-inner js-file-line">			&amp;rowd-&gt;row_queues[ROWQ_PRIO_REG_SWRITE].disp_quantum,</td>
+        <td id="LC616" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_rp_read_quantum_store,</td>
       </tr>
       <tr>
         <td id="L617" class="blob-num js-line-number" data-line-number="617"></td>
-        <td id="LC617" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">0</span>);</td>
+        <td id="LC617" class="blob-code blob-code-inner js-file-line">			&amp;rowd-&gt;row_queues[ROWQ_PRIO_REG_READ].disp_quantum,</td>
       </tr>
       <tr>
         <td id="L618" class="blob-num js-line-number" data-line-number="618"></td>
-        <td id="LC618" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_rp_write_quantum_store,</td>
+        <td id="LC618" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">0</span>);</td>
       </tr>
       <tr>
         <td id="L619" class="blob-num js-line-number" data-line-number="619"></td>
-        <td id="LC619" class="blob-code blob-code-inner js-file-line">			&amp;rowd-&gt;row_queues[ROWQ_PRIO_REG_WRITE].disp_quantum,</td>
+        <td id="LC619" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_hp_swrite_quantum_store,</td>
       </tr>
       <tr>
         <td id="L620" class="blob-num js-line-number" data-line-number="620"></td>
-        <td id="LC620" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">0</span>);</td>
+        <td id="LC620" class="blob-code blob-code-inner js-file-line">			&amp;rowd-&gt;row_queues[ROWQ_PRIO_HIGH_SWRITE].disp_quantum,</td>
       </tr>
       <tr>
         <td id="L621" class="blob-num js-line-number" data-line-number="621"></td>
-        <td id="LC621" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_lp_read_quantum_store,</td>
+        <td id="LC621" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">0</span>);</td>
       </tr>
       <tr>
         <td id="L622" class="blob-num js-line-number" data-line-number="622"></td>
-        <td id="LC622" class="blob-code blob-code-inner js-file-line">			&amp;rowd-&gt;row_queues[ROWQ_PRIO_LOW_READ].disp_quantum,</td>
+        <td id="LC622" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_rp_swrite_quantum_store,</td>
       </tr>
       <tr>
         <td id="L623" class="blob-num js-line-number" data-line-number="623"></td>
-        <td id="LC623" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">0</span>);</td>
+        <td id="LC623" class="blob-code blob-code-inner js-file-line">			&amp;rowd-&gt;row_queues[ROWQ_PRIO_REG_SWRITE].disp_quantum,</td>
       </tr>
       <tr>
         <td id="L624" class="blob-num js-line-number" data-line-number="624"></td>
-        <td id="LC624" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_lp_swrite_quantum_store,</td>
+        <td id="LC624" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">0</span>);</td>
       </tr>
       <tr>
         <td id="L625" class="blob-num js-line-number" data-line-number="625"></td>
-        <td id="LC625" class="blob-code blob-code-inner js-file-line">			&amp;rowd-&gt;row_queues[ROWQ_PRIO_LOW_SWRITE].disp_quantum,</td>
+        <td id="LC625" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_rp_write_quantum_store,</td>
       </tr>
       <tr>
         <td id="L626" class="blob-num js-line-number" data-line-number="626"></td>
-        <td id="LC626" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">1</span>);</td>
+        <td id="LC626" class="blob-code blob-code-inner js-file-line">			&amp;rowd-&gt;row_queues[ROWQ_PRIO_REG_WRITE].disp_quantum,</td>
       </tr>
       <tr>
         <td id="L627" class="blob-num js-line-number" data-line-number="627"></td>
-        <td id="LC627" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_read_idle_store, &amp;rowd-&gt;read_idle.idle_time, <span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">1</span>);</td>
+        <td id="LC627" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">0</span>);</td>
       </tr>
       <tr>
         <td id="L628" class="blob-num js-line-number" data-line-number="628"></td>
-        <td id="LC628" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_read_idle_freq_store, &amp;rowd-&gt;read_idle.freq, <span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">1</span>);</td>
+        <td id="LC628" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_lp_read_quantum_store,</td>
       </tr>
       <tr>
         <td id="L629" class="blob-num js-line-number" data-line-number="629"></td>
-        <td id="LC629" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC629" class="blob-code blob-code-inner js-file-line">			&amp;rowd-&gt;row_queues[ROWQ_PRIO_LOW_READ].disp_quantum,</td>
       </tr>
       <tr>
         <td id="L630" class="blob-num js-line-number" data-line-number="630"></td>
-        <td id="LC630" class="blob-code blob-code-inner js-file-line">#<span class="pl-k">undef</span> STORE_FUNCTION</td>
+        <td id="LC630" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">0</span>);</td>
       </tr>
       <tr>
         <td id="L631" class="blob-num js-line-number" data-line-number="631"></td>
-        <td id="LC631" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC631" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_lp_swrite_quantum_store,</td>
       </tr>
       <tr>
         <td id="L632" class="blob-num js-line-number" data-line-number="632"></td>
-        <td id="LC632" class="blob-code blob-code-inner js-file-line">#<span class="pl-k">define</span> <span class="pl-en">ROW_ATTR</span>(<span class="pl-v">name</span>) \</td>
+        <td id="LC632" class="blob-code blob-code-inner js-file-line">			&amp;rowd-&gt;row_queues[ROWQ_PRIO_LOW_SWRITE].disp_quantum,</td>
       </tr>
       <tr>
         <td id="L633" class="blob-num js-line-number" data-line-number="633"></td>
-        <td id="LC633" class="blob-code blob-code-inner js-file-line">	<span class="pl-en">__ATTR</span>(name, S_IRUGO|S_IWUSR, row_##name##_show, \</td>
+        <td id="LC633" class="blob-code blob-code-inner js-file-line">			<span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">1</span>);</td>
       </tr>
       <tr>
         <td id="L634" class="blob-num js-line-number" data-line-number="634"></td>
-        <td id="LC634" class="blob-code blob-code-inner js-file-line">				      row_##name##_store)</td>
+        <td id="LC634" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_read_idle_store, &amp;rowd-&gt;read_idle.idle_time, <span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">1</span>);</td>
       </tr>
       <tr>
         <td id="L635" class="blob-num js-line-number" data-line-number="635"></td>
-        <td id="LC635" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC635" class="blob-code blob-code-inner js-file-line"><span class="pl-en">STORE_FUNCTION</span>(row_read_idle_freq_store, &amp;rowd-&gt;read_idle.freq, <span class="pl-c1">1</span>, INT_MAX, <span class="pl-c1">1</span>);</td>
       </tr>
       <tr>
         <td id="L636" class="blob-num js-line-number" data-line-number="636"></td>
-        <td id="LC636" class="blob-code blob-code-inner js-file-line">static struct elv_fs_entry row_attrs[] = {</td>
+        <td id="LC636" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L637" class="blob-num js-line-number" data-line-number="637"></td>
-        <td id="LC637" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(hp_read_quantum),</td>
+        <td id="LC637" class="blob-code blob-code-inner js-file-line">#<span class="pl-k">undef</span> STORE_FUNCTION</td>
       </tr>
       <tr>
         <td id="L638" class="blob-num js-line-number" data-line-number="638"></td>
-        <td id="LC638" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(rp_read_quantum),</td>
+        <td id="LC638" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L639" class="blob-num js-line-number" data-line-number="639"></td>
-        <td id="LC639" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(hp_swrite_quantum),</td>
+        <td id="LC639" class="blob-code blob-code-inner js-file-line">#<span class="pl-k">define</span> <span class="pl-en">ROW_ATTR</span>(<span class="pl-v">name</span>) \</td>
       </tr>
       <tr>
         <td id="L640" class="blob-num js-line-number" data-line-number="640"></td>
-        <td id="LC640" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(rp_swrite_quantum),</td>
+        <td id="LC640" class="blob-code blob-code-inner js-file-line">	<span class="pl-en">__ATTR</span>(name, S_IRUGO|S_IWUSR, row_##name##_show, \</td>
       </tr>
       <tr>
         <td id="L641" class="blob-num js-line-number" data-line-number="641"></td>
-        <td id="LC641" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(rp_write_quantum),</td>
+        <td id="LC641" class="blob-code blob-code-inner js-file-line">				      row_##name##_store)</td>
       </tr>
       <tr>
         <td id="L642" class="blob-num js-line-number" data-line-number="642"></td>
-        <td id="LC642" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(lp_read_quantum),</td>
+        <td id="LC642" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L643" class="blob-num js-line-number" data-line-number="643"></td>
-        <td id="LC643" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(lp_swrite_quantum),</td>
+        <td id="LC643" class="blob-code blob-code-inner js-file-line">static struct elv_fs_entry row_attrs[] = {</td>
       </tr>
       <tr>
         <td id="L644" class="blob-num js-line-number" data-line-number="644"></td>
-        <td id="LC644" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(read_idle),</td>
+        <td id="LC644" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(hp_read_quantum),</td>
       </tr>
       <tr>
         <td id="L645" class="blob-num js-line-number" data-line-number="645"></td>
-        <td id="LC645" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(read_idle_freq),</td>
+        <td id="LC645" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(rp_read_quantum),</td>
       </tr>
       <tr>
         <td id="L646" class="blob-num js-line-number" data-line-number="646"></td>
-        <td id="LC646" class="blob-code blob-code-inner js-file-line">	__ATTR_NULL</td>
+        <td id="LC646" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(hp_swrite_quantum),</td>
       </tr>
       <tr>
         <td id="L647" class="blob-num js-line-number" data-line-number="647"></td>
-        <td id="LC647" class="blob-code blob-code-inner js-file-line">};</td>
+        <td id="LC647" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(rp_swrite_quantum),</td>
       </tr>
       <tr>
         <td id="L648" class="blob-num js-line-number" data-line-number="648"></td>
-        <td id="LC648" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC648" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(rp_write_quantum),</td>
       </tr>
       <tr>
         <td id="L649" class="blob-num js-line-number" data-line-number="649"></td>
-        <td id="LC649" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">struct</span> elevator_type iosched_row = {</td>
+        <td id="LC649" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(lp_read_quantum),</td>
       </tr>
       <tr>
         <td id="L650" class="blob-num js-line-number" data-line-number="650"></td>
-        <td id="LC650" class="blob-code blob-code-inner js-file-line">	.<span class="pl-smi">ops</span> = {</td>
+        <td id="LC650" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(lp_swrite_quantum),</td>
       </tr>
       <tr>
         <td id="L651" class="blob-num js-line-number" data-line-number="651"></td>
-        <td id="LC651" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_merge_req_fn</span>		= row_merged_requests,</td>
+        <td id="LC651" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(read_idle),</td>
       </tr>
       <tr>
         <td id="L652" class="blob-num js-line-number" data-line-number="652"></td>
-        <td id="LC652" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_dispatch_fn</span>		= row_dispatch_requests,</td>
+        <td id="LC652" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">ROW_ATTR</span>(read_idle_freq),</td>
       </tr>
       <tr>
         <td id="L653" class="blob-num js-line-number" data-line-number="653"></td>
-        <td id="LC653" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_add_req_fn</span>		= row_add_request,</td>
+        <td id="LC653" class="blob-code blob-code-inner js-file-line">	__ATTR_NULL</td>
       </tr>
       <tr>
         <td id="L654" class="blob-num js-line-number" data-line-number="654"></td>
-        <td id="LC654" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_former_req_fn</span>		= elv_rb_former_request,</td>
+        <td id="LC654" class="blob-code blob-code-inner js-file-line">};</td>
       </tr>
       <tr>
         <td id="L655" class="blob-num js-line-number" data-line-number="655"></td>
-        <td id="LC655" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_latter_req_fn</span>		= elv_rb_latter_request,</td>
+        <td id="LC655" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L656" class="blob-num js-line-number" data-line-number="656"></td>
-        <td id="LC656" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_set_req_fn</span>		= row_set_request,</td>
+        <td id="LC656" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">struct</span> elevator_type iosched_row = {</td>
       </tr>
       <tr>
         <td id="L657" class="blob-num js-line-number" data-line-number="657"></td>
-        <td id="LC657" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_init_fn</span>		= row_init_queue,</td>
+        <td id="LC657" class="blob-code blob-code-inner js-file-line">	.<span class="pl-smi">ops</span> = {</td>
       </tr>
       <tr>
         <td id="L658" class="blob-num js-line-number" data-line-number="658"></td>
-        <td id="LC658" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_exit_fn</span>		= row_exit_queue,</td>
+        <td id="LC658" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_merge_req_fn</span>		= row_merged_requests,</td>
       </tr>
       <tr>
         <td id="L659" class="blob-num js-line-number" data-line-number="659"></td>
-        <td id="LC659" class="blob-code blob-code-inner js-file-line">	},</td>
+        <td id="LC659" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_dispatch_fn</span>		= row_dispatch_requests,</td>
       </tr>
       <tr>
         <td id="L660" class="blob-num js-line-number" data-line-number="660"></td>
-        <td id="LC660" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC660" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_add_req_fn</span>		= row_add_request,</td>
       </tr>
       <tr>
         <td id="L661" class="blob-num js-line-number" data-line-number="661"></td>
-        <td id="LC661" class="blob-code blob-code-inner js-file-line">	.<span class="pl-smi">elevator_attrs</span> = row_attrs,</td>
+        <td id="LC661" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_former_req_fn</span>		= elv_rb_former_request,</td>
       </tr>
       <tr>
         <td id="L662" class="blob-num js-line-number" data-line-number="662"></td>
-        <td id="LC662" class="blob-code blob-code-inner js-file-line">	.<span class="pl-smi">elevator_name</span> = <span class="pl-s"><span class="pl-pds">&quot;</span>row<span class="pl-pds">&quot;</span></span>,</td>
+        <td id="LC662" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_latter_req_fn</span>		= elv_rb_latter_request,</td>
       </tr>
       <tr>
         <td id="L663" class="blob-num js-line-number" data-line-number="663"></td>
-        <td id="LC663" class="blob-code blob-code-inner js-file-line">	.<span class="pl-smi">elevator_owner</span> = THIS_MODULE,</td>
+        <td id="LC663" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_set_req_fn</span>		= row_set_request,</td>
       </tr>
       <tr>
         <td id="L664" class="blob-num js-line-number" data-line-number="664"></td>
-        <td id="LC664" class="blob-code blob-code-inner js-file-line">};</td>
+        <td id="LC664" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_init_fn</span>		= row_init_queue,</td>
       </tr>
       <tr>
         <td id="L665" class="blob-num js-line-number" data-line-number="665"></td>
-        <td id="LC665" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC665" class="blob-code blob-code-inner js-file-line">		.<span class="pl-smi">elevator_exit_fn</span>		= row_exit_queue,</td>
       </tr>
       <tr>
         <td id="L666" class="blob-num js-line-number" data-line-number="666"></td>
-        <td id="LC666" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">int</span> __init <span class="pl-en">row_init</span>(<span class="pl-k">void</span>)</td>
+        <td id="LC666" class="blob-code blob-code-inner js-file-line">	},</td>
       </tr>
       <tr>
         <td id="L667" class="blob-num js-line-number" data-line-number="667"></td>
-        <td id="LC667" class="blob-code blob-code-inner js-file-line">{</td>
+        <td id="LC667" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L668" class="blob-num js-line-number" data-line-number="668"></td>
-        <td id="LC668" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">elv_register</span>(&amp;iosched_row);</td>
+        <td id="LC668" class="blob-code blob-code-inner js-file-line">	.<span class="pl-smi">elevator_attrs</span> = row_attrs,</td>
       </tr>
       <tr>
         <td id="L669" class="blob-num js-line-number" data-line-number="669"></td>
-        <td id="LC669" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> <span class="pl-c1">0</span>;</td>
+        <td id="LC669" class="blob-code blob-code-inner js-file-line">	.<span class="pl-smi">elevator_name</span> = <span class="pl-s"><span class="pl-pds">&quot;</span>row<span class="pl-pds">&quot;</span></span>,</td>
       </tr>
       <tr>
         <td id="L670" class="blob-num js-line-number" data-line-number="670"></td>
-        <td id="LC670" class="blob-code blob-code-inner js-file-line">}</td>
+        <td id="LC670" class="blob-code blob-code-inner js-file-line">	.<span class="pl-smi">elevator_owner</span> = THIS_MODULE,</td>
       </tr>
       <tr>
         <td id="L671" class="blob-num js-line-number" data-line-number="671"></td>
-        <td id="LC671" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC671" class="blob-code blob-code-inner js-file-line">};</td>
       </tr>
       <tr>
         <td id="L672" class="blob-num js-line-number" data-line-number="672"></td>
-        <td id="LC672" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">void</span> __exit <span class="pl-en">row_exit</span>(<span class="pl-k">void</span>)</td>
+        <td id="LC672" class="blob-code blob-code-inner js-file-line">
+</td>
       </tr>
       <tr>
         <td id="L673" class="blob-num js-line-number" data-line-number="673"></td>
-        <td id="LC673" class="blob-code blob-code-inner js-file-line">{</td>
+        <td id="LC673" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">int</span> __init <span class="pl-en">row_init</span>(<span class="pl-k">void</span>)</td>
       </tr>
       <tr>
         <td id="L674" class="blob-num js-line-number" data-line-number="674"></td>
-        <td id="LC674" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">elv_unregister</span>(&amp;iosched_row);</td>
+        <td id="LC674" class="blob-code blob-code-inner js-file-line">{</td>
       </tr>
       <tr>
         <td id="L675" class="blob-num js-line-number" data-line-number="675"></td>
-        <td id="LC675" class="blob-code blob-code-inner js-file-line">}</td>
+        <td id="LC675" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">elv_register</span>(&amp;iosched_row);</td>
       </tr>
       <tr>
         <td id="L676" class="blob-num js-line-number" data-line-number="676"></td>
-        <td id="LC676" class="blob-code blob-code-inner js-file-line">
-</td>
+        <td id="LC676" class="blob-code blob-code-inner js-file-line">	<span class="pl-k">return</span> <span class="pl-c1">0</span>;</td>
       </tr>
       <tr>
         <td id="L677" class="blob-num js-line-number" data-line-number="677"></td>
-        <td id="LC677" class="blob-code blob-code-inner js-file-line"><span class="pl-en">module_init</span>(row_init);</td>
+        <td id="LC677" class="blob-code blob-code-inner js-file-line">}</td>
       </tr>
       <tr>
         <td id="L678" class="blob-num js-line-number" data-line-number="678"></td>
-        <td id="LC678" class="blob-code blob-code-inner js-file-line"><span class="pl-en">module_exit</span>(row_exit);</td>
-      </tr>
-      <tr>
-        <td id="L679" class="blob-num js-line-number" data-line-number="679"></td>
-        <td id="LC679" class="blob-code blob-code-inner js-file-line">
+        <td id="LC678" class="blob-code blob-code-inner js-file-line">
 </td>
       </tr>
       <tr>
+        <td id="L679" class="blob-num js-line-number" data-line-number="679"></td>
+        <td id="LC679" class="blob-code blob-code-inner js-file-line"><span class="pl-k">static</span> <span class="pl-k">void</span> __exit <span class="pl-en">row_exit</span>(<span class="pl-k">void</span>)</td>
+      </tr>
+      <tr>
         <td id="L680" class="blob-num js-line-number" data-line-number="680"></td>
-        <td id="LC680" class="blob-code blob-code-inner js-file-line"><span class="pl-en">MODULE_LICENSE</span>(<span class="pl-s"><span class="pl-pds">&quot;</span>GPLv2<span class="pl-pds">&quot;</span></span>);</td>
+        <td id="LC680" class="blob-code blob-code-inner js-file-line">{</td>
       </tr>
       <tr>
         <td id="L681" class="blob-num js-line-number" data-line-number="681"></td>
-        <td id="LC681" class="blob-code blob-code-inner js-file-line"><span class="pl-en">MODULE_DESCRIPTION</span>(<span class="pl-s"><span class="pl-pds">&quot;</span>Read Over Write IO scheduler<span class="pl-pds">&quot;</span></span>);</td>
+        <td id="LC681" class="blob-code blob-code-inner js-file-line">	<span class="pl-c1">elv_unregister</span>(&amp;iosched_row);</td>
+      </tr>
+      <tr>
+        <td id="L682" class="blob-num js-line-number" data-line-number="682"></td>
+        <td id="LC682" class="blob-code blob-code-inner js-file-line">}</td>
+      </tr>
+      <tr>
+        <td id="L683" class="blob-num js-line-number" data-line-number="683"></td>
+        <td id="LC683" class="blob-code blob-code-inner js-file-line">
+</td>
+      </tr>
+      <tr>
+        <td id="L684" class="blob-num js-line-number" data-line-number="684"></td>
+        <td id="LC684" class="blob-code blob-code-inner js-file-line"><span class="pl-en">module_init</span>(row_init);</td>
+      </tr>
+      <tr>
+        <td id="L685" class="blob-num js-line-number" data-line-number="685"></td>
+        <td id="LC685" class="blob-code blob-code-inner js-file-line"><span class="pl-en">module_exit</span>(row_exit);</td>
+      </tr>
+      <tr>
+        <td id="L686" class="blob-num js-line-number" data-line-number="686"></td>
+        <td id="LC686" class="blob-code blob-code-inner js-file-line">
+</td>
+      </tr>
+      <tr>
+        <td id="L687" class="blob-num js-line-number" data-line-number="687"></td>
+        <td id="LC687" class="blob-code blob-code-inner js-file-line"><span class="pl-en">MODULE_LICENSE</span>(<span class="pl-s"><span class="pl-pds">&quot;</span>GPLv2<span class="pl-pds">&quot;</span></span>);</td>
+      </tr>
+      <tr>
+        <td id="L688" class="blob-num js-line-number" data-line-number="688"></td>
+        <td id="LC688" class="blob-code blob-code-inner js-file-line"><span class="pl-en">MODULE_DESCRIPTION</span>(<span class="pl-s"><span class="pl-pds">&quot;</span>Read Over Write IO scheduler<span class="pl-pds">&quot;</span></span>);</td>
       </tr>
 </table>
 
@@ -3280,7 +3308,7 @@
       <svg aria-hidden="true" class="octicon octicon-mark-github" height="24" title="GitHub " version="1.1" viewBox="0 0 16 16" width="24"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59 0.4 0.07 0.55-0.17 0.55-0.38 0-0.19-0.01-0.82-0.01-1.49-2.01 0.37-2.53-0.49-2.69-0.94-0.09-0.23-0.48-0.94-0.82-1.13-0.28-0.15-0.68-0.52-0.01-0.53 0.63-0.01 1.08 0.58 1.23 0.82 0.72 1.21 1.87 0.87 2.33 0.66 0.07-0.52 0.28-0.87 0.51-1.07-1.78-0.2-3.64-0.89-3.64-3.95 0-0.87 0.31-1.59 0.82-2.15-0.08-0.2-0.36-1.02 0.08-2.12 0 0 0.67-0.21 2.2 0.82 0.64-0.18 1.32-0.27 2-0.27 0.68 0 1.36 0.09 2 0.27 1.53-1.04 2.2-0.82 2.2-0.82 0.44 1.1 0.16 1.92 0.08 2.12 0.51 0.56 0.82 1.27 0.82 2.15 0 3.07-1.87 3.75-3.65 3.95 0.29 0.25 0.54 0.73 0.54 1.48 0 1.07-0.01 1.93-0.01 2.2 0 0.21 0.15 0.46 0.55 0.38C13.71 14.53 16 11.53 16 8 16 3.58 12.42 0 8 0z"></path></svg>
 </a>
     <ul class="site-footer-links">
-      <li>&copy; 2016 <span title="0.05389s from github-fe143-cp1-prd.iad.github.net">GitHub</span>, Inc.</li>
+      <li>&copy; 2016 <span title="0.05444s from github-fe157-cp1-prd.iad.github.net">GitHub</span>, Inc.</li>
         <li><a href="https://github.com/site/terms" data-ga-click="Footer, go to terms, text:terms">Terms</a></li>
         <li><a href="https://github.com/site/privacy" data-ga-click="Footer, go to privacy, text:privacy">Privacy</a></li>
         <li><a href="https://github.com/security" data-ga-click="Footer, go to security, text:security">Security</a></li>
