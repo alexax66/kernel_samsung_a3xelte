@@ -624,3 +624,4 @@ config TILE_SROM
 
 endmenu
 
+source "drivers/char/exynos-mcomp/Kconfig"

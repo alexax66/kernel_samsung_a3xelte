@@ -8,13 +8,6 @@ menuconfig MEMORY
 
 if MEMORY
 
-config EXYNOS_MCOMP
-	bool "Exynos memory compressor"
-	default y
-	depends on ARCH_EXYNOS
-	help
-	  Memory compressor
-
 config TI_EMIF
 	tristate "Texas Instruments EMIF driver"
 	depends on ARCH_OMAP2PLUS
