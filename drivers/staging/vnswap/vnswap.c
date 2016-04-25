@@ -125,7 +125,7 @@ int vnswap_init_backing_storage(void)
 				ret, vnswap_device->backing_storage_filename);
 	}
 
-    /* initialize vnswap_table */
+	/* initialize vnswap_table */
 	vnswap_table = vmalloc((vnswap_device->disksize / PAGE_SIZE) *
 				sizeof(int));
 	if (vnswap_table == NULL) {
@@ -951,7 +951,7 @@ void vnswap_slot_free_notify(struct block_device *bdev, unsigned long index)
 	if (nand_offset == -1) {
 		atomic_inc(&vnswap_device->stats.
 			vnswap_not_mapped_slot_free_num);
-		spin_unlock(&vnswap_table_lock);
+		spin_unlock_irq(&vnswap_table_lock);
 		return;
 	}
 
