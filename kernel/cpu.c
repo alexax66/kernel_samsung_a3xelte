@@ -571,6 +571,12 @@ extern struct cpumask hmp_slow_cpu_mask;
 extern int disable_dm_hotplug_before_suspend;
 #endif
 
+static bool is_woken_by_button = false;
+void set_is_woken_by_button(bool val)
+{
+	is_woken_by_button = val;
+}
+
 void __ref enable_nonboot_cpus(void)
 {
 	int cpu, error;
@@ -604,6 +610,12 @@ void __ref enable_nonboot_cpus(void)
 	cpumask_clear(frozen_cpus);
 out:
 	cpu_maps_update_done();
+
+	if (is_woken_by_button) {
+		is_woken_by_button = false;
+		for_each_possible_cpu(cpu)
+			cpu_up(cpu);
+	}
 }
 
 static int __init alloc_frozen_cpus(void)

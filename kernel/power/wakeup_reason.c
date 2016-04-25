@@ -73,6 +73,10 @@ static struct attribute_group attr_group = {
 	.attrs = attrs,
 };
 
+extern void set_is_woken_by_button(bool val);
+#define W_HOMEKEY	"gpio-keys: KEY_HOMEPAGE"
+#define W_PWRKEY	"gpio-keys: KEY_POWER"
+
 /*
  * logs all the wake up reasons to the kernel
  * stores the irqs to expose them to the userspace via sysfs
@@ -86,6 +90,10 @@ void log_wakeup_reason(int irq)
 				desc->action->name);
 	else
 		printk(KERN_INFO "Resume caused by IRQ %d\n", irq);
+
+	if (!strcmp(desc->action->name, W_HOMEKEY) ||
+	    !strcmp(desc->action->name, W_PWRKEY))
+		set_is_woken_by_button(true);
 
 	spin_lock(&resume_reason_lock);
 	if (irqcount == MAX_WAKEUP_REASON_IRQS) {
