@@ -34,7 +34,6 @@
  * e.g) 16byte x (DEFAULT_MEMCPY_THRESHOLD + 1) = 4Kbyte
  */
 #define DEFAULT_MEMCPY_THRESHOLD 0xFF
-#define MCOMP_EXPIRED_TIME	1000
 #define inbuf_is_filled(c) (c == MCOMP_THRESHOLD_PAGE_NUM)
 
 struct buf_addr {
@@ -55,7 +54,6 @@ struct mcomp_data {
 	void __iomem	*base;
 	struct mcomp_buf_info buf[MCOMP_MAX_BUF];
 	u32 (*comp_done)(struct compress_info *);
-	struct timer_list op_timer;
 	struct kthread_worker worker;
 	struct kthread_work work;
 	struct task_struct *task;
@@ -207,10 +205,6 @@ static void mcomp_compress_page(struct mcomp_data *mcomp)
 		num_pages = 0;
 
 	writel((num_pages << CMD_PAGES) | CMD_START, mcomp->base + CMD);
-
-	mcomp->op_timer.expires =
-		jiffies + msecs_to_jiffies(MCOMP_EXPIRED_TIME);
-	mod_timer(&mcomp->op_timer, mcomp->op_timer.expires);
 }
 
 /*
@@ -231,7 +225,6 @@ static irqreturn_t mcomp_irq_handler(int irq, void *dev_id)
 	}
 
 	__raw_writel(ISR_CLEAR, mcomp->base + ISR);
-	del_timer(&mcomp->op_timer);
 
 	spin_lock(&buf_lock);
 
@@ -380,15 +373,6 @@ static void mcomp_dump_log(struct mcomp_data *mcomp)
 		__raw_readl(mcomp->base + ISR), mcomp->is_running);
 }
 
-static void mcomp_op_timer_handler(unsigned long arg)
-{
-	struct mcomp_data *mcomp = (struct mcomp_data *)arg;
-
-	dev_err(mcomp->dev, "MCOMP TIMEOUT OCCURRED\n");
-	mcomp_dump_log(mcomp);
-	BUG();
-}
-
 static int mcomp_device_init(void *priv, u32 *nr_pages, u32 *unit,
 		u32 (*cb)(struct compress_info *))
 {
@@ -403,9 +387,6 @@ static int mcomp_device_init(void *priv, u32 *nr_pages, u32 *unit,
 	mcomp_use_cci(mcomp);
 	mcomp_set_threshold(mcomp, DEFAULT_MEMCPY_THRESHOLD);
 	mcomp_interrupt_enable(mcomp);
-
-	setup_timer(&mcomp->op_timer, mcomp_op_timer_handler,
-			(unsigned long)mcomp);
 
 	return mcomp_alloc_buffer(mcomp, MCOMP_BUF_SIZE);
 }
