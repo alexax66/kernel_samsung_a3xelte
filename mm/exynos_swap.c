@@ -26,7 +26,7 @@
 #include <linux/of_reserved_mem.h>
 #endif
 
-static unsigned int eswap_max_pool_percent = 75;
+static unsigned int eswap_max_pool_percent = 40;
 module_param_named(max_pool_percent,
 			eswap_max_pool_percent, uint, 0644);
 
