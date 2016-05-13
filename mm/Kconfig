@@ -661,12 +661,3 @@ config CMA_PINPAGE_MIGRATION
 	default n
 	help
 	  Turns on cma page migration for pinned page.
-
-config ESWAP
-	bool "Exynos SWAP for frontswap backend"
-	depends on !ZSWAP
-	depends on FRONTSWAP
-	select ZPOOL
-	default n
-	help
-	  This enables H/W compress for swap page.
