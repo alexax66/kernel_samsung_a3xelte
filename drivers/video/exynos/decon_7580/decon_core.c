@@ -33,6 +33,10 @@
 #include <linux/seq_file.h>
 #include <linux/of_gpio.h>
 
+#ifdef CONFIG_POWERSUSPEND
+#include <linux/powersuspend.h>
+#endif
+
 #include <mach/regs-clock.h>
 #include <mach/exynos-pm.h>
 #include <media/exynos_mc.h>
@@ -1117,6 +1121,9 @@ static int decon_blank(int blank_mode, struct fb_info *info)
 	case FB_BLANK_NORMAL:
 		lcd_notifier_call_chain(LCD_EVENT_OFF_START, NULL);
 		DISP_SS_EVENT_LOG(DISP_EVT_BLANK, &decon->sd, ktime_set(0, 0));
+#ifdef CONFIG_POWERSUSPEND
+		set_power_suspend_state_panel_hook(POWER_SUSPEND_ACTIVE);
+#endif
 		ret = decon_disable(decon);
 		if (ret) {
 			decon_err("failed to disable decon\n");
@@ -1128,6 +1135,9 @@ static int decon_blank(int blank_mode, struct fb_info *info)
 		lcd_notifier_call_chain(LCD_EVENT_ON_START, NULL);
 		DISP_SS_EVENT_LOG(DISP_EVT_UNBLANK, &decon->sd, ktime_set(0, 0));
 		ret = decon_enable(decon);
+#ifdef CONFIG_POWERSUSPEND
+		set_power_suspend_state_panel_hook(POWER_SUSPEND_INACTIVE);
+#endif
 		if (ret) {
 			decon_err("failed to enable decon\n");
 			goto blank_exit;
