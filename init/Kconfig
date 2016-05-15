@@ -900,11 +900,11 @@ config FG_BG_THRESHOLD
 	  lower than this will be moved to foreground cpuset.
 
 	  If this kernel is used with Android,
-	  platform_frameworks_base/core/java/android/app/ActivityManager.java
+	  platform_frameworks_base/services/core/java/com/android/server/am/
+	  ProcessList.java
 	  will give you some ideas how to set correct value for this config.
 
-	  The default value 5 is equivalent to "PROCESS_STATE_TOP_SLEEPING" on
-	  Android.
+	  The default value 5 is equivalent to "SERVICE_ADJ" on Android.
 
 config FG_BG_CPUSET_OOM_ADJ_DEBUG
 	bool "Debug logging for CONFIG_FG_BG_CPUSET_OOM_ADJ"
