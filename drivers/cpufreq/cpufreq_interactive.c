@@ -2519,7 +2519,7 @@ static int cpufreq_interactive_cluster1_min_qos_handler(struct notifier_block *b
 	struct cpufreq_interactive_tunables *tunables;
 	unsigned long flags;
 	int ret = NOTIFY_OK;
-#if defined(CONFIG_ARM_EXYNOS_MP_CPUFREQ)
+#if defined(CONFIG_ARM_EXYNOS_MP_CPUFREQ) || defined(CONFIG_ARM_EXYNOS_SMP_CPUFREQ)
 	int cpu = NR_CLUST0_CPUS;
 #else
 	int cpu = 0;
@@ -2570,7 +2570,7 @@ static int cpufreq_interactive_cluster1_max_qos_handler(struct notifier_block *b
 	struct cpufreq_interactive_tunables *tunables;
 	unsigned long flags;
 	int ret = NOTIFY_OK;
-#if defined(CONFIG_ARM_EXYNOS_MP_CPUFREQ)
+#if defined(CONFIG_ARM_EXYNOS_MP_CPUFREQ) || defined(CONFIG_ARM_EXYNOS_SMP_CPUFREQ)
 	int cpu = NR_CLUST0_CPUS;
 #else
 	int cpu = 0;
@@ -2614,7 +2614,7 @@ static struct notifier_block cpufreq_interactive_cluster1_max_qos_notifier = {
 	.notifier_call = cpufreq_interactive_cluster1_max_qos_handler,
 };
 
-#ifdef CONFIG_ARM_EXYNOS_MP_CPUFREQ
+#if defined(CONFIG_ARM_EXYNOS_MP_CPUFREQ) || defined(CONFIG_ARM_EXYNOS_SMP_CPUFREQ)
 static int cpufreq_interactive_cluster0_min_qos_handler(struct notifier_block *b,
 						unsigned long val, void *v)
 {
@@ -2757,7 +2757,7 @@ static int __init cpufreq_interactive_init(void)
 #ifdef CONFIG_ARCH_EXYNOS
 	pm_qos_add_notifier(PM_QOS_CLUSTER1_FREQ_MIN, &cpufreq_interactive_cluster1_min_qos_notifier);
 	pm_qos_add_notifier(PM_QOS_CLUSTER1_FREQ_MAX, &cpufreq_interactive_cluster1_max_qos_notifier);
-#ifdef CONFIG_ARM_EXYNOS_MP_CPUFREQ
+#if defined(CONFIG_ARM_EXYNOS_MP_CPUFREQ) || defined(CONFIG_ARM_EXYNOS_SMP_CPUFREQ)
 	pm_qos_add_notifier(PM_QOS_CLUSTER0_FREQ_MIN, &cpufreq_interactive_cluster0_min_qos_notifier);
 	pm_qos_add_notifier(PM_QOS_CLUSTER0_FREQ_MAX, &cpufreq_interactive_cluster0_max_qos_notifier);
 #endif
