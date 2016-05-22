@@ -18,7 +18,6 @@
 #include <mali_kbase.h>
 
 #include <linux/pm_qos.h>
-#include <linux/cpufreq_kt.h>
 #include <mach/pm_domains.h>
 
 #include "mali_kbase_platform.h"
@@ -128,7 +127,7 @@ int gpu_control_set_clock(struct kbase_device *kbdev, int clock)
 	}
 	if (clock < gpu_min_override)
 		clock = gpu_min_override;
-	if (screen_is_on || gpu_max_override_screen_off == 0)
+	if (gpu_max_override_screen_off == 0)
 	{
 		if (clock > gpu_max_override)
 			clock = gpu_max_override;
