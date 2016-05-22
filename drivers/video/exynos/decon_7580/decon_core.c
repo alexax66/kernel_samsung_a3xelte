@@ -32,6 +32,7 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/of_gpio.h>
+#include <linux/cpufreq_kt.h>
 
 #ifdef CONFIG_POWERSUSPEND
 #include <linux/powersuspend.h>
@@ -1121,6 +1122,7 @@ static int decon_blank(int blank_mode, struct fb_info *info)
 	case FB_BLANK_NORMAL:
 		lcd_notifier_call_chain(LCD_EVENT_OFF_START, NULL);
 		DISP_SS_EVENT_LOG(DISP_EVT_BLANK, &decon->sd, ktime_set(0, 0));
+		screen_is_on = false;
 #ifdef CONFIG_POWERSUSPEND
 		set_power_suspend_state_panel_hook(POWER_SUSPEND_ACTIVE);
 #endif
@@ -1134,6 +1136,7 @@ static int decon_blank(int blank_mode, struct fb_info *info)
 	case FB_BLANK_UNBLANK:
 		lcd_notifier_call_chain(LCD_EVENT_ON_START, NULL);
 		DISP_SS_EVENT_LOG(DISP_EVT_UNBLANK, &decon->sd, ktime_set(0, 0));
+		screen_is_on = true;
 		ret = decon_enable(decon);
 #ifdef CONFIG_POWERSUSPEND
 		set_power_suspend_state_panel_hook(POWER_SUSPEND_INACTIVE);
