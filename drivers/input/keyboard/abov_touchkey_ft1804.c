@@ -40,8 +40,8 @@
 #include <linux/of_gpio.h>
 #endif
 
-#ifdef CONFIG_POWERSUSPEND
-#include <linux/powersuspend.h>
+#ifdef CONFIG_HAS_EARLYSUSPEND
+#include <linux/earlysuspend.h>
 #endif
 
 #ifdef CONFIG_BATTERY_SAMSUNG
@@ -175,8 +175,8 @@ struct abov_tk_info {
 	struct input_dev *input_dev;
 	struct device *dev;
 	struct abov_touchkey_platform_data *pdata;
-#ifdef CONFIG_POWERSUSPEND
-	struct power_suspend power_suspend;
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	struct early_suspend early_suspend;
 #endif
 	struct mutex lock;
 	struct pinctrl *pinctrl;
@@ -230,9 +230,9 @@ struct abov_tk_info {
 };
 
 
-#ifdef CONFIG_POWERSUSPEND
-static void abov_tk_early_suspend(struct power_suspend *h);
-static void abov_tk_late_resume(struct power_suspend *h);
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void abov_tk_early_suspend(struct early_suspend *h);
+static void abov_tk_late_resume(struct early_suspend *h);
 #endif
 
 #if 1//def CONFIG_INPUT_ENABLED
@@ -2592,10 +2592,11 @@ static int abov_tk_probe(struct i2c_client *client,
 	}
 	info->irq = client->irq;
 
-#ifdef CONFIG_POWERSUSPEND
-	info->power_suspend.suspend = abov_tk_early_suspend;
-	info->power_suspend.resume = abov_tk_late_resume;
-	register_power_suspend(&info->power_suspend);
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	info->early_suspend.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING;
+	info->early_suspend.suspend = abov_tk_early_suspend;
+	info->early_suspend.resume = abov_tk_late_resume;
+	register_early_suspend(&info->early_suspend);
 #endif
 
 	info->dev = sec_device_create(info, "sec_touchkey");
@@ -2704,8 +2705,8 @@ static int abov_tk_remove(struct i2c_client *client)
 	device_init_wakeup(&client->dev, false);
 	wake_lock_destroy(&info->touckey_wake_lock);
 #endif
-#ifdef CONFIG_POWERSUSPEND
-	unregister_power_suspend(&info->power_suspend);
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	unregister_early_suspend(&info->early_suspend);
 #endif
 	if (info->irq >= 0)
 		free_irq(info->irq, info);
@@ -2795,19 +2796,19 @@ static int abov_tk_resume(struct device *dev)
 }
 #endif
 
-#ifdef CONFIG_POWERSUSPEND
-static void abov_tk_early_suspend(struct power_suspend *h)
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void abov_tk_early_suspend(struct early_suspend *h)
 {
 	struct abov_tk_info *info;
-	info = container_of(h, struct abov_tk_info, power_suspend);
+	info = container_of(h, struct abov_tk_info, early_suspend);
 	abov_tk_suspend(&info->client->dev);
 
 }
 
-static void abov_tk_late_resume(struct power_suspend *h)
+static void abov_tk_late_resume(struct early_suspend *h)
 {
 	struct abov_tk_info *info;
-	info = container_of(h, struct abov_tk_info, power_suspend);
+	info = container_of(h, struct abov_tk_info, early_suspend);
 	abov_tk_resume(&info->client->dev);
 }
 #endif
