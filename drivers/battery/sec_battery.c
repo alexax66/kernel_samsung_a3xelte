@@ -6161,9 +6161,10 @@ static int __devinit sec_battery_probe(struct platform_device *pdev)
 
 	dev_info(battery->dev,
 		"%s: SEC Battery Driver Loaded\n", __func__);
-	return 0;
 
 	charger_control_init(battery);
+
+	return 0;
 
 err_req_irq:
 	if (battery->pdata->bat_irq)

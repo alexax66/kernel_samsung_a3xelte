@@ -59,6 +59,12 @@ config FUELGAUGE_MAX17042
 	 This fuel-gauge can be used in voltage-tracking mode
 	 or coulomb-counting mode.
 
+config SEC_BATTERY_CHARGE_CONTROL
+	bool "Charge control interface for Samsung devices"
+	default y
+	help
+	  Allows configuration of AC, USB and Wireless charging levels
+
 config FUELGAUGE_MAX17042_VOLTAGE_TRACKING
 	tristate "use MAX17042 fuel gauge only as voltage tracking"
 	default n
