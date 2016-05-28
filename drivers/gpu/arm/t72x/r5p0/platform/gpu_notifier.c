@@ -143,6 +143,7 @@ static int gpu_pm_notifier(struct notifier_block *nb, unsigned long event, void 
 }
 #endif /* CONFIG_MALI_RT_PM */
 
+#ifdef CONFIG_EXYNOS_NOC_DEBUGGING
 static int gpu_noc_notifier(struct notifier_block *nb, unsigned long event, void *cmd)
 {
 	if (strstr((char *)cmd, "G3D")) {
@@ -151,6 +152,7 @@ static int gpu_noc_notifier(struct notifier_block *nb, unsigned long event, void
 	}
 	return 0;
 }
+#endif /* CONFIG_EXYNOS_NOC_DEBUGGING */
 
 static int gpu_power_on(struct kbase_device *kbdev)
 {
@@ -209,9 +211,11 @@ static struct notifier_block gpu_pm_nb = {
 	.notifier_call = gpu_pm_notifier
 };
 
-static struct notifier_block gpu_noc_nb = {
+#ifdef CONFIG_EXYNOS_NOC_DEBUGGING
+pu_noc_nbstatic struct notifier_block gpu_noc_nb = {
 	.notifier_call = gpu_noc_notifier
 };
+#endif
 
 static mali_error gpu_device_runtime_init(struct kbase_device *kbdev)
 {
