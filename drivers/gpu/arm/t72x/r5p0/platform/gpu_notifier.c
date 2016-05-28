@@ -212,7 +212,7 @@ static struct notifier_block gpu_pm_nb = {
 };
 
 #ifdef CONFIG_EXYNOS_NOC_DEBUGGING
-pu_noc_nbstatic struct notifier_block gpu_noc_nb = {
+static struct notifier_block gpu_noc_nb = {
 	.notifier_call = gpu_noc_notifier
 };
 #endif
