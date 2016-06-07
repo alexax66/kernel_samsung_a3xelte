@@ -261,10 +261,9 @@ static int input_handle_abs_event(struct input_dev *dev,
 }
 
 static int input_get_disposition(struct input_dev *dev,
-			  unsigned int type, unsigned int code, int *pval)
+			  unsigned int type, unsigned int code, int value)
 {
 	int disposition = INPUT_IGNORE_EVENT;
-	int value = *pval;
 
 	switch (type) {
 
@@ -362,7 +361,6 @@ static int input_get_disposition(struct input_dev *dev,
 		break;
 	}
 
-	*pval = value;
 	return disposition;
 }
 
@@ -371,7 +369,7 @@ static void input_handle_event(struct input_dev *dev,
 {
 	int disposition;
 
-	disposition = input_get_disposition(dev, type, code, &value);
+	disposition = input_get_disposition(dev, type, code, value);
 
 	if ((disposition & INPUT_PASS_TO_DEVICE) && dev->event)
 		dev->event(dev, type, code, value);
@@ -419,7 +417,6 @@ DECLARE_TIMEOUT_FUNC(mouse);
 DECLARE_TIMEOUT_FUNC(mouse_wheel);
 DECLARE_TIMEOUT_FUNC(pen);
 DECLARE_TIMEOUT_FUNC(hover);
-DECLARE_TIMEOUT_FUNC(gamepad);
 
 // ********** Define Set Booster Functions ********** //
 DECLARE_SET_BOOSTER_FUNC(touch);
@@ -431,7 +428,6 @@ DECLARE_SET_BOOSTER_FUNC(mouse);
 DECLARE_SET_BOOSTER_FUNC(mouse_wheel);
 DECLARE_SET_BOOSTER_FUNC(pen);
 DECLARE_SET_BOOSTER_FUNC(hover);
-DECLARE_SET_BOOSTER_FUNC(gamepad);
 
 // ********** Define Reet Booster Functions ********** //
 DECLARE_RESET_BOOSTER_FUNC(touch);
@@ -443,7 +439,6 @@ DECLARE_RESET_BOOSTER_FUNC(mouse);
 DECLARE_RESET_BOOSTER_FUNC(mouse_wheel);
 DECLARE_RESET_BOOSTER_FUNC(pen);
 DECLARE_RESET_BOOSTER_FUNC(hover);
-DECLARE_RESET_BOOSTER_FUNC(gamepad);
 
 // ********** Define State Functions ********** //
 DECLARE_STATE_FUNC(idle)
@@ -477,7 +472,7 @@ DECLARE_STATE_FUNC(press)
 
 	if(input_booster_event == BOOSTER_OFF) {
 		pr_debug("[Input Booster] %s      State : Press  index : %d, time : %d\n", glGage, _this->index, _this->param[_this->index].time);
-		if(_this->multi_events <= 0 && _this->index < 2) {
+		if(_this->multi_events <= 0) {
 			if(delayed_work_pending(&_this->input_booster_timeout_work[(_this->index) ? _this->index-1 : 0]) || (_this->param[(_this->index) ? _this->index-1 : 0].time == 0)) {
 				if(_this->change_on_release || (_this->param[(_this->index) ? _this->index-1 : 0].time == 0)) {
 					pr_debug("[Input Booster] %s           cancel the pending workqueue\n", glGage);
@@ -518,7 +513,7 @@ void input_booster_disable(struct t_input_booster *_this)
 // ********** Detect Events ********** //
 void input_booster(struct input_dev *dev)
 {
-	int i, j, DetectedCategory = false, iTouchID = -1, iTouchSlot = -1, gamepad_flag = 0;
+	int i, j, DetectedCategory = false, iTouchID = -1, iTouchSlot = -1;
 #if defined(CONFIG_SOC_EXYNOS7420) // This code should be working properly in Exynos7420(Noble & Zero2) only.
 	int lcdoffcounter = 0;
 #endif
@@ -594,7 +589,7 @@ void input_booster(struct input_dev *dev)
 		} else if (input_events[i].type == EV_ABS) {
 			if (input_events[i].code == ABS_MT_TRACKING_ID) {
 				iTouchID = i;
-				if(input_events[iTouchSlot].value < MAX_MULTI_TOUCH_EVENTS && iTouchID < MAX_EVENTS && iTouchSlot <= MAX_EVENTS) {
+				if(input_events[iTouchSlot].value < MAX_MULTI_TOUCH_EVENTS && iTouchID < MAX_EVENTS) {
 					if(TouchIDs[input_events[iTouchSlot].value] < 0 && input_events[iTouchID].value >= 0) {
 						TouchIDs[input_events[iTouchSlot].value] = input_events[iTouchID].value;
 						if(touch_booster.multi_events <= 0 || input_events[iTouchSlot].value == 0) {
@@ -613,7 +608,7 @@ void input_booster(struct input_dev *dev)
 								touch_booster.index = 1;
 								TIMEOUT_FUNC(touch)(NULL);
 								touch_booster.param[0].hmp_boost = temp_hmp_boost;
-								touch_booster.index = ( temp_index >= 2 ? 1 : temp_index );
+								touch_booster.index = temp_index;
 							}
 						}
 					} else if(TouchIDs[input_events[iTouchSlot].value] >= 0 && input_events[iTouchID].value < 0) {
@@ -647,18 +642,6 @@ void input_booster(struct input_dev *dev)
 					pr_debug("[Input Booster] *****************************\n[Input Booster] All boosters are reset  %d\n[Input Booster] *****************************\n", lcdoffcounter);
 				}
 #endif
-			} else if (input_events[i].code >= ABS_X && input_events[i].code <= ABS_RZ) {
-				if(input_events[i].value != 0x80) {
-					gamepad_flag = 2;
-				} else if(gamepad_flag == 0 && input_events[i].value == 80) {
-					gamepad_flag = 1;
-				}
-			} else if (input_events[i].code >= ABS_HAT0X && input_events[i].code <= ABS_HAT3Y) {
-				if(input_events[i].value != 0) {
-					gamepad_flag = 2;
-				} else if(gamepad_flag == 0 && input_events[i].value == 0) {
-					gamepad_flag = 1;
-				}
 			}
 		} else if (input_events[i].type == EV_MSC && input_events[i].code == MSC_SCAN) {
 			if (input_events[i+1].type == EV_KEY) {
@@ -685,14 +668,6 @@ void input_booster(struct input_dev *dev)
 			}
 		}
 	}
-
-	if(gamepad_flag == 2 && gamepad_booster.multi_events <= 0) {
-		pr_debug("[Input Booster] GAME PAD EVENT - ON\n");
-		RUN_BOOSTER(gamepad, BOOSTER_ON );
-	} else if(gamepad_flag == 1 && gamepad_booster.multi_events == 1) {
-		pr_debug("[Input Booster] GAME PAD EVENT - OFF\n");
-		RUN_BOOSTER(gamepad, BOOSTER_OFF );
-	}
 }
 
 // ********** Init Booster ********** //
@@ -707,11 +682,6 @@ void input_booster_init()
 	}
 
 	np = of_find_compatible_node(NULL, NULL, "input_booster");
-
-	if(np == NULL) {
-		ndevice_in_dt = 0;
-		return;
-	}
 
 	// Geting the count of devices.
 	ndevice_in_dt = of_get_child_count(np);
@@ -804,7 +774,6 @@ void input_booster_init()
 	INIT_BOOSTER(mouse_wheel)
 	INIT_BOOSTER(pen)
 	INIT_BOOSTER(hover)
-	INIT_BOOSTER(gamepad)
 	multitouch_booster.change_on_release = 1;
 
 	// ********** Initialize Sysfs **********
@@ -831,7 +800,6 @@ void input_booster_init()
 		INIT_SYSFS_DEVICE(mouse_wheel)
 		INIT_SYSFS_DEVICE(pen)
 		INIT_SYSFS_DEVICE(hover)
-		INIT_SYSFS_DEVICE(gamepad)
 	}
 }
 #endif  // Input Booster -
@@ -865,19 +833,17 @@ void input_event(struct input_dev *dev,
 		spin_unlock_irqrestore(&dev->event_lock, flags);
 
 #if !defined(CONFIG_INPUT_BOOSTER) // Input Booster +
-		if(device_tree_infor != NULL) {
-			if (type == EV_SYN && input_count > 0) {
-				pr_debug("[Input Booster1] ==============================================\n");
-				input_booster(dev);
-				input_count=0;
-			} else {
-				pr_debug("[Input Booster1] type = %x, code = %x, value =%x\n", type, code, value);
-				input_events[input_count].type = type;
-				input_events[input_count].code = code;
-				input_events[input_count].value = value;
-				if(input_count < MAX_EVENTS) {
-					input_count++;
-				}
+		if (type == EV_SYN && input_count > 0) {
+			pr_debug("[Input Booster1] ==============================================\n");
+			input_booster(dev);
+			input_count=0;
+		} else {
+			pr_debug("[Input Booster1] type = %x, code = %x, value =%x\n", type, code, value);
+			input_events[input_count].type = type;
+			input_events[input_count].code = code;
+			input_events[input_count].value = value;
+			if(input_count < MAX_EVENTS) {
+				input_count++;
 			}
 		}
 #endif  // Input Booster -
@@ -1051,7 +1017,7 @@ int input_open_device(struct input_handle *handle)
 	if (retval) {
 		dev->users_private--;
 		if (!dev->disabled)
-		dev->users--;
+			dev->users--;
 		if (!--handle->open) {
 			/*
 			 * Make sure we are not delivering any more events
@@ -2401,10 +2367,6 @@ void input_set_capability(struct input_dev *dev, unsigned int type, unsigned int
 		break;
 
 	case EV_ABS:
-		input_alloc_absinfo(dev);
-		if (!dev->absinfo)
-			return;
-
 		__set_bit(code, dev->absbit);
 		break;
 
