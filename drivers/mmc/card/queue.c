@@ -105,6 +105,7 @@ static int mmc_queue_thread(void *d)
 	sched_setscheduler(current, SCHED_FIFO, &scheduler_params);
 
 	current->flags |= PF_MEMALLOC;
+	set_wake_up_idle(true);
 
 #if defined(CONFIG_SOC_EXYNOS5430) || defined(CONFIG_SOC_EXYNOS5433)
 	set_cpus_allowed_ptr(current, cpu_coregroup_mask(0));
