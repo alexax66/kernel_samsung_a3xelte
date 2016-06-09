@@ -22,14 +22,14 @@ mcKernelApi-objs := MobiCoreKernelApi/main.o \
 obj-$(CONFIG_SECURE_OS_CONTROL) += sec-os-ctrl/
 
 # Release mode by default
-ccflags-y := -DNDEBUG -include $(GUD_ROOT_FOLDER)/build_tag.h
+ccflags-y := -DNDEBUG -include $(srctree)/$(GUD_ROOT_FOLDER)/build_tag.h
 ccflags-y += -Wno-declaration-after-statement
 
 ccflags-$(CONFIG_MOBICORE_DEBUG) += -DDEBUG
 ccflags-$(CONFIG_MOBICORE_VERBOSE) += -DDEBUG_VERBOSE
 
 # Choose one platform from the folder
-MOBICORE_PLATFORM := $(shell (ls -1 $(GUD_ROOT_FOLDER)/MobiCoreDriver/platforms | tail -1) )
+MOBICORE_PLATFORM := $(shell (ls -1 $(srctree)/$(GUD_ROOT_FOLDER)/MobiCoreDriver/platforms | tail -1) )
 ifeq ($(MOBICORE_PLATFORM), ARM_VE_A9X4_QEMU)
     ccflags-y += -DMC_NETLINK_COMPAT
 endif
@@ -47,9 +47,9 @@ ifeq ($(MOBICORE_PLATFORM), EXYNOS_5430_STD)
 endif
 
 # Use the available platform folder
-ccflags-y += -I$(GUD_ROOT_FOLDER)/MobiCoreDriver/platforms/$(MOBICORE_PLATFORM)
+ccflags-y += -I$(srctree)/$(GUD_ROOT_FOLDER)/MobiCoreDriver/platforms/$(MOBICORE_PLATFORM)
 # MobiCore Driver includes
-ccflags-y += -I$(GUD_ROOT_FOLDER)/MobiCoreDriver/public
+ccflags-y += -I$(srctree)/$(GUD_ROOT_FOLDER)/MobiCoreDriver/public
 # MobiCore KernelApi required incldes
-ccflags-y += -I$(GUD_ROOT_FOLDER)/MobiCoreKernelApi/include \
-		-I$(GUD_ROOT_FOLDER)/MobiCoreKernelApi/public
+ccflags-y += -I$(srctree)/$(GUD_ROOT_FOLDER)/MobiCoreKernelApi/include \
+		-I$(srctree)/$(GUD_ROOT_FOLDER)/MobiCoreKernelApi/public

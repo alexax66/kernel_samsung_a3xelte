@@ -7,5 +7,5 @@ obj-$(CONFIG_SECURE_OS_CONTROL) += sec_os_ctrl.o
 GUD_ROOT_FOLDER := drivers/gud/
 
 # Includes MobiCore kernel driver
-ccflags-y += -I$(GUD_ROOT_FOLDER)/MobiCoreDriver
-ccflags-y += -I$(GUD_ROOT_FOLDER)/MobiCoreDriver/public
+ccflags-y += -I$(srctree)/$(GUD_ROOT_FOLDER)/MobiCoreDriver
+ccflags-y += -I$(srctree)/$(GUD_ROOT_FOLDER)/MobiCoreDriver/public
