@@ -13,7 +13,7 @@
 #ifndef FIMC_IS_SUBDEV_H
 #define FIMC_IS_SUBDEV_H
 
-#include "fimc-is-param.h"
+#include "include/fimc-is-param.h"
 #include "fimc-is-video.h"
 
 struct fimc_is_device_ischain;

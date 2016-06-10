@@ -45,14 +45,14 @@
 #endif
 #endif
 
-#include "fimc-is-param.h"
+#include "include/fimc-is-param.h"
 #include "fimc-is-interface.h"
 #include "fimc-is-framemgr.h"
 #include "fimc-is-resourcemgr.h"
 #include "fimc-is-device-sensor.h"
 #include "fimc-is-device-ischain.h"
 #include "fimc-is-device-companion.h"
-#include "fimc-is-spi.h"
+#include "vendor/fimc-is-spi.h"
 #include "fimc-is-video.h"
 #include "fimc-is-mem.h"
 

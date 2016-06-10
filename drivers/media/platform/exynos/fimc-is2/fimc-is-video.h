@@ -3,15 +3,15 @@
 
 #include <linux/version.h>
 #include <media/v4l2-ioctl.h>
-#include "fimc-is-type.h"
+#include "include/fimc-is-type.h"
 #include "fimc-is-mem.h"
 #include "fimc-is-framemgr.h"
 #ifdef CONFIG_ENABLE_HAL3_2_META_INTERFACE
-#include "fimc-is-metadata.h"
+#include "include/fimc-is-metadata.h"
 #else
 #include "fimc-is-metadata-legacy.h"
 #endif
-#include "fimc-is-config.h"
+#include "include/fimc-is-config.h"
 
 /* configuration by linux kernel version */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3,7,0))

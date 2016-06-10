@@ -13,7 +13,7 @@
 #define FIMC_IS_DEVICE_FLITE_H
 
 #include <linux/interrupt.h>
-#include "fimc-is-type.h"
+#include "include/fimc-is-type.h"
 
 #define EXPECT_FRAME_START	0
 #define EXPECT_FRAME_END	1

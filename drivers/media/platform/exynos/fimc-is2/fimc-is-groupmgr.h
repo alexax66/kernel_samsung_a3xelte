@@ -12,11 +12,11 @@
 #ifndef FIMC_IS_GROUP_MGR_H
 #define FIMC_IS_GROUP_MGR_H
 
-#include "fimc-is-config.h"
+#include "include/fimc-is-config.h"
 #include "fimc-is-time.h"
 #include "fimc-is-subdev-ctrl.h"
 #include "fimc-is-video.h"
-#include "fimc-is-cmd.h"
+#include "include/fimc-is-cmd.h"
 
 /* #define DEBUG_AA */
 /* #define DEBUG_FLASH */

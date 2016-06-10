@@ -14,9 +14,9 @@
 #define FIMC_IS_LIB_H
 
 #include "fimc-is-lib-fd.h"
-#include "fimc-is-core.h"
-#include "fimc-is-param.h"
-#include "fimc-is-metadata.h"
+#include "../../fimc-is-core.h"
+#include "../../include/fimc-is-param.h"
+#include "../../include/fimc-is-metadata.h"
 
 /* FD heap size is calculated by the appointed  formula  */
 #define FD_HEAP_SIZE			((FD_MAP_WIDTH * FD_MAP_HEIGHT / 16) + (130 * 1024))

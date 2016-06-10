@@ -15,15 +15,15 @@
 #define FIMC_IS_INTERFACE_H
 
 #ifdef CONFIG_ENABLE_HAL3_2_META_INTERFACE
-#include "fimc-is-metadata.h"
+#include "include/fimc-is-metadata.h"
 #else
 #include "fimc-is-metadata-legacy.h"
 #endif
 #include "fimc-is-framemgr.h"
 #include "fimc-is-video.h"
 #include "fimc-is-time.h"
-#include "fimc-is-cmd.h"
-#include "fimc-is-config.h"
+#include "include/fimc-is-cmd.h"
+#include "include/fimc-is-config.h"
 
 /*#define TRACE_WORK*/
 /* cam_ctrl : 1

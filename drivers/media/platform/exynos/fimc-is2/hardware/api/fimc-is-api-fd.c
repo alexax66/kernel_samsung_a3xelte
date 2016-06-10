@@ -20,8 +20,8 @@
 #include <linux/memblock.h>
 
 #include "fimc-is-api-fd.h"
-#include "fimc-is-config.h"
-#include "fimc-is-regs.h"
+#include "../../include/fimc-is-config.h"
+#include "../../include/fimc-is-regs.h"
 
 #ifdef FD_USE_SHARED_REGION
 /* FD reserved memory address */
