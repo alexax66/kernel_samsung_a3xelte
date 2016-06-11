@@ -18,7 +18,6 @@
 #include <mali_kbase.h>
 
 #include <linux/fb.h>
-#include <linux/ipa.h>
 #include <linux/sysfs_helpers.h>
 
 #include "mali_kbase_platform.h"
