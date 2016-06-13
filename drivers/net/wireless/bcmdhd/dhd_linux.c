@@ -5487,7 +5487,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	setbit(eventmask, WLC_E_AIBSS_TXFAIL);
 #endif /* WLAIBSS */
 
-	setbit(eventmask, WLC_E_TRACE);
+	clrbit(eventmask, WLC_E_TRACE);
 #ifdef DHD_LOSSLESS_ROAMING
 	setbit(eventmask, WLC_E_ROAM_PREP);
 #endif
