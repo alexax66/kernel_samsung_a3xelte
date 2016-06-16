@@ -30,8 +30,9 @@ extern int boot_mode_security;
  */
 #define LOG_MAGIC 0x4d474f4c	/* "LOGM" */
 
-
+// [ SEC_SELINUX_PORTING EXYNOS
 #ifdef CONFIG_SEC_AVC_LOG
+// ] SEC_SELINUX_PORTING EXYNOS
 static unsigned *sec_avc_log_ptr;
 static char *sec_avc_log_buf;
 static unsigned sec_avc_log_size;
@@ -152,7 +153,7 @@ static ssize_t sec_avc_log_write(struct file *file,
 	if (sscanf(page, "%u", &new_value) != 1) {
 		pr_info("%s\n", page);
 		/* print avc_log to sec_avc_log_buf */
-		sec_debug_avc_log(page);
+		sec_debug_avc_log("%s", page);
 	} 
 	ret = count;
 out:
@@ -205,7 +206,9 @@ static int __init sec_avc_log_late_init(void)
 
 late_initcall(sec_avc_log_late_init);
 
+// [ SEC_SELINUX_PORTING EXYNOS
 #endif /* CONFIG_SEC_AVC_LOG */
+// ] SEC_SELINUX_PORTING EXYNOS
 
 
 #ifdef CONFIG_SEC_DEBUG_TSP_LOG
