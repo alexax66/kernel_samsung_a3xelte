@@ -1250,33 +1250,34 @@ static void compact_node(int nid)
 	__compact_pgdat(NODE_DATA(nid), &cc);
 }
 
+void zswap_compact(void);
 /* Compact all nodes in the system */
 static void compact_nodes(void)
 {
 	int nid;
+
+	sysctl_compact_memory++;
 
 	/* Flush pending updates to the LRU lists */
 	lru_add_drain_all();
 
 	for_each_online_node(nid)
 		compact_node(nid);
+
+	pr_info("compact_memory done.(%d times so far)\n",
+		sysctl_compact_memory);
+	zswap_compact();
 }
 
 /* The written value is actually unused, all memory is compacted */
 int sysctl_compact_memory;
 
 /* This is the entry point for compacting all nodes via /proc/sys/vm */
-void zswap_compact(void);
 int sysctl_compaction_handler(struct ctl_table *table, int write,
 			void __user *buffer, size_t *length, loff_t *ppos)
 {
-	if (write) {
-		sysctl_compact_memory++;
+	if (write)
 		compact_nodes();
-		pr_info("compact_memory done.(%d times so far)\n",
-			sysctl_compact_memory);
-		zswap_compact();
-	}
 	else
 		proc_dointvec(table, write, buffer, length, ppos);
 
