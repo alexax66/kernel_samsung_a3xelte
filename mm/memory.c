@@ -72,7 +72,79 @@
 #include <asm/tlbflush.h>
 #include <asm/pgtable.h>
 
+#ifdef CONFIG_CMA_PINPAGE_MIGRATION
+#include <linux/mm_inline.h>
+#endif
+
 #include "internal.h"
+
+#ifdef CONFIG_CMA_PINPAGE_MIGRATION
+static struct page *__alloc_nonmovable_userpage(struct page *page,
+				unsigned long private, int **result)
+{
+	return alloc_page(GFP_HIGHUSER);
+}
+
+static bool __need_migrate_cma_page(struct page *page,
+				struct vm_area_struct *vma,
+				unsigned long start, unsigned int flags)
+{
+	if (!(flags & FOLL_GET))
+		return false;
+
+	if (!is_cma_pageblock(page))
+		return false;
+
+	if ((vma->vm_flags & VM_STACK_INCOMPLETE_SETUP) ==
+					VM_STACK_INCOMPLETE_SETUP)
+		return false;
+
+	migrate_prep_local();
+
+	if (!PageLRU(page))
+		return false;
+
+	return true;
+}
+
+static int __migrate_cma_pinpage(struct page *page, struct vm_area_struct *vma)
+{
+	struct zone *zone = page_zone(page);
+	struct list_head migratepages;
+	struct lruvec *lruvec;
+	int tries = 0;
+	int ret = 0;
+
+	INIT_LIST_HEAD(&migratepages);
+
+	if (__isolate_lru_page(page, 0) != 0) {
+		dump_page(page);
+		return -EFAULT;
+	} else {
+		spin_lock_irq(&zone->lru_lock);
+		lruvec = mem_cgroup_page_lruvec(page, page_zone(page));
+		del_page_from_lru_list(page, lruvec, page_lru(page));
+		spin_unlock_irq(&zone->lru_lock);
+	}
+
+	list_add(&page->lru, &migratepages);
+	inc_zone_page_state(page, NR_ISOLATED_ANON + page_is_file_cache(page));
+
+	while (!list_empty(&migratepages) && tries++ < 5) {
+		ret = migrate_pages(&migratepages, __alloc_nonmovable_userpage,
+					0, MIGRATE_SYNC, MR_CMA);
+	}
+
+	if (ret < 0) {
+		putback_movable_pages(&migratepages);
+		pr_err("%s: migration failed %p[%#lx]\n", __func__,
+					page, page_to_pfn(page));
+		return -EFAULT;
+	}
+
+	return 0;
+}
+#endif
 
 #ifdef LAST_NID_NOT_IN_PAGE_FLAGS
 #warning Unfortunate NUMA and NUMA Balancing config, growing page-frame for last_nid.
@@ -1494,80 +1566,6 @@ int zap_vma_ptes(struct vm_area_struct *vma, unsigned long address,
 }
 EXPORT_SYMBOL_GPL(zap_vma_ptes);
 
-#ifdef CONFIG_CMA_PINPAGE_MIGRATION
-static struct page *__alloc_nonmovable_userpage(struct page *page,
-				unsigned long private, int **result)
-{
-	return alloc_page(GFP_HIGHUSER);
-}
-
-static inline int stack_guard_page(struct vm_area_struct *vma, unsigned long addr);
-
-static bool __need_migrate_cma_page(struct page *page,
-				struct vm_area_struct *vma,
-				unsigned long start, unsigned int flags)
-{
-	if (!(flags & FOLL_GET))
-		return false;
-
-	if (!is_cma_pageblock(page))
-		return false;
-
-	if ((vma->vm_flags & VM_STACK_INCOMPLETE_SETUP) ==
-					VM_STACK_INCOMPLETE_SETUP)
-		return false;
-
-	if (!(flags & FOLL_CMA))
-		return false;
-
-	migrate_prep_local();
-
-	if (!PageLRU(page))
-		return false;
-
-	return true;
-}
-
-static int __migrate_cma_pinpage(struct page *page, struct vm_area_struct *vma)
-{
-	struct zone *zone = page_zone(page);
-	struct list_head migratepages;
-	struct lruvec *lruvec;
-	int tries = 0;
-	int ret = 0;
-
-	INIT_LIST_HEAD(&migratepages);
-
-	if (__isolate_lru_page(page, 0) != 0) {
-		pr_warn("%s: failed to isolate lru page\n", __func__);
-		dump_page(page);
-		return -EFAULT;
-	} else {
-		spin_lock_irq(&zone->lru_lock);
-		lruvec = mem_cgroup_page_lruvec(page, page_zone(page));
-		del_page_from_lru_list(page, lruvec, page_lru(page));
-		spin_unlock_irq(&zone->lru_lock);
-	}
-
-	list_add(&page->lru, &migratepages);
-	inc_zone_page_state(page, NR_ISOLATED_ANON + page_is_file_cache(page));
-
-	while (!list_empty(&migratepages) && tries++ < 5) {
-		ret = migrate_pages(&migratepages,
-			__alloc_nonmovable_userpage, 0, MIGRATE_SYNC, MR_CMA);
-	}
-
-	if (ret < 0) {
-		putback_movable_pages(&migratepages);
-		pr_err("%s: migration failed %p[%#lx]\n", __func__,
-					page, page_to_pfn(page));
-		return -EFAULT;
-	}
-
-	return 0;
-}
-#endif
-
 /**
  * follow_page_mask - look up a page descriptor from a user-virtual address
  * @vma: vm_area_struct mapping @address
@@ -1610,9 +1608,10 @@ struct page *follow_page_mask(struct vm_area_struct *vma,
 	if (pud_none(*pud))
 		goto no_page_table;
 	if (pud_huge(*pud) && vma->vm_flags & VM_HUGETLB) {
-		BUG_ON(flags & FOLL_GET);
-		page = follow_huge_pud(mm, address, pud, flags & FOLL_WRITE);
-		goto out;
+		page = follow_huge_pud(mm, address, pud, flags);
+		if (page)
+			goto out;
+		goto no_page_table;
 	}
 	if (unlikely(pud_bad(*pud)))
 		goto no_page_table;
@@ -1621,9 +1620,10 @@ struct page *follow_page_mask(struct vm_area_struct *vma,
 	if (pmd_none(*pmd))
 		goto no_page_table;
 	if (pmd_huge(*pmd) && vma->vm_flags & VM_HUGETLB) {
-		BUG_ON(flags & FOLL_GET);
-		page = follow_huge_pmd(mm, address, pmd, flags & FOLL_WRITE);
-		goto out;
+		page = follow_huge_pmd(mm, address, pmd, flags);
+		if (page)
+			goto out;
+		goto no_page_table;
 	}
 	if ((flags & FOLL_NUMA) && pmd_numa(*pmd))
 		goto no_page_table;
@@ -1902,7 +1902,7 @@ long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 				page = vm_normal_page(vma, start, *pte);
 				if (!page) {
 					if (!(gup_flags & FOLL_DUMP) &&
-					    (is_zero_pfn(pte_pfn(*pte))))
+					     (is_zero_pfn(pte_pfn(*pte))))
 						page = pte_page(*pte);
 					else {
 						pte_unmap(pte);
@@ -3156,7 +3156,7 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	entry = pte_to_swp_entry(orig_pte);
 	if (unlikely(non_swap_entry(entry))) {
 		if (is_migration_entry(entry)) {
-#ifdef CONFIG_DMA_CMA
+#ifdef CONFIG_CMA
 			/*
 			 * FIXME: mszyprow: cruel, brute-force method for
 			 * letting cma/migration to finish it's job without
@@ -3374,6 +3374,10 @@ static int do_anonymous_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	pte_t entry;
 
 	pte_unmap(page_table);
+
+	/* File mapping without ->vm_ops ? */
+	if (vma->vm_flags & VM_SHARED)
+		return VM_FAULT_SIGBUS;
 
 	/* Check if we need to add a guard page to the stack */
 	if (check_stack_guard_page(vma, address) < 0)
@@ -3640,6 +3644,9 @@ static int do_linear_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 			- vma->vm_start) >> PAGE_SHIFT) + vma->vm_pgoff;
 
 	pte_unmap(page_table);
+	/* The VMA was not fully populated on mmap() or missing VM_DONTEXPAND */
+	if (!vma->vm_ops->fault)
+		return VM_FAULT_SIGBUS;
 	return __do_fault(mm, vma, address, pmd, pgoff, flags, orig_pte);
 }
 
@@ -3851,11 +3858,9 @@ int handle_pte_fault(struct mm_struct *mm,
 	entry = *pte;
 	if (!pte_present(entry)) {
 		if (pte_none(entry)) {
-			if (vma->vm_ops) {
-				if (likely(vma->vm_ops->fault))
-					return do_linear_fault(mm, vma, address,
+			if (vma->vm_ops)
+				return do_linear_fault(mm, vma, address,
 						pte, pmd, flags, entry);
-			}
 			return do_anonymous_page(mm, vma, address,
 						 pte, pmd, flags);
 		}
@@ -4234,7 +4239,7 @@ int generic_access_phys(struct vm_area_struct *vma, unsigned long addr,
 	if (follow_phys(vma, addr, write, &prot, &phys_addr))
 		return -EINVAL;
 
-	maddr = ioremap_prot(phys_addr, PAGE_SIZE, prot);
+	maddr = ioremap_prot(phys_addr, PAGE_ALIGN(len + offset), prot);
 	if (write)
 		memcpy_toio(maddr + offset, buf, len);
 	else
@@ -4380,7 +4385,7 @@ void print_vma_addr(char *prefix, unsigned long ip)
 	up_read(&mm->mmap_sem);
 }
 
-#ifdef CONFIG_PROVE_LOCKING
+#if defined(CONFIG_PROVE_LOCKING) || defined(CONFIG_DEBUG_ATOMIC_SLEEP)
 void might_fault(void)
 {
 	/*
@@ -4392,13 +4397,17 @@ void might_fault(void)
 	if (segment_eq(get_fs(), KERNEL_DS))
 		return;
 
-	might_sleep();
 	/*
 	 * it would be nicer only to annotate paths which are not under
 	 * pagefault_disable, however that requires a larger audit and
 	 * providing helpers like get_user_atomic.
 	 */
-	if (!in_atomic() && current->mm)
+	if (in_atomic())
+		return;
+
+	__might_sleep(__FILE__, __LINE__, 0);
+
+	if (current->mm)
 		might_lock_read(&current->mm->mmap_sem);
 }
 EXPORT_SYMBOL(might_fault);
