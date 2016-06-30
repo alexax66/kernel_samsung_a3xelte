@@ -1098,17 +1098,14 @@ zeropage_out:
 	return 0;
 }
 
+void zswap_compact(void);
 int sysctl_zswap_compact;
-
 int sysctl_zswap_compaction_handler(struct ctl_table *table, int write,
 			void __user *buffer, size_t *length, loff_t *ppos)
 {
-	if (write) {
-		sysctl_zswap_compact++;
-		zpool_compact(zswap_pool);
-		pr_info("zswap_compact: (%d times so far)\n",
-			sysctl_zswap_compact);
-	} else
+	if (write)
+		zswap_compact();
+	else
 		proc_dointvec(table, write, buffer, length, ppos);
 
 	return 0;
@@ -1116,12 +1113,19 @@ int sysctl_zswap_compaction_handler(struct ctl_table *table, int write,
 
 static void zswap_compact_zpool(struct work_struct *work)
 {
+	zswap_compact();
+}
+static DECLARE_WORK(zswap_compaction_work, zswap_compact_zpool);
+
+void zswap_compact(void) {
+	if (!zswap_pool)
+		return;
+
 	sysctl_zswap_compact++;
 	zpool_compact(zswap_pool);
 	pr_info("zswap_compact: (%d times so far)\n",
 		sysctl_zswap_compact);
 }
-static DECLARE_WORK(zswap_compaction_work, zswap_compact_zpool);
 
 /* frees an entry in zswap */
 static void zswap_frontswap_invalidate_page(unsigned type, pgoff_t offset)
