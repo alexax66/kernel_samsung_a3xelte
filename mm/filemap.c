@@ -524,9 +524,6 @@ struct page *__page_cache_alloc(gfp_t gfp)
 	int n;
 	struct page *page;
 
-	/* for avoiding allocation from cma page block */
-	gfp &= ~__GFP_MOVABLE;
-
 	if (cpuset_do_page_mem_spread()) {
 		unsigned int cpuset_mems_cookie;
 		do {
