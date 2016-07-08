@@ -1266,7 +1266,6 @@ static void compact_nodes(void)
 int sysctl_compact_memory;
 
 /* This is the entry point for compacting all nodes via /proc/sys/vm */
-void zswap_compact(void);
 int sysctl_compaction_handler(struct ctl_table *table, int write,
 			void __user *buffer, size_t *length, loff_t *ppos)
 {
@@ -1275,7 +1274,6 @@ int sysctl_compaction_handler(struct ctl_table *table, int write,
 		compact_nodes();
 		pr_info("compact_memory done.(%d times so far)\n",
 			sysctl_compact_memory);
-		zswap_compact();
 	}
 	else
 		proc_dointvec(table, write, buffer, length, ppos);
