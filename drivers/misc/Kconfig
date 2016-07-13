@@ -557,7 +557,35 @@ config TIMA_LOG
 	default y
 	help
 	  This option enables support for dumping TIMA log.
-	
+
+config GENERIC_BLN
+	bool "Generic BLN support for backlight notification"
+	depends on SYSFS && POWERSUSPEND
+	default n
+	help
+	 Say Y here to enable the backlight notification
+	 for android led-notification (modified liblight needed).
+	 A kernel wakelock is implemented to retain the leds
+	 enabled in suspend.
+
+menu "BLN Options"
+
+config GENERIC_BLN_ENABLED
+	bool "Enable Generic BLN support by default"
+	depends on GENERIC_BLN
+	default n
+	help
+	 Say Y here to enable BLN by default
+
+config GENERIC_BLN_BLINK_ENABLED
+	bool "Enable Generic BLN blinking by default"
+	depends on GENERIC_BLN
+	default n
+	help
+	 Say Y here to enable BLN blinks by default
+
+endmenu
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
