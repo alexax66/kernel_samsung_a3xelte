@@ -444,9 +444,7 @@
 #define GPU_ID_PI_T62X                    0x0620
 #define GPU_ID_PI_T76X                    0x0750
 #define GPU_ID_PI_T72X                    0x0720
-#ifdef MALI_INCLUDE_TFRX
 #define GPU_ID_PI_TFRX                    0x0880
-#endif /* MALI_INCLUDE_TFRX */
 #define GPU_ID_PI_T86X                    0x0860
 
 /* Values for GPU_ID_VERSION_STATUS field for PRODUCT_ID GPU_ID_PI_T60X */
@@ -524,4 +522,4 @@
 /* End TILER_CONFIG register */
 
 
-#endif				/* _MIDGARD_REGMAP_H_ */
+#endif /* _MIDGARD_REGMAP_H_ */

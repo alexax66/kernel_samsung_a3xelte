@@ -17,9 +17,10 @@
 
 /* NB taken from gator  */
 /*
- * List of possible actions to be controlled by Streamline.
- * The following numbers are used by gator to control the frame buffer dumping and s/w counter reporting.
- * We cannot use the enums in mali_uk_types.h because they are unknown inside gator.
+ * List of possible actions to be controlled by DS-5 Streamline.
+ * The following numbers are used by gator to control the frame buffer dumping
+ * and s/w counter reporting. We cannot use the enums in mali_uk_types.h because
+ * they are unknown inside gator.
  */
 #ifndef _KBASE_GATOR_H_
 #define _KBASE_GATOR_H_

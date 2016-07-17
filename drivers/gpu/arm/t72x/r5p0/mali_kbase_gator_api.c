@@ -33,13 +33,13 @@ struct kbase_gator_hwcnt_handles {
 	struct kbase_vmap_struct hwcnt_map;
 };
 
-const char * const *kbase_gator_hwcnt_init_names(uint32_t *total_number_of_counters)
+const char * const *kbase_gator_hwcnt_init_names(uint32_t *total_counters)
 {
 	uint32_t gpu_id;
-	const char * const *hardware_counter_names;
+	const char * const *hardware_counters;
 	struct kbase_device *kbdev;
 
-	if (!total_number_of_counters)
+	if (!total_counters)
 		return NULL;
 
 	/* Get the first device - it doesn't matter in this case */
@@ -52,51 +52,49 @@ const char * const *kbase_gator_hwcnt_init_names(uint32_t *total_number_of_count
 	switch (gpu_id) {
 	/* If we are using a Mali-T60x device */
 	case GPU_ID_PI_T60X:
-			hardware_counter_names = hardware_counter_names_mali_t60x;
-			*total_number_of_counters = ARRAY_SIZE(hardware_counter_names_mali_t60x);
-			break;
+		hardware_counters = hardware_counters_mali_t60x;
+		*total_counters = ARRAY_SIZE(hardware_counters_mali_t60x);
+		break;
 	/* If we are using a Mali-T62x device */
 	case GPU_ID_PI_T62X:
-			hardware_counter_names = hardware_counter_names_mali_t62x;
-			*total_number_of_counters = ARRAY_SIZE(hardware_counter_names_mali_t62x);
-			break;
+		hardware_counters = hardware_counters_mali_t62x;
+		*total_counters = ARRAY_SIZE(hardware_counters_mali_t62x);
+		break;
 	/* If we are using a Mali-T72x device */
 	case GPU_ID_PI_T72X:
-			hardware_counter_names = hardware_counter_names_mali_t72x;
-			*total_number_of_counters = ARRAY_SIZE(hardware_counter_names_mali_t72x);
-			break;
+		hardware_counters = hardware_counters_mali_t72x;
+		*total_counters = ARRAY_SIZE(hardware_counters_mali_t72x);
+		break;
 	/* If we are using a Mali-T76x device */
 	case GPU_ID_PI_T76X:
-			hardware_counter_names = hardware_counter_names_mali_t76x;
-			*total_number_of_counters = ARRAY_SIZE(hardware_counter_names_mali_t76x);
-			break;
-#ifdef MALI_INCLUDE_TFRX
-	/* If we are using a Mali-TFRX device - for now just mimic the T760 counters */
-	case GPU_ID_PI_TFRX:
-			hardware_counter_names = hardware_counter_names_mali_t76x;
-			*total_number_of_counters = ARRAY_SIZE(hardware_counter_names_mali_t76x);
-			break;
-#endif /* MALI_INCLUDE_TRFX */
-	/* If we are using a Mali-T86X device - for now just mimic the T760 counters */
+		hardware_counters = hardware_counters_mali_t76x;
+		*total_counters = ARRAY_SIZE(hardware_counters_mali_t76x);
+		break;
+	/* If we are using a Mali-T86x device */
 	case GPU_ID_PI_T86X:
-			hardware_counter_names = hardware_counter_names_mali_t76x;
-			*total_number_of_counters = ARRAY_SIZE(hardware_counter_names_mali_t76x);
-			break;
+		hardware_counters = hardware_counters_mali_t86x;
+		*total_counters = ARRAY_SIZE(hardware_counters_mali_t86x);
+		break;
+	/* If we are using a Mali-T88x device */
+	case GPU_ID_PI_TFRX:
+		hardware_counters = hardware_counters_mali_t88x;
+		*total_counters = ARRAY_SIZE(hardware_counters_mali_t88x);
+		 break;
 	default:
-			hardware_counter_names = NULL;
-			*total_number_of_counters = 0;
-			dev_err(kbdev->dev, "Unrecognized gpu ID: %u\n", gpu_id);
-			break;
+		hardware_counters = NULL;
+		*total_counters = 0;
+		dev_err(kbdev->dev, "Unrecognized gpu ID: %u\n", gpu_id);
+		break;
 	}
 
 	/* Release the kbdev reference. */
 	kbase_release_device(kbdev);
 
 	/* If we return a string array take a reference on the module (or fail). */
-	if (hardware_counter_names && !try_module_get(THIS_MODULE))
+	if (hardware_counters && !try_module_get(THIS_MODULE))
 		return NULL;
 
-	return hardware_counter_names;
+	return hardware_counters;
 }
 KBASE_EXPORT_SYMBOL(kbase_gator_hwcnt_init_names)
 
@@ -183,9 +181,7 @@ struct kbase_gator_hwcnt_handles *kbase_gator_hwcnt_init(struct kbase_gator_hwcn
 	/* If we are using a Mali-T76x device */
 	} else if (
 			(in_out_info->gpu_id == GPU_ID_PI_T76X)
-#ifdef MALI_INCLUDE_TFRX
 				|| (in_out_info->gpu_id == GPU_ID_PI_TFRX)
-#endif /* MALI_INCLUDE_TFRX */
 				|| (in_out_info->gpu_id == GPU_ID_PI_T86X)
 #ifdef MALI_INCLUDE_TGAL
 				|| (in_out_info->gpu_id == GPU_ID_PI_TGAL)
