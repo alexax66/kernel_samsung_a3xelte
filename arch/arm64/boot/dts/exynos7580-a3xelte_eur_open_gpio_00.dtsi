@@ -18,6 +18,7 @@
 		PIN_IN(gpa0-7, NONE, LV1);
 
 		PIN_IN(gpa1-0, DOWN, LV1);	/* NC */
+		PIN_IN(gpa1-1, DOWN, LV1);	/* NC */
 		PIN_IN(gpa1-4, DOWN, LV1);	/* NC */
 		PIN_OUT_SET(gpa1-5, 1, LV1);	/* IF_PMIC_RST */
 
@@ -185,7 +186,7 @@
 		PIN_SLP(gpd2-0, INPUT, NONE);	/* TOUCH_SCL_1P8 */
 		PIN_SLP(gpd2-1, INPUT, NONE);	/* TOUCH_SDA_1P8 */
 		PIN_SLP(gpd2-2, PREV, NONE);	/* UART_CTL */
-		PIN_SLP(gpd2-3, OUT1, UP);	/* SENSOR_PWR_EN */
+		PIN_SLP(gpd2-3, INPUT, DOWN);	/* PROXY_PWR_EN */
 		PIN_SLP(gpd2-4, INPUT, DOWN);	/* PCD_INT */
 		PIN_SLP(gpd2-5, INPUT, DOWN);	/* NC */
 		PIN_SLP(gpd2-6, OUT0, DOWN);	/* GPS_EN */

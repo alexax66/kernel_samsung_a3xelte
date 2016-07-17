@@ -369,14 +369,14 @@
 			samsung,pins = "gpr2-0";
 			samsung,pin-function = <2>;
 			samsung,pin-pud = <0>;
-			samsung,pin-drv = <2>;
+			samsung,pin-drv = <3>;
 		};
 
 		sd1_cmd: sd1-cmd {
 			samsung,pins = "gpr2-1";
 			samsung,pin-function = <2>;
-			samsung,pin-pud = <0>;
-			samsung,pin-drv = <2>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <3>;
 			samsung,pin-con-pdn = <2>;
 			samsung,pin-pud-pdn = <3>;
 		};
@@ -384,8 +384,8 @@
 		sd1_bus1: sd1-bus-width1 {
 			samsung,pins = "gpr3-0";
 			samsung,pin-function = <2>;
-			samsung,pin-pud = <0>;
-			samsung,pin-drv = <2>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <3>;
 			samsung,pin-con-pdn = <2>;
 			samsung,pin-pud-pdn = <3>;
 		};
@@ -393,8 +393,8 @@
 		sd1_bus4: sd1-bus-width4 {
 			samsung,pins = "gpr3-1", "gpr3-2", "gpr3-3";
 			samsung,pin-function = <2>;
-			samsung,pin-pud = <0>;
-			samsung,pin-drv = <2>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <3>;
 			samsung,pin-con-pdn = <2>;
 			samsung,pin-pud-pdn = <3>;
 		};
@@ -836,18 +836,11 @@
 		};
 
 		bt_en: bt-en {
-			samsung,pins ="gpa1-6";
+			samsung,pins ="gpc4-2";
 			samsung,pin-function = <1>;
 			samsung,pin-pud = <0>;
 			samsung,pin-con-pdn = <3>;
 			samsung,pin-pud-pdn = <0>;
-		};
-		ese_cs_func: ese-cs-func {
-			samsung,pins ="gpc4-2";
-			samsung,pin-function = <1>;
-			samsung,pin-pud = <3>;
-			samsung,pin-drv = <0>;
-
 		};
 	};
 };

@@ -14,15 +14,15 @@
 #include "exynos7580.dtsi"
 #include "modem-isla-pdata.dtsi"
 #include "exynos7580-a3xelte_battery_rev01.dtsi"
-#include "exynos7580-a3xelte_eur_open_gpio_02.dtsi"
+#include "exynos7580-a3xelte_eur_open_gpio_01.dtsi"
 
 / {
-	model = "Samsung A3XE revision 2 board based on EXYNOS7580";
+	model = "Samsung A3XE revision 1 board based on EXYNOS7580";
 	model_info-chip = <7580>;
 	model_info-platform = "android";
 	model_info-subtype = "samsung";
-	model_info-hw_rev = <2>;
-	model_info-hw_rev_end = <7>;
+	model_info-hw_rev = <1>;
+	model_info-hw_rev_end = <1>;
 	compatible = "samsung,exynos7580-universal7580,r01", "samsung,exynos7580";
 
 	chosen {
@@ -318,13 +318,6 @@
 			samsung,pin-pud = <0>;
 			samsung,pin-drv = <0>;
 		};
-		sensor_pwr_en: sensor_pwr_en {
-			samsung,pins = "gpd2-3";
-			samsung,pin-function = <1>;
-			samsung,pin-pud = <3>;
-			samsung,pin-drv = <0>;
-			samsung,pin-val = <1>;
-		};
 		/* Warm reset information from AP */
 		pm_wrsti: pm-wrsti {
 			samsung,pins = "gpe1-0";
@@ -542,6 +535,13 @@ i2c@33 {
 			taos,intr_filter = <0>;
 			taos,prox_pulsecnt = <0x06>;
 			taos,als_gain = <2>;
+			taos,dgf = <469>;
+			taos,cct_coef = <4577>;
+			taos,cct_offset = <1845>;
+			taos,coef_r = <50>;
+			taos,coef_g = <1000>;
+			taos,coef_b = <330>;
+			taos,coef_sign = <2 2 2 2 2 0>;
 			taos,lux_multiple = <11>;
 		};
 	};
@@ -1211,14 +1211,13 @@ i2c@33 {
 		#address-cells = <1>;
 		#size-cells = <0>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&sensor_i2c &sensor_pwr_en>;
+		pinctrl-0 = <&sensor_i2c>;
 
 		bhy@28 {
 			compatible = "bhy";
 			pinctrl-names = "default";
 			pinctrl-0 = <&bhy_int>;
 			bhy,gpio_irq = <&gpa3 0 0x00>;
-			bhy,ldo_enable = <&gpd2 3 0x01>;
 			reg = <0x28>;
 		};
 
