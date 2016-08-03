@@ -1463,7 +1463,11 @@ static int s3c_udc_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	cpumask_copy(default_cpu_mask, get_default_cpu_mask());
+#ifdef CONFIG_USB_RNDIS_CMCC
+	cpumask_or(affinity_cpu_mask, affinity_cpu_mask, cpumask_of(1));
+#else
 	cpumask_or(affinity_cpu_mask, affinity_cpu_mask, cpumask_of(3));
+#endif
 	DEBUG("usb: affinity_cpu_mask=0x%X, default_cpu_mask=0x%X\n", (int)*affinity_cpu_mask->bits, (int)*default_cpu_mask->bits);
 	argos_irq_affinity_setup_label(270, "USB", affinity_cpu_mask, default_cpu_mask);
 #endif

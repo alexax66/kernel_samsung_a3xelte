@@ -21,6 +21,10 @@ config PANEL_LTM184HL01
 	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
 	tristate "ltm184hl01 FHD LCD driver(1920 x 1080)by Quicklogic lvds converter"
 
+config PANEL_EA8061_DYNAMIC
+	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
+	tristate "EA8061 Amoled HD driver(720 x 1280)"
+
 config PANEL_EA8064G_DYNAMIC
 	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
 	tristate "EA8064G Amoled FHD driver(1080 x 1920)"

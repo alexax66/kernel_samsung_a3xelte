@@ -496,7 +496,7 @@ struct dw_mci_board {
     defined(CONFIG_BCM43454) || defined (CONFIG_BCM43454_MODULE)
 
 	int (*ext_cd_init)(void (*notify_func)
-			(void *dev_id, int state), void *dev_id);
+			(void *dev_id, int state), void *dev_id, struct mmc_host *mmc);
 	int (*ext_cd_cleanup)(void (*notify_func)
 			(void *dev_id, int state), void *dev_id);
 #else /* CONFIG_BCM43455 || CONFIG_BCM43455_MODULE */

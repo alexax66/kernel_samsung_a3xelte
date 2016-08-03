@@ -64,13 +64,7 @@
 #define MSK_H(x)		((x & 0xff00) >> 8)
 
 /* Intelligent Cancelation*/
-#define CM36655_CANCELATION
-#ifdef CM36655_CANCELATION
 #define CANCELATION_FILE_PATH	"/efs/FactoryApp/prox_cal"
-#define CAL_SKIP_ADC		11
-#define CAL_FAIL_ADC		18
-#endif
-
 #define PROX_READ_NUM		40
 
  /* proximity sensor threshold */
@@ -88,10 +82,24 @@ enum {
 	PROXIMITY_ENABLED = BIT(1),
 };
 
+/*lightsensor default setting*/
+#define LIGHT_ENABLE		0x10
+#define LIGHT_DISABLE		0x11
+
+#define CAL_SKIP_ADC		11
+#define CAL_FAIL_ADC		18
+
+#define PS_CONF1_VALUE		0x6768
 /* register settings */
 static u16 als_reg_setting[ALS_REG_NUM][2] = {
-	{REG_CS_CONF1, 0x10},	/* enable */
-	{REG_CS_CONF1, 0x11},	/* disable */
+	{REG_CS_CONF1, LIGHT_ENABLE},	/* enable */
+	{REG_CS_CONF1, LIGHT_DISABLE},	/* disable */
+};
+static u16 ps_reg_init_setting[PS_REG_NUM][2] = {
+	{REG_PS_CONF1, PS_CONF1_VALUE},		/* REG_PS_CONF1 */
+	{REG_PS_CONF3, 0x0000},		/* REG_PS_CONF3 */
+	{REG_PS_THD, 0x0110D},		/* REG_PS_THD */
+	{REG_PS_CANC, DEFAULT_TRIM},	/* REG_PS_CANC */
 };
 
 /* Change threshold value on the midas-sensor.c */
@@ -109,13 +117,6 @@ enum {
 enum {
 	OFF = 0,
 	ON = 1
-};
-
-static u16 ps_reg_init_setting[PS_REG_NUM][2] = {
-	{REG_PS_CONF1, 0x6768},		/* REG_PS_CONF1 */
-	{REG_PS_CONF3, 0x0000},		/* REG_PS_CONF3 */
-	{REG_PS_THD, 0x0110D},		/* REG_PS_THD */
-	{REG_PS_CANC, DEFAULT_TRIM},	/* REG_PS_CANC */
 };
 
 /* driver data */
@@ -315,7 +316,6 @@ static ssize_t light_enable_show(struct device *dev,
 		(cm36655->power_state & LIGHT_ENABLED) ? 1 : 0);
 }
 
-#ifdef CM36655_CANCELATION
 static int proximity_open_cancelation(struct cm36655_data *data)
 {
 	struct file *cancel_filp = NULL;
@@ -342,7 +342,7 @@ static int proximity_open_cancelation(struct cm36655_data *data)
 		err = -EIO;
 	}
 
-	if (buf < CAL_SKIP_ADC)
+	if (buf < data->pdata->cal_skip_adc)
 		goto exit;
 
 	ps_reg_init_setting[PS_CANCEL][CMD] = buf;
@@ -379,13 +379,16 @@ static int proximity_store_cancelation(struct device *dev, bool do_calib)
 		ps_reg_init_setting[PS_CANCEL][CMD] = ps_data;
 		mutex_unlock(&cm36655->read_lock);
 
-		if (ps_reg_init_setting[PS_CANCEL][CMD] < CAL_SKIP_ADC) {
+		if (ps_reg_init_setting[PS_CANCEL][CMD] < 
+			cm36655->pdata->cal_skip_adc) {
 			ps_reg_init_setting[PS_CANCEL][CMD] =
 				cm36655->pdata->default_trim;
-			SENSOR_INFO("crosstalk <= %d SKIP!!\n", CAL_SKIP_ADC);
+			SENSOR_INFO("crosstalk <= %d SKIP!!\n",
+				cm36655->pdata->cal_skip_adc);
 			cm36655->prox_result = 2;
 			err = 1;
-		} else if (ps_reg_init_setting[PS_CANCEL][CMD] < CAL_FAIL_ADC) {
+		} else if (ps_reg_init_setting[PS_CANCEL][CMD] < 
+				cm36655->pdata->cal_fail_adc) {
 			ps_reg_init_setting[PS_CANCEL][CMD] =
 					cm36655->pdata->default_trim+ps_data;
 			SENSOR_INFO("crosstalk_offset = %u Canceled",
@@ -398,7 +401,8 @@ static int proximity_store_cancelation(struct device *dev, bool do_calib)
 		} else {
 			ps_reg_init_setting[PS_CANCEL][CMD] =
 				cm36655->pdata->default_trim;
-			SENSOR_INFO("crosstalk >= %d\n FAILED!!", CAL_FAIL_ADC);
+			SENSOR_INFO("crosstalk >= %d\n FAILED!!",
+				cm36655->pdata->cal_fail_adc);
 			ps_reg_init_setting[PS_THD][CMD] =
 				((cm36655->pdata->default_hi_thd << 8) & 0xff00)
 				| (cm36655->pdata->default_low_thd & 0xff);
@@ -501,7 +505,6 @@ static ssize_t proximity_cancel_pass_show(struct device *dev,
 
 	return snprintf(buf, PAGE_SIZE, "%u\n", cm36655->prox_result);
 }
-#endif
 
 #if defined(CONFIG_SENSORS_CM36655_LEDA_EN_REGULATOR)
 static int cm36655_setup_leden_regulator(struct cm36655_data *cm36655)
@@ -539,26 +542,26 @@ static int cm36655_leden_regulator_onoff(struct cm36655_data *cm36655,
 	return ret;
 }
 
-#elif defined(CONFIG_SENSORS_CM36655_SENSOR_EN_GPIO)
-static int cm36655_setup_sensoren_gpio(struct cm36655_data *cm36655)
+#elif defined(CONFIG_SENSORS_CM36655_LEDA_EN_GPIO)
+static int cm36655_setup_leden_gpio(struct cm36655_data *cm36655)
 {
 	int rc;
 	struct cm36655_platform_data *pdata = cm36655->pdata;
 
-	rc = gpio_request(pdata->sensoren_gpio, "sensor_en");
+	rc = gpio_request(pdata->leden_gpio, "rgb_en");
 	if (rc < 0) {
 		SENSOR_ERR("gpio %d request failed (%d)\n",
-			pdata->sensoren_gpio, rc);
+			pdata->leden_gpio, rc);
 	}
-	gpio_direction_output(pdata->sensoren_gpio, 1);
-	SENSOR_INFO("gpio %d request success\n", pdata->sensoren_gpio);
+	gpio_direction_output(pdata->leden_gpio, 1);
+	SENSOR_INFO("gpio %d request success\n", pdata->leden_gpio);
 	return rc;
 }
 
-static int cm36655_sensoren_gpio_onoff(struct cm36655_data *cm36655, bool onoff)
+static int cm36655_leden_gpio_onoff(struct cm36655_data *cm36655, bool onoff)
 {
 	struct cm36655_platform_data *pdata = cm36655->pdata;
-	gpio_set_value(pdata->sensoren_gpio, onoff);
+	gpio_set_value(pdata->leden_gpio, onoff);
 	SENSOR_INFO("onoff:%d\n", onoff);
 	if (onoff)
 		msleep(20);
@@ -634,15 +637,14 @@ static ssize_t proximity_enable_store(struct device *dev,
 		cm36655->power_state |= PROXIMITY_ENABLED;
 #if defined(CONFIG_SENSORS_CM36655_LEDA_EN_REGULATOR)
 		cm36655_leden_regulator_onoff(cm36655, 1);
-#elif defined(CONFIG_SENSORS_CM36655_SENSOR_EN_GPIO)
-		cm36655_sensoren_gpio_onoff(cm36655, 1);
+#elif defined(CONFIG_SENSORS_CM36655_LEDA_EN_GPIO)
+		cm36655_leden_gpio_onoff(cm36655, 1);
 #endif
-#ifdef CM36655_CANCELATION
 		/* open cancelation data */
 		err = proximity_open_cancelation(cm36655);
 		if (err < 0 && err != -ENOENT)
 			SENSOR_ERR("proximity_open_cancelation() failed\n");
-#endif
+
 		/* enable settings */
 		for (i = 0; i < PS_REG_NUM; i++) {
 			cm36655_i2c_write_word(cm36655,
@@ -667,8 +669,8 @@ static ssize_t proximity_enable_store(struct device *dev,
 		cm36655_i2c_write_word(cm36655, REG_PS_CONF1, 0x0001);
 #if defined(CONFIG_SENSORS_CM36655_LEDA_EN_REGULATOR)
 		cm36655_leden_regulator_onoff(cm36655, 0);
-#elif defined(CONFIG_SENSORS_CM36655_SENSOR_EN_GPIO)
-		cm36655_sensoren_gpio_onoff(cm36655, 0);
+#elif defined(CONFIG_SENSORS_CM36655_LEDA_EN_GPIO)
+		cm36655_leden_gpio_onoff(cm36655, 0);
 #endif
 	}
 	mutex_unlock(&cm36655->power_lock);
@@ -871,11 +873,10 @@ static ssize_t proximity_thresh_low_store(struct device *dev,
 	return size;
 }
 
-#ifdef CM36655_CANCELATION
 static DEVICE_ATTR(prox_cal, S_IRUGO | S_IWUSR | S_IWGRP,
 	proximity_cancel_show, proximity_cancel_store);
 static DEVICE_ATTR(prox_offset_pass, S_IRUGO, proximity_cancel_pass_show, NULL);
-#endif
+
 static DEVICE_ATTR(prox_avg, S_IRUGO | S_IWUSR | S_IWGRP,
 	proximity_avg_show, proximity_avg_store);
 static DEVICE_ATTR(state, S_IRUGO, proximity_state_show, NULL);
@@ -992,12 +993,12 @@ static ssize_t light_sw_reset_show(struct device *dev,
 		int i;
 
 		cm36655_leden_regulator_onoff(cm36655, 1);
-#ifdef CM36655_CANCELATION
+
 		/* open cancelation data */
 		ret = proximity_open_cancelation(cm36655);
 		if (ret < 0 && ret != -ENOENT)
 			SENSOR_ERR("proximity_open_cancelation() failed\n");
-#endif
+
 		/* enable settings */
 		for (i = 0; i < PS_REG_NUM; i++) {
 			cm36655_i2c_write_word(cm36655,
@@ -1254,6 +1255,8 @@ static int cm36655_parse_dt(struct device *dev,
 	struct device_node *np = dev->of_node;
 	enum of_gpio_flags flags;
 	int ret;
+	u32 als_reg_set;
+	u32 ps_conf1;
 
 	pdata->irq = of_get_named_gpio_flags(np, "cm36655,irq_gpio", 0, &flags);
 	if (pdata->irq < 0) {
@@ -1261,11 +1264,11 @@ static int cm36655_parse_dt(struct device *dev,
 		return -ENODEV;
 	}
 
-#if defined(CONFIG_SENSORS_CM36655_SENSOR_EN_GPIO)
-	pdata->sensoren_gpio = of_get_named_gpio_flags(np, "cm36655,leden_gpio"
-		,0, &flags);
-	if (pdata->sensoren_gpio < 0) {
-		SENSOR_ERR("get prox_sensoren_gpio error\n");
+#if defined(CONFIG_SENSORS_CM36655_LEDA_EN_GPIO)
+	pdata->leden_gpio = of_get_named_gpio_flags(np, "cm36655,leden_gpio", 0,
+		&flags);
+	if (pdata->leden_gpio < 0) {
+		SENSOR_ERR("get prox_leden_gpio error\n");
 		return -ENODEV;
 	}
 #endif
@@ -1309,6 +1312,38 @@ static int cm36655_parse_dt(struct device *dev,
 		((pdata->default_hi_thd << 8) & 0xff00)
 		| (pdata->default_low_thd & 0xff);
 
+	ret = of_property_read_u32(np, "cm36655,cal_skip_adc",
+		&pdata->cal_skip_adc);
+	if (ret < 0) {
+		SENSOR_INFO("Cannot set cal_skip_adc\n");
+		pdata->cal_skip_adc = CAL_SKIP_ADC;
+	}
+
+	ret = of_property_read_u32(np, "cm36655,cal_fail_adc",
+		&pdata->cal_fail_adc);
+	if (ret < 0) {
+		SENSOR_INFO("Cannot set cal_fail_adc\n");
+		pdata->cal_fail_adc = CAL_FAIL_ADC;
+	}
+
+	ret = of_property_read_u32(np, "cm36655,als_reg_set", &als_reg_set);
+	if (ret < 0) {
+		SENSOR_INFO("[SENSOR]: %s - Cannot set als_reg_setting\n",
+			__func__);
+		als_reg_setting[0][CMD] = LIGHT_ENABLE;
+		als_reg_setting[1][CMD] = LIGHT_DISABLE;
+	} else {
+		als_reg_setting[0][CMD] = als_reg_set;
+		als_reg_setting[1][CMD] = als_reg_set | 0x0001;
+	}
+
+	ret = of_property_read_u32(np, "cm36655,ps_conf1", &ps_conf1);
+	if (ret < 0) {
+		SENSOR_INFO("Cannot set cal_fail_adc\n");
+		ps_reg_init_setting[PS_CONF1][CMD] = PS_CONF1_VALUE;
+	} else
+		ps_reg_init_setting[PS_CONF1][CMD] = ps_conf1;
+
 	ret = of_property_read_u32(np, "cm36655,default_trim",
 		&pdata->default_trim);
 	if (ret < 0) {
@@ -1316,10 +1351,14 @@ static int cm36655_parse_dt(struct device *dev,
 		pdata->default_trim = DEFAULT_TRIM;
 	}
 
-	SENSOR_INFO("DefaultTHS[%d/%d] CancelTHD[%d/%d] PS_THD[%x] TRIM[%d]\n",
+	SENSOR_INFO("DefaultTHD[%d/%d] CancelTHD[%d/%d] PS_THD[0x%2x] CAL_SKIP[%d]\
+		CAL_FAIL[%d] ALS_REG_SETTING[0x%2x] ALS_REG_SETTING[0x%2x] PS_CONF[0x%2x] TRIM[%d]\n",
 		pdata->default_hi_thd, pdata->default_low_thd,
 		pdata->cancel_hi_thd, pdata->cancel_low_thd,
-		ps_reg_init_setting[PS_THD][CMD], pdata->default_trim);
+		ps_reg_init_setting[PS_THD][CMD], pdata->cal_skip_adc,
+		pdata->cal_fail_adc, als_reg_setting[0][CMD],
+		als_reg_setting[1][CMD], ps_reg_init_setting[PS_CONF1][CMD],
+		pdata->default_trim);
 	return 0;
 }
 #else
@@ -1380,6 +1419,52 @@ static int prox_regulator_onoff(struct device *dev, bool onoff)
 err_vio:
 	devm_regulator_put(vdd);
 err_vdd:
+	return ret;
+}
+#endif
+
+#if defined(CONFIG_SENSORS_CM36655_LEDA_EN_GPIO)
+static int cm36655_pin_ctrl(struct device *dev)
+{
+	int ret;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *suspend;
+	struct pinctrl_state *active;
+
+       /* Get pinctrl if target uses pinctrl */
+	pinctrl = devm_pinctrl_get(dev);
+	if (IS_ERR(pinctrl)) {
+		SENSOR_INFO("devm_pinctrl_get fail\n");
+		return -EINVAL;
+	} else {
+		active = pinctrl_lookup_state(pinctrl, "prox_active");
+		if (IS_ERR(active)) {
+			SENSOR_ERR("fail to active lookup_state\n");
+			ret = -EINVAL;
+			goto exit;
+		}
+		suspend = pinctrl_lookup_state(pinctrl, "prox_suspend");
+		if (IS_ERR(suspend)) {
+			SENSOR_ERR("fail to suspend lookup_state\n");
+			ret = -EINVAL;
+			goto exit;
+		}
+		ret = pinctrl_select_state(pinctrl, active);
+		if (ret != 0) {
+			SENSOR_ERR("fail to select_state active\n");
+			ret = -EIO;
+			goto exit;
+		}
+		ret = pinctrl_select_state(pinctrl, suspend);
+		if (ret != 0) {
+			SENSOR_ERR("fail to select_state suspend\n");
+			ret = -EIO;
+			goto exit;
+		}
+	}
+exit:
+	devm_pinctrl_put(pinctrl);
+
 	return ret;
 }
 #endif
@@ -1449,14 +1534,14 @@ static int cm36655_i2c_probe(struct i2c_client *client,
 		goto err_setup_leden_regulator;
 	}
 	cm36655_leden_regulator_onoff(cm36655, ON);
-#elif defined(CONFIG_SENSORS_CM36655_SENSOR_EN_GPIO)
-	/* setup sensoren_gpio */
-	ret = cm36655_setup_sensoren_gpio(cm36655);
+#elif defined(CONFIG_SENSORS_CM36655_LEDA_EN_GPIO)
+	/* setup leden_gpio */
+	ret = cm36655_setup_leden_gpio(cm36655);
 	if (ret) {
-		SENSOR_ERR("could not setup sensoren_gpio\n");
-		goto err_setup_sensoren_gpio;
+		SENSOR_ERR("could not setup leden_gpio\n");
+		goto err_setup_leden_gpio;
 	}
-	cm36655_sensoren_gpio_onoff(cm36655, ON);
+	cm36655_leden_gpio_onoff(cm36655, 1);
 #endif
 	/* Check if the device is there or not. */
 	ret = cm36655_i2c_write_word(cm36655, REG_CS_CONF1, 0x0001);
@@ -1474,10 +1559,10 @@ static int cm36655_i2c_probe(struct i2c_client *client,
 
 #if defined(CONFIG_SENSORS_CM36655_LEDA_EN_REGULATOR)
 	cm36655_leden_regulator_onoff(cm36655, OFF);
-#elif defined(CONFIG_SENSORS_CM36655_SENSOR_EN_GPIO)
-	cm36655_sensoren_gpio_onoff(cm36655, OFF);
+#elif defined(CONFIG_SENSORS_CM36655_LEDA_EN_GPIO)
+	cm36655_pin_ctrl(&client->dev);
+	cm36655_leden_gpio_onoff(cm36655, OFF);
 #endif
-
 	/* allocate proximity input_device */
 	cm36655->prox_input_dev = input_allocate_device();
 	if (!cm36655->prox_input_dev) {
@@ -1634,10 +1719,10 @@ err_sensors_create_symlink_prox:
 err_input_register_device_proximity:
 err_input_allocate_device_proximity:
 err_setup_reg:
-#if defined(CONFIG_SENSORS_CM36655_SENSOR_EN_GPIO)
-	cm36655_sensoren_gpio_onoff(cm36655, 0);
-	gpio_free(cm36655->pdata->sensoren_gpio);
-err_setup_sensoren_gpio:
+#if defined(CONFIG_SENSORS_CM36655_LEDA_EN_GPIO)
+	cm36655_leden_gpio_onoff(cm36655, 0);
+	gpio_free(cm36655->pdata->leden_gpio);
+err_setup_leden_gpio:
 #elif defined(CONFIG_SENSORS_CM36655_LEDA_EN_REGULATOR)
 	cm36655_leden_regulator_onoff(cm36655, 0);
 	devm_regulator_put(cm36655->led);
@@ -1695,9 +1780,9 @@ static int cm36655_i2c_remove(struct i2c_client *client)
 #if defined(CONFIG_SENSORS_CM36655_LEDA_EN_REGULATOR)
 	cm36655_leden_regulator_onoff(cm36655, 0);
 	devm_regulator_put(cm36655->led);
-#elif defined(CONFIG_SENSORS_CM36655_SENSOR_EN_GPIO)
-	cm36655_sensoren_gpio_onoff(cm36655, 0);
-	gpio_free(cm36655->pdata->sensoren_gpio);
+#elif defined(CONFIG_SENSORS_CM36655_LEDA_EN_GPIO)
+	cm36655_leden_gpio_onoff(cm36655, 0);
+	gpio_free(cm36655->pdata->leden_gpio);
 #endif
 
 	/* lock destroy */

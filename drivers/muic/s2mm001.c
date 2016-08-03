@@ -122,6 +122,20 @@ void s2mm001_print_reg_dump(struct s2mm001_muic_data *muic_data)
 }
 #endif
 
+static bool mdev_undefined_range(int adc)
+{
+	switch (adc) {
+	case ADC_SEND_END ... ADC_REMOTE_S12:
+	case ADC_UART_CABLE:
+	case ADC_AUDIOMODE_W_REMOTE:
+		return true;
+	default:
+		break;
+	}
+
+	return false;
+}
+
 static int s2mm001_i2c_read_byte(const struct i2c_client *client, u8 command)
 {
 	int ret;
@@ -1462,6 +1476,7 @@ static void s2mm001_muic_handle_attach(struct s2mm001_muic_data *muic_data,
 
 	case ATTACHED_DEV_TA_MUIC:
 	case ATTACHED_DEV_UNDEFINED_CHARGING_MUIC:
+	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
 		if (new_dev != muic_data->attached_dev) {
 			printk(KERN_DEBUG "[muic] %s new(%d)!=attached(%d)\n",
 				__func__, new_dev, muic_data->attached_dev);
@@ -1520,6 +1535,7 @@ static void s2mm001_muic_handle_attach(struct s2mm001_muic_data *muic_data,
 		break;
 	case ATTACHED_DEV_TA_MUIC:
 	case ATTACHED_DEV_UNDEFINED_CHARGING_MUIC:
+	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
 		com_to_open_with_vbus(muic_data);
 		ret = attach_charger(muic_data, new_dev);
 		break;
@@ -1599,6 +1615,7 @@ static void s2mm001_muic_handle_detach(struct s2mm001_muic_data *muic_data)
 		break;
 	case ATTACHED_DEV_TA_MUIC:
 	case ATTACHED_DEV_UNDEFINED_CHARGING_MUIC:
+	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
 		ret = detach_charger(muic_data);
 		break;
 	case ATTACHED_DEV_JIG_UART_OFF_VB_OTG_MUIC:
@@ -1788,6 +1805,16 @@ static void s2mm001_muic_detect_dev(struct s2mm001_muic_data *muic_data)
 		use ADC to find the attached device */
 	if (new_dev == ATTACHED_DEV_UNKNOWN_MUIC) {
 		switch (adc) {
+		case ADC_HMT:
+			intr = MUIC_INTR_ATTACH;
+			new_dev = ATTACHED_DEV_HMT_MUIC;
+			pr_info("[muic] ADC HMT DETECTED\n");
+			break;
+		case ADC_CHARGING_CABLE:
+			intr = MUIC_INTR_ATTACH;
+			new_dev = ATTACHED_DEV_CHARGING_CABLE_MUIC;
+			pr_info("[muic] ADC PS CABLE DETECTED\n");
+			break;
 		case ADC_CEA936ATYPE1_CHG: /*200k ohm */
 			intr = MUIC_INTR_ATTACH;
 			/* This is workaournd for LG USB cable
@@ -1872,6 +1899,15 @@ static void s2mm001_muic_detect_dev(struct s2mm001_muic_data *muic_data)
 			printk(KERN_DEBUG "[muic] UNDEFINED VB DETECTED\n");
 		} else
 			intr = MUIC_INTR_DETACH;
+	}
+
+	/* Check undefined range */
+	if (muic_data->undefined_range) {
+		if (vbvolt && (intr == MUIC_INTR_ATTACH)
+			&& mdev_undefined_range(adc)) {
+			new_dev = ATTACHED_DEV_UNDEFINED_RANGE_MUIC;
+			pr_info("%s:Undefined range ADC(0x%02x)\n", __func__, adc);
+		}
 	}
 
 	if (intr == MUIC_INTR_ATTACH)
@@ -2126,7 +2162,8 @@ static int of_s2mm001_muic_dt(struct device *dev,
 		} else
 			muic_data->pdata->gpio_uart_sel = of_get_gpio(np_muic, 0);
 	}
-
+	muic_data->undefined_range = of_property_read_bool(np_muic, "muic,undefined_range");
+	pr_err("[muic] %s : muic,undefined_range[%s]\n", __func__, muic_data->undefined_range ? "T" : "F");
 	return ret;
 }
 #endif /* CONFIG_OF */

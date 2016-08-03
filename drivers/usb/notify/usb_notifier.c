@@ -30,56 +30,8 @@ struct usb_notifier_platform_data {
 	struct	notifier_block usb_nb;
 	struct	notifier_block vbus_nb;
 	int	gpio_redriver_en;
-#ifdef CONFIG_USB_OTG_LAGO
-	int	gpio_otg_huben;
-	int	gpio_otg_hubrst;
-#endif
-	int	gpio_vbus_detect;
-	int	can_diable_usb;
+	int can_diable_usb;
 };
-
-#ifdef CONFIG_USB_OTG_LAGO
-static int register_gpios_otg_huben(int gpio_otg_huben)
-{
-	int gpio = 0;
-	int ret = 0;
-
-	pr_info("%s\n", __func__);
-	gpio = gpio_otg_huben;
-
-	ret = gpio_request(gpio, "gpio_otg_huben");
-	if (ret) {
-		pr_err("failed to request %d err %d\n", gpio, ret);
-		goto err;
-	}
-	gpio_direction_output(gpio, 0);
-
-	pr_info("gpio otg hub en  %d is registered.\n", gpio);
-err:
-	return ret;
-}
-
-static int register_gpios_otg_hubrst(int gpio_otg_hubrst)
-{
-	int gpio = 0;
-	int ret = 0;
-
-	pr_info("%s\n", __func__);
-	gpio = gpio_otg_hubrst;
-
-	ret = gpio_request(gpio, "gpio_otg_hubrst");
-
-	if (ret) {
-		pr_err("failed to request %d err %d\n", gpio, ret);
-		goto err;
-	}
-	gpio_direction_output(gpio, 1);
-
-	pr_info("gpio otg hub reset  %d is registered.\n", gpio);
-err:
-	return ret;
-}
-#endif
 
 #ifdef CONFIG_OF
 static void of_get_usb_redriver_dt(struct device_node *np,
@@ -97,60 +49,10 @@ static void of_get_usb_redriver_dt(struct device_node *np,
 	pr_info("%s, gpios_redriver_en %d\n", __func__, gpio);
 
 	pdata->can_diable_usb =
-		of_property_read_bool(np, "samsung,can-disable-usb");
+		!(of_property_read_bool(np, "samsung,unsupport-disable-usb"));
 	pr_info("%s, can_diable_usb %d\n", __func__, pdata->can_diable_usb);
 	return;
 }
-
-static void of_get_vbus_detect_dt(struct device_node *np,
-		struct usb_notifier_platform_data *pdata)
-{
-	int gpio = 0;
-
-	gpio = of_get_named_gpio(np, "gpios_vbus_detect", 0);
-	if (!gpio_is_valid(gpio)) {
-		pdata->gpio_vbus_detect = -1;
-		pr_err("%s: vbus_detect : Invalied gpio pins\n", __func__);
-	} else
-		pdata->gpio_vbus_detect = gpio;
-
-	pr_info("%s, gpios_vbus_detect %d\n", __func__, gpio);
-	return;
-}
-
-#ifdef CONFIG_USB_OTG_LAGO
-static void of_get_otg_huben_dt(struct device_node *np,
-		struct usb_notifier_platform_data *pdata)
-{
-	int gpio = 0;
-
-	gpio = of_get_named_gpio(np, "gpios_otg_huben", 0);
-	if (!gpio_is_valid(gpio)) {
-		pdata->gpio_otg_huben = -1;
-		pr_err("%s: No use gpios for otg hub enable\n", __func__);
-	} else
-		pdata->gpio_otg_huben = gpio;
-
-	pr_info("%s, gpios_otg_huben  %d\n", __func__, gpio);
-	return;
-}
-
-static void of_get_otg_hubrst_dt(struct device_node *np,
-		struct usb_notifier_platform_data *pdata)
-{
-	int gpio = 0;
-
-	gpio = of_get_named_gpio(np, "gpios_otg_hubrst", 0);
-	if (!gpio_is_valid(gpio)) {
-		pdata->gpio_otg_hubrst = -1;
-		pr_err("%s: No use gpios for otg hub reset\n", __func__);
-	} else
-		pdata->gpio_otg_hubrst = gpio;
-
-	pr_info("%s, gpios_otg_power  %d\n", __func__, gpio);
-	return;
-}
-#endif
 
 static int of_usb_notifier_dt(struct device *dev,
 		struct usb_notifier_platform_data *pdata)
@@ -161,12 +63,6 @@ static int of_usb_notifier_dt(struct device *dev,
 		return -EINVAL;
 
 	of_get_usb_redriver_dt(np, pdata);
-#ifdef CONFIG_USB_OTG_LAGO
-	of_get_otg_huben_dt(np, pdata);
-	of_get_otg_hubrst_dt(np, pdata);
-#endif
-	of_get_vbus_detect_dt(np, pdata);
-
 	return 0;
 }
 #endif
@@ -252,17 +148,11 @@ static int usb_handle_notification(struct notifier_block *nb,
 	case ATTACHED_DEV_UNOFFICIAL_ID_CDP_MUIC:
 	case ATTACHED_DEV_JIG_USB_OFF_MUIC:
 	case ATTACHED_DEV_JIG_USB_ON_MUIC:
-		if (action == MUIC_NOTIFY_CMD_DETACH) {
+		if (action == MUIC_NOTIFY_CMD_DETACH)
 			send_otg_notify(o_notify, NOTIFY_EVENT_VBUS, 0);
-#ifdef CONFIG_USB_OTG_LAGO
-			send_otg_notify(o_notify, NOTIFY_EVENT_HOST, 1);
-#endif
-		} else if (action == MUIC_NOTIFY_CMD_ATTACH) {
-#ifdef CONFIG_USB_OTG_LAGO
-			send_otg_notify(o_notify, NOTIFY_EVENT_HOST, 0);
-#endif
+		else if (action == MUIC_NOTIFY_CMD_ATTACH)
 			send_otg_notify(o_notify, NOTIFY_EVENT_VBUS, 1);
-		} else
+		else
 			pr_err("%s - ACTION Error!\n", __func__);
 		break;
 	case ATTACHED_DEV_OTG_MUIC:
@@ -359,16 +249,33 @@ static int vbus_handle_notification(struct notifier_block *nb,
 
 static int otg_accessory_power(bool enable)
 {
-#ifndef CONFIG_USB_OTG_LAGO
 	u8 on = (u8)!!enable;
 	union power_supply_propval val;
+	struct device_node *np_charger = NULL;
+	char *charger_name;
 
 	pr_info("otg accessory power = %d\n", on);
 
+	np_charger = of_find_node_by_name(NULL, "battery");
+	if (!np_charger) {
+		pr_err("%s: failed to get the battery device node\n", __func__);
+		return 0;
+	} else {
+		if (!of_property_read_string(np_charger, "battery,charger_name",
+					(char const **)&charger_name)) {
+			pr_info("%s: charger_name = %s\n", __func__,
+					charger_name);
+		} else {
+			pr_err("%s: failed to get the charger name\n"
+								, __func__);
+			return 0;
+		}
+	}
+
 	val.intval = enable;
-	psy_do_property("otg", set,
-			POWER_SUPPLY_PROP_ONLINE, val);
-#endif
+	psy_do_property(charger_name, set,
+			POWER_SUPPLY_PROP_CHARGE_OTG_CONTROL, val);
+
 	return 0;
 }
 
@@ -414,17 +321,6 @@ static int set_online(int event, int state)
 
 static int exynos_set_host(bool enable)
 {
-#ifdef CONFIG_USB_OTG_LAGO
-	struct otg_notify *o_notify;
-	struct usb_notifier_platform_data *pdata = NULL;
-	int gpio_otg_huben = 0;
-	int gpio_otg_hubrst = 0;
-
-	o_notify = get_otg_notify();
-	pdata = get_notify_data(o_notify);
-	gpio_otg_huben = pdata->gpio_otg_huben;
-	gpio_otg_hubrst = pdata->gpio_otg_hubrst;
-#endif
 	if (!enable) {
 		pr_info("%s USB_HOST_DETACHED\n", __func__);
 #ifdef CONFIG_OF
@@ -432,16 +328,6 @@ static int exynos_set_host(bool enable)
 #endif
 	} else {
 		pr_info("%s USB_HOST_ATTACHED\n", __func__);
-#ifdef CONFIG_USB_OTG_LAGO
-		gpio_set_value(gpio_otg_huben, 0);
-		msleep(10);
-		gpio_set_value(gpio_otg_huben, 1);
-		msleep(10);
-		gpio_set_value(gpio_otg_hubrst, 0);
-		msleep(10);
-		gpio_set_value(gpio_otg_hubrst, 1);
-		msleep(10);
-#endif
 #ifdef CONFIG_OF
 		check_usb_id_state(0);
 #endif
@@ -468,6 +354,7 @@ static struct otg_notify dwc_lsi_notify = {
 	.vbus_drive	= otg_accessory_power,
 	.set_host = exynos_set_host,
 	.set_peripheral	= exynos_set_peripheral,
+	.vbus_detect_gpio = -1,
 	.is_wakelock = 1,
 	.booting_delay_sec = 10,
 	.auto_drive_vbus = 1,
@@ -477,11 +364,6 @@ static struct otg_notify dwc_lsi_notify = {
 static int usb_notifier_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-#ifdef CONFIG_USB_OTG_LAGO
-	struct otg_notify *o_notify;
-	int is_gpio_otg_huben;
-	int is_gpio_otg_hubrst;
-#endif
 	struct usb_notifier_platform_data *pdata = NULL;
 
 	if (pdev->dev.of_node) {
@@ -497,27 +379,16 @@ static int usb_notifier_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "Failed to get device of_node\n");
 			return ret;
 		}
+
 		pdev->dev.platform_data = pdata;
 	} else
 		pdata = pdev->dev.platform_data;
 
 	dwc_lsi_notify.redriver_en_gpio = pdata->gpio_redriver_en;
 	dwc_lsi_notify.disable_control = pdata->can_diable_usb;
-	dwc_lsi_notify.vbus_detect_gpio = pdata->gpio_vbus_detect;
 	set_otg_notify(&dwc_lsi_notify);
 	set_notify_data(&dwc_lsi_notify, pdata);
 
-#ifdef CONFIG_USB_OTG_LAGO
-	is_gpio_otg_huben = pdata->gpio_otg_huben;
-	if (gpio_is_valid(is_gpio_otg_huben))
-		register_gpios_otg_huben(is_gpio_otg_huben);
-	is_gpio_otg_hubrst = pdata->gpio_otg_hubrst;
-	if (gpio_is_valid(is_gpio_otg_hubrst))
-		register_gpios_otg_hubrst(is_gpio_otg_hubrst);
-
-	o_notify = get_otg_notify();
-	send_otg_notify(o_notify, NOTIFY_EVENT_HOST, 1);
-#endif
 #ifdef CONFIG_MUIC_NOTIFIER
 	muic_notifier_register(&pdata->usb_nb, usb_handle_notification,
 			       MUIC_NOTIFY_DEV_USB);
@@ -571,7 +442,7 @@ static void __init usb_notifier_exit(void)
 	platform_driver_unregister(&usb_notifier_driver);
 }
 
-module_init(usb_notifier_init);
+late_initcall(usb_notifier_init);
 module_exit(usb_notifier_exit);
 
 MODULE_AUTHOR("inchul.im <inchul.im@samsung.com>");

@@ -42,7 +42,7 @@
 #define SM5703_DRV_VER "0.0.1"
 
 #define SM5703FG_SLAVE_ADDR (0x35)
-#define SM5703CF_SLAVE_ADDR   (0x49)//CHARGER,FLASH,REGULATOR
+#define SM5703CF_SLAVE_ADDR   (0x49)/*CHARGER,FLASH,REGULATOR*/
 
 #define SM5703_INT1_IRQ_REGS_NR 1
 #define SM5703_INT2_IRQ_REGS_NR 1
@@ -90,24 +90,25 @@ struct sm5703_regulator_data {
 struct sm5703_fled_platform_data;
 
 typedef struct sm5703_charger_platform_data {
-    sec_charging_current_t *charging_current_table;
-    int chg_float_voltage;
-    int chg_autostop;
-    int chg_autoset;
-    int chg_aiclen;
-    int chg_aiclth;
-	int chg_vbuslimit;
-    int fg_vol_val;
-    int fg_soc_val;
-    int fg_curr_avr_val;
-    char *charger_name;
-    int chgen_gpio; //nCHGEN Pin
+	sec_charging_current_t *charging_current_table;
+	int chg_float_voltage;
+	int chg_autostop;
+	int chg_autoset;
+	int chg_aiclen;
+	int chg_aiclth;
+	int fg_vol_val;
+	int fg_soc_val;
+	int fg_curr_avr_val;
+	char *charger_name;
+	int chgen_gpio; /* nCHGEN Pin */
+	bool bst_iq3limit_1;
+	sec_battery_full_charged_t full_check_type_2nd;
 } sm5703_charger_platform_data_t;
 
 struct sm5703_mfd_platform_data {
 	sm5703_regulator_platform_data_t *regulator_platform_data;
 	struct sm5703_fled_platform_data *fled_platform_data;
-	int irq_gpio;   //irq
+	int irq_gpio;   /* irq */
 	int irq_base;
 	int mrstb_gpio;
 #ifdef CONFIG_REGULATOR_SM5703
@@ -175,4 +176,4 @@ typedef enum {
 extern sm5703_irq_status_t *sm5703_get_irq_status(sm5703_mfd_chip_t *mfd_chip,
 		sm5703_irq_status_sel_t sel);
 
-#endif // SM5703_H
+#endif /* SM5703_H */

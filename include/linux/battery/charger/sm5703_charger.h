@@ -16,6 +16,13 @@
 #include <linux/mfd/sm5703_irq.h>
 
 enum {
+    SM5703_TOPOFF_TIMER_10m         = 0x0,
+    SM5703_TOPOFF_TIMER_20m         = 0x1,
+    SM5703_TOPOFF_TIMER_30m         = 0x2,
+    SM5703_TOPOFF_TIMER_45m         = 0x3,
+};
+
+enum {
 	CHG_REG = 0,
 	CHG_DATA,
 	CHG_REGS,
@@ -53,15 +60,20 @@ enum {
 #define SM5703_OPERATION_MODE_FLASH_BOOST_MODE      0x06//110
 #define SM5703_OPERATION_MODE_USB_OTG_MODE          0x07//111
 
-#define SM5703_BSTOUT       		0x0F
-#define SM5703_BSTOUT_MASK       	0x0F
+#define SM5703_BSTOUT				0x0F
+#define SM5703_BSTOUT_MASK			0x0F
 #define SM5703_BSTOUT_SHIFT			0
 
 #define SM5703_BSTOUT_4P5           0x05
+#define SM5703_BSTOUT_5P0           0x0A
 #define SM5703_BSTOUT_5P1           0x0B
 
 #define SM5703_AUTOSTOP             0x1
 #define SM5703_AUTOSTOP_MASK        (1 << 7)
+
+#define SM5703_TOPOFF_TIMER			0x3
+#define SM5703_TOPOFF_TIMER_MASK	0x60
+#define SM5703_TOPOFF_TIMER_SHIFT	0x5
 
 #define SM5703_AICLEN               0x1
 #define SM5703_AICLEN_MASK          (1 << 7)
@@ -103,11 +115,9 @@ enum {
 #define SM5703_BST_IQ3LIMIT_MASK        0x80
 #define SM5703_BST_IQ3LIMIT_SHIFT       0x7
 
-#define START_VBUSLIMIT_DELAY			1200
-#define VBUSLIMIT_DELAY					200
-#define REDUCE_CURRENT_STEP				50
+#define REDUCE_CURRENT_STEP				100
 #define MINIMUM_INPUT_CURRENT			300
-#define SLOW_CHARGING_CURRENT_STANDARD	1050
+#define SLOW_CHARGING_CURRENT_STANDARD	999
 #define SIOP_INPUT_LIMIT_CURRENT		1200
 
 extern sec_battery_platform_data_t sec_battery_pdata;

@@ -470,6 +470,34 @@ static const struct soc_enum cod3022x_chargepump_mode_enum =
 			ARRAY_SIZE(cod3022x_chargepump_mode_text),
 			cod3022x_chargepump_mode_text);
 
+static int dac_soft_mute_get(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static int dac_soft_mute_put(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	int value =ucontrol->value.integer.value[0];
+
+	if (g_cod3022x == NULL)
+		return -1;
+
+	if (!value)
+		/* enable soft mute */
+		snd_soc_update_bits(g_cod3022x->codec, COD3022X_50_DAC1,
+			DAC1_SOFT_MUTE_MASK, DAC1_SOFT_MUTE_MASK);
+	else
+		/* diable soft mute */
+		snd_soc_update_bits(g_cod3022x->codec, COD3022X_50_DAC1,
+			DAC1_SOFT_MUTE_MASK, 0x0);
+
+	dev_info(g_cod3022x->codec->dev, "%s: soft mute : %s\n", __func__, 
+		(!value) ? "on":"off");
+	return 0;
+}
+
 /**
  * struct snd_kcontrol_new cod3022x_snd_control
  *
@@ -598,6 +626,9 @@ static const struct snd_kcontrol_new cod3022x_snd_controls[] = {
 	SOC_SINGLE_EXT("ADCR Mixer LINERR Switch", COD3022X_23_MIX_AD, EN_MIX_LNRR_SHIFT,
 				1, 0, cod3022x_soc_enum_get_adc_mix,
 				cod3022x_soc_enum_put_adc_mix),
+				
+	SOC_SINGLE_EXT("DAC Soft Mute",SND_SOC_NOPM, 0, 100, 0,
+			dac_soft_mute_get, dac_soft_mute_put),				
 };
 
 static int dac_ev(struct snd_soc_dapm_widget *w, struct snd_kcontrol *kcontrol,
@@ -2141,6 +2172,10 @@ int cod3022x_set_externel_jd(struct snd_soc_codec *codec)
 
 	pm_runtime_get_sync(codec->dev);
 
+	/* Mask all interrupt bits for external jd mode */
+	snd_soc_update_bits(codec, COD3022X_05_IRQ1M, IRQ1M_MASK_ALL, 0xff);
+	snd_soc_update_bits(codec, COD3022X_06_IRQ2M, IRQ2M_MASK_ALL, 0xff);
+
 	/* Enable External jack detecter */
 	ret = snd_soc_update_bits(codec, COD3022X_83_JACK_DET1,
 			CTMP_JD_MODE_MASK, CTMP_JD_MODE_MASK);
@@ -2860,31 +2895,10 @@ static void cod3022x_configure_mic_bias(struct snd_soc_codec *codec)
 static void cod3022x_post_fw_update_failure(void *context)
 {
 	struct snd_soc_codec *codec = (struct snd_soc_codec *)context;
-	struct cod3022x_priv *cod3022x = snd_soc_codec_get_drvdata(codec);
-	unsigned int detb_period = CTMF_DETB_PERIOD_2048;
-	unsigned int jd_mask = EN_PDB_JD_MASK;
 
 	dev_dbg(codec->dev, "%s called, setting defaults\n", __func__);
 
-	if (cod3022x->use_external_jd) {
-		detb_period = CTMF_DETB_PERIOD_8;
-		jd_mask = 0;
-	} else if (cod3022x->use_btn_adc_mode)
-		detb_period = CTMF_DETB_PERIOD_8;
-
 	pm_runtime_get_sync(codec->dev);
-
-	if (cod3022x->use_external_jd) {
-		snd_soc_update_bits(codec, COD3022X_05_IRQ1M,
-				IRQ1M_MASK_ALL, 0xff);
-		snd_soc_update_bits(codec, COD3022X_06_IRQ2M,
-				IRQ2M_MASK_ALL, 0xff);
-	} else {
-		snd_soc_update_bits(codec, COD3022X_05_IRQ1M,
-				IRQ1M_MASK_ALL, 0x02);
-		snd_soc_update_bits(codec, COD3022X_06_IRQ2M,
-				IRQ2M_MASK_ALL, 0x02);
-	}
 
 	/* Default value, enabling HPF and setting freq at 100Hz */
 	snd_soc_write(codec, COD3022X_42_ADC1, 0x0c);
@@ -2945,31 +2959,10 @@ static void cod3022x_post_fw_update_failure(void *context)
 static void cod3022x_post_fw_update_success(void *context)
 {
 	struct snd_soc_codec *codec = (struct snd_soc_codec *)context;
-	struct cod3022x_priv *cod3022x = snd_soc_codec_get_drvdata(codec);
-	unsigned int detb_period = CTMF_DETB_PERIOD_2048;
-	unsigned int jd_mask = EN_PDB_JD_MASK;
 
 	dev_dbg(codec->dev, "%s called\n", __func__);
 
-	if (cod3022x->use_external_jd) {
-		detb_period = CTMF_DETB_PERIOD_8;
-		jd_mask = 0;
-	} else if (cod3022x->use_btn_adc_mode)
-		detb_period = CTMF_DETB_PERIOD_8;
-
 	pm_runtime_get_sync(codec->dev);
-
-	if (cod3022x->use_external_jd) {
-		snd_soc_update_bits(codec, COD3022X_05_IRQ1M,
-				IRQ1M_MASK_ALL, 0xff);
-		snd_soc_update_bits(codec, COD3022X_06_IRQ2M,
-				IRQ2M_MASK_ALL, 0xff);
-	} else {
-		snd_soc_update_bits(codec, COD3022X_05_IRQ1M,
-				IRQ1M_MASK_ALL, 0);
-		snd_soc_update_bits(codec, COD3022X_06_IRQ2M,
-				IRQ2M_MASK_ALL, 0);
-	}
 
 	/* Update for 3-pole jack detection */
 	snd_soc_write(codec, COD3022X_85_MIC_DET, 0x03);

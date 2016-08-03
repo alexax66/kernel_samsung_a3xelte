@@ -46,6 +46,7 @@ enum {
 	TYPE_REMV_AMB_DATA = 6,
 	TYPE_OFFSET_DATA_SEC = 19,	/* Cap Offset for Normal Touch */
 	TYPE_OFFSET_DATA_SDC = 29,	/* Cap Offset in SDC */
+	TYPE_INVALID_DATA = 0xFF, /* Invalid data type for release factory mode*/
 };
 
 enum CMD_STATUS {
@@ -233,7 +234,7 @@ static void set_default_result(struct sec_ts_data *data)
 	char delim = ':';
 
 	memset(data->cmd_result, 0x00, CMD_RESULT_STR_LEN);
-	memcpy(data->cmd_result, data->cmd, CMD_RESULT_STR_LEN);
+	memcpy(data->cmd_result, data->cmd, strnlen(data->cmd, CMD_STR_LEN));
 	strncat(data->cmd_result, &delim, 1);
 
 	return;
@@ -496,6 +497,7 @@ static int sec_ts_fix_tmode(struct sec_ts_data *ts, u8 mode, u8 state)
 	u8 tBuff[2] = { mode, state };
 
 	ret = ts->sec_ts_i2c_write(ts, SEC_TS_CMD_STATEMANAGE_ON, onoff, 1);
+	sec_ts_delay(20);
 
 	ret = ts->sec_ts_i2c_write(ts, SEC_TS_CMD_CHG_SYSMODE , tBuff, sizeof(tBuff));
 	sec_ts_delay(20);
@@ -506,8 +508,13 @@ static int sec_ts_release_tmode(struct sec_ts_data *ts)
 {
 	int ret;
 	u8 onoff[1] = {STATE_MANAGE_ON};
+	u8 tBuff[2] = {TOUCH_SYSTEM_MODE_TOUCH, TOUCH_MODE_STATE_TOUCH};
 
 	ret = ts->sec_ts_i2c_write(ts, SEC_TS_CMD_STATEMANAGE_ON, onoff, 1);
+	sec_ts_delay(20);
+
+	ret = ts->sec_ts_i2c_write(ts, SEC_TS_CMD_CHG_SYSMODE , tBuff, sizeof(tBuff));
+	sec_ts_delay(20);
 
 	return ret;
 }
@@ -519,47 +526,47 @@ void sec_ts_print_frame(struct sec_ts_data *ts, short *min, short *max)
 	unsigned char *pStr = NULL;
 	unsigned char pTmp[16] = { 0 };
 
-	pStr = kzalloc(6 * (ts->rx_count + 1), GFP_KERNEL);
+	pStr = kzalloc(6 * (ts->tx_count + 1), GFP_KERNEL);
 	if (pStr == NULL) {
 		tsp_debug_info(true, &ts->client->dev, "SEC_TS pStr kzalloc failed\n");
 		return;
 	}
 
-	memset(pStr, 0x0, 6 * (ts->rx_count + 1));
+	memset(pStr, 0x0, 6 * (ts->tx_count + 1));
 	snprintf(pTmp, sizeof(pTmp), "    ");
-	strncat(pStr, pTmp, 6 * ts->rx_count);
+	strncat(pStr, pTmp, 6 * ts->tx_count);
 
-	for (i = 0; i < ts->rx_count; i++) {
-		snprintf(pTmp, sizeof(pTmp), "Rx%02d  ", i);
-		strncat(pStr, pTmp, 6 * ts->rx_count);
+	for (i = 0; i < ts->tx_count; i++) {
+		snprintf(pTmp, sizeof(pTmp), "Tx%02d  ", i);
+		strncat(pStr, pTmp, 6 * ts->tx_count);
 	}
 
 	tsp_debug_info(true, &ts->client->dev, "SEC_TS %s\n", pStr);
-	memset(pStr, 0x0, 6 * (ts->rx_count + 1));
+	memset(pStr, 0x0, 6 * (ts->tx_count + 1));
 	snprintf(pTmp, sizeof(pTmp), " +");
-	strncat(pStr, pTmp, 6 * ts->rx_count);
+	strncat(pStr, pTmp, 6 * ts->tx_count);
 
-	for (i = 0; i < ts->rx_count; i++) {
+	for (i = 0; i < ts->tx_count; i++) {
 		snprintf(pTmp, sizeof(pTmp), "------");
 		strncat(pStr, pTmp, 6 * ts->rx_count);
 	}
 
 	tsp_debug_info(true, &ts->client->dev, "SEC_TS %s\n", pStr);
 
-	for (i = 0; i < ts->tx_count; i++) {
-		memset(pStr, 0x0, 6 * (ts->rx_count + 1));
-		snprintf(pTmp, sizeof(pTmp), "Tx%02d | ", i);
-		strncat(pStr, pTmp, 6 * ts->rx_count);
+	for (i = 0; i < ts->rx_count; i++) {
+		memset(pStr, 0x0, 6 * (ts->tx_count + 1));
+		snprintf(pTmp, sizeof(pTmp), "Rx%02d | ", i);
+		strncat(pStr, pTmp, 6 * ts->tx_count);
 
-		for (j = 0; j < ts->rx_count; j++) {
-			snprintf(pTmp, sizeof(pTmp), "%5d ", ts->pFrame[(i * ts->rx_count) + j]);
+		for (j = 0; j < ts->tx_count; j++) {
+			snprintf(pTmp, sizeof(pTmp), "%5d ", ts->pFrame[(j * ts->rx_count) + i]);
 
 			if (i > 0) {
-				if (ts->pFrame[(i * ts->rx_count) + j] < *min)
-					*min = ts->pFrame[(i * ts->rx_count) + j];
+				if (ts->pFrame[(j * ts->rx_count) + i] < *min)
+					*min = ts->pFrame[(j * ts->rx_count) + i];
 
-				if (ts->pFrame[(i * ts->rx_count) + j] > *max)
-					*max = ts->pFrame[(i * ts->rx_count) + j];
+				if (ts->pFrame[(j * ts->rx_count) + i] > *max)
+					*max = ts->pFrame[(j * ts->rx_count) + i];
 			}
 			strncat(pStr, pTmp, 6 * ts->rx_count);
 		}
@@ -573,10 +580,12 @@ int sec_ts_read_frame(struct sec_ts_data *ts, u8 type, short *min,
 {
 	unsigned int readbytes = 0xFF;
 	unsigned char *pRead = NULL;
-	unsigned int dataposition = 0;
+	u8 mode = TYPE_INVALID_DATA;
 	int rc = 0;
 	int ret = 0;
 	int i = 0;
+	int j = 0;
+	short *temp = NULL;
 
 	tsp_debug_info(true, &ts->client->dev, "%s\n", __func__);
 
@@ -587,7 +596,7 @@ int sec_ts_read_frame(struct sec_ts_data *ts, u8 type, short *min,
 	if (pRead == NULL) {
 		tsp_debug_info(true, &ts->client->dev, "Read frame kzalloc failed\n");
 		rc = 1;
-		goto ErrorExit;
+		return rc;
 	}
 
 	/* set OPCODE and data type */
@@ -598,13 +607,18 @@ int sec_ts_read_frame(struct sec_ts_data *ts, u8 type, short *min,
 		goto ErrorExit;
 	}
 
-	sec_ts_delay(20);
+	sec_ts_delay(50);
+
 	if (type == TYPE_OFFSET_DATA_SDC) {
 		/* excute selftest for real cap offset data, because real cap data is not memory data in normal touch. */
 		char para = TO_TOUCH_MODE;
 		disable_irq(ts->client->irq);
 		execute_selftest(ts);
-		ts->sec_ts_i2c_write(ts, SEC_TS_CMD_SET_POWER_MODE, &para, 1);
+		ret = ts->sec_ts_i2c_write(ts, SEC_TS_CMD_SET_POWER_MODE, &para, 1);
+		if (ret < 0) {
+			tsp_debug_err(true, &ts->client->dev, "%s: set rawdata type failed!\n", __func__);
+			goto ErrorRelease;
+		}
 		enable_irq(ts->client->irq);
 		/* end */
 	}
@@ -614,13 +628,13 @@ int sec_ts_read_frame(struct sec_ts_data *ts, u8 type, short *min,
 	if (ret < 0) {
 		tsp_debug_err(true, &ts->client->dev, "%s: read rawdata failed!\n", __func__);
 		rc = 3;
-		goto ErrorExit;
+		goto ErrorRelease;
 	}
 
 	memset(ts->pFrame, 0x00, readbytes);
 
 	for (i = 0; i < readbytes; i += 2)
-		ts->pFrame[dataposition++] = pRead[i+1] + (pRead[i] << 8);
+		ts->pFrame[i/2] = pRead[i+1] + (pRead[i] << 8);
 
 	*min = *max = ts->pFrame[0];
 
@@ -629,6 +643,28 @@ int sec_ts_read_frame(struct sec_ts_data *ts, u8 type, short *min,
 			pRead[0], pRead[1], pRead[2], readbytes);
 #endif
 	sec_ts_print_frame(ts, min, max);
+
+	temp = kzalloc(readbytes, GFP_KERNEL);
+	if (temp == NULL) {
+		tsp_debug_info(true, &ts->client->dev, "Read frame kzalloc failed\n");
+		goto ErrorRelease;
+	}
+
+	memcpy(temp, ts->pFrame, readbytes);
+	memset(ts->pFrame, 0x00, readbytes);
+
+	for (i = 0; i < ts->tx_count; i++) {
+		for (j = 0; j < ts->rx_count; j++)
+			ts->pFrame[(j * ts->tx_count) + i] = temp[(i * ts->rx_count) + j];
+	}
+
+	kfree(temp);
+
+ErrorRelease:
+	/* release data monitory (unprepare AFE data memory) */
+	ret = ts->sec_ts_i2c_read(ts, SEC_TS_CMD_MUTU_RAW_TYPE, &mode, 1);
+	if (ret < 0)
+		tsp_debug_err(true, &ts->client->dev, "%s: set rawdata failed!\n", __func__);
 
 ErrorExit:
 	kfree(pRead);
@@ -707,6 +743,7 @@ static int sec_ts_read_channel(struct sec_ts_data *ts, u8 type, short *min, shor
 	int ii = 0;
 	int jj = 0;
 	u8 w_data[2];
+	u8 mode = TYPE_INVALID_DATA;
 
 	tsp_debug_info(true, &ts->client->dev, "%s\n", __func__);
 
@@ -723,13 +760,13 @@ static int sec_ts_read_channel(struct sec_ts_data *ts, u8 type, short *min, shor
 		goto out_read_channel;
 	}
 
-	sec_ts_delay(20);
+	sec_ts_delay(50);
 
 	/* read data */
 	ret = ts->sec_ts_i2c_read(ts, SEC_TS_READ_TOUCH_SELF_RAWDATA, pRead, PRE_DEFINED_DATA_LENGTH);
 	if (ret < 0) {
 		tsp_debug_err(true, &ts->client->dev, "%s: read rawdata failed!\n", __func__);
-		goto out_read_channel;
+		goto err_read_data;
 	}
 
 	memset(ts->pFrame, 0x00, ts->tx_count * ts->rx_count * 2);
@@ -756,7 +793,11 @@ static int sec_ts_read_channel(struct sec_ts_data *ts, u8 type, short *min, shor
 				(jj < ts->tx_count) ? "TX" : "RX", jj, ts->pFrame[jj]);
 		jj++;
 	}
-
+err_read_data:
+	/* release data monitory (unprepare AFE data memory) */
+	ret = ts->sec_ts_i2c_write(ts, SEC_TS_CMD_SELF_RAW_TYPE, &mode, 1);
+	if (ret < 0)
+		tsp_debug_err(true, &ts->client->dev, "%s: set rawdata failed!\n", __func__);
 out_read_channel:
 	kfree(pRead);
 	return ret;
@@ -769,7 +810,6 @@ static int sec_ts_read_raw_data(struct sec_ts_data *ts, struct sec_ts_test_mode 
 	int ret = 0;
 	char temp[CMD_STR_LEN] = { 0 };
 	char *buff;
-	int channel_num;
 
 	buff = kzalloc(ts->tx_count * ts->rx_count * CMD_RESULT_WORD_LEN, GFP_KERNEL);
 	if (!buff) {
@@ -805,16 +845,20 @@ static int sec_ts_read_raw_data(struct sec_ts_data *ts, struct sec_ts_test_mode 
 	}
 
 	if (mode->allnode) {
-		if (mode->frame_channel)
-			channel_num = (ts->rx_count + ts->tx_count);
-		else
-			channel_num = (ts->rx_count * ts->tx_count);
+		if (mode->frame_channel) {
+			for (ii = 0; ii < (ts->rx_count + ts->tx_count); ii++) {
+				snprintf(temp, CMD_RESULT_WORD_LEN, "%d,", ts->pFrame[ii]);
+				strncat(buff, temp, CMD_RESULT_WORD_LEN);
 
-		for (ii = 0; ii < channel_num; ii++) {
-			snprintf(temp, CMD_RESULT_WORD_LEN, "%d,", ts->pFrame[ii]);
-			strncat(buff, temp, CMD_RESULT_WORD_LEN);
+				memset(temp, 0x00, CMD_STR_LEN);
+			}
+		} else {
+			for (ii = 0; ii < (ts->rx_count * ts->tx_count); ii++) {
+				snprintf(temp, CMD_RESULT_WORD_LEN, "%d,", ts->pFrame[ii]);
+				strncat(buff, temp, CMD_RESULT_WORD_LEN);
 
-			memset(temp, 0x00, CMD_STR_LEN);
+				memset(temp, 0x00, CMD_STR_LEN);
+			}
 		}
 	} else {
 		snprintf(buff, CMD_STR_LEN, "%d,%d", mode->min, mode->max);
@@ -1040,7 +1084,7 @@ static void get_x_num(void *device_data)
 	char buff[16] = { 0 };
 
 	set_default_result(ts);
-	snprintf(buff, sizeof(buff), "%d", ts->rx_count);
+	snprintf(buff, sizeof(buff), "%d", ts->tx_count);
 	set_cmd_result(ts, buff, strnlen(buff, sizeof(buff)));
 	ts->cmd_state = 2;
 	tsp_debug_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
@@ -1052,7 +1096,7 @@ static void get_y_num(void *device_data)
 	char buff[16] = { 0 };
 
 	set_default_result(ts);
-	snprintf(buff, sizeof(buff), "%d", ts->tx_count);
+	snprintf(buff, sizeof(buff), "%d", ts->rx_count);
 	set_cmd_result(ts, buff, strnlen(buff, sizeof(buff)));
 	ts->cmd_state = CMD_STATUS_OK;
 	tsp_debug_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
@@ -2367,58 +2411,38 @@ static void spay_enable(void *device_data)
 	struct sec_ts_data *ts = (struct sec_ts_data *)device_data;
 
 	char buff[CMD_STR_LEN] = { 0 };
-	int ret;
-	char mode;
 
 	set_default_result(ts);
 
 	if (ts->cmd_param[0] < 0 || ts->cmd_param[0] > 1)
 		goto NG;
 
-	if (ts->power_status == SEC_TS_STATE_POWER_OFF) {
-		tsp_debug_err(true, &ts->client->dev, "%s: ERR, POWER OFF\n", __func__);
-		goto NG;
-	}
-
-	ret = ts->sec_ts_i2c_read(ts, SEC_TS_CMD_GESTURE_MODE, &mode, 1);
-	if (ret < 0) {
-		tsp_debug_err(true, &ts->client->dev, "%s: Failed to read mode\n", __func__);
-		goto NG;
-	}
-
-	if (ts->cmd_param[0]) {
+	if (ts->cmd_param[0])
 		ts->lowpower_flag |= SEC_TS_LOWP_FLAG_SPAY;
-		mode |= SEC_TS_LOWP_FLAG_SPAY;
-	} else {
+	else
 		ts->lowpower_flag &= ~(SEC_TS_LOWP_FLAG_SPAY);
-		mode &= ~(SEC_TS_LOWP_FLAG_SPAY);
-	}
 
 	ts->lowpower_mode = check_lowpower_flag(ts);
 
-	ret = ts->sec_ts_i2c_write(ts, SEC_TS_CMD_GESTURE_MODE, &mode, 1);
-	if (ret < 0) {
-		tsp_debug_err(true, &ts->client->dev, "%s: Failed to write mode\n", __func__);
-		goto NG;
-	}
-
-	ret = ts->sec_ts_i2c_read(ts, SEC_TS_CMD_GESTURE_MODE, &mode, 1);
-	if (ret < 0) {
-		tsp_debug_err(true, &ts->client->dev, "%s: Failed to read mode\n", __func__);
-		goto NG;
-	}
-
-	tsp_debug_info(true, &ts->client->dev, "%s: %02X\n", __func__, mode);
+	tsp_debug_info(true, &ts->client->dev, "%s: %02X\n", __func__, ts->lowpower_mode);
 
 	snprintf(buff, sizeof(buff), "%s", "OK");
 	ts->cmd_state = CMD_STATUS_OK;
 	set_cmd_result(ts, buff, strnlen(buff, sizeof(buff)));
+
+	mutex_lock(&ts->cmd_lock);
+	ts->cmd_is_running = false;
+	mutex_unlock(&ts->cmd_lock);
 	return ;
 
 NG:
 	snprintf(buff, sizeof(buff), "%s", "NG");
 	ts->cmd_state = CMD_STATUS_FAIL;
 	set_cmd_result(ts, buff, strnlen(buff, sizeof(buff)));
+
+	mutex_lock(&ts->cmd_lock);
+	ts->cmd_is_running = false;
+	mutex_unlock(&ts->cmd_lock);
 	return ;
 }
 

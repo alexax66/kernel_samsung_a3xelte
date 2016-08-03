@@ -14,6 +14,7 @@
 
 #include <linux/battery/fuelgauge/s2mu003_fuelgauge.h>
 #include <linux/of_gpio.h>
+#include <linux/sec_batt.h>
 
 static enum power_supply_property s2mu003_fuelgauge_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
@@ -66,6 +67,30 @@ static int s2mu003_read_reg(struct i2c_client *client, int reg, u8 *buf)
 	}
 
 	return ret;
+}
+
+static void s2mu003_restart_gauging(struct s2mu003_fuelgauge_data *fuelgauge)
+{
+	int ret = 0;
+	u8 data[2];
+
+	pr_info("%s: Re-calculate SOC and voltage\n", __func__);
+
+	ret = i2c_smbus_write_byte_data(fuelgauge->i2c, 0x1A, 0x33);
+	if (ret < 0)
+		dev_err(&fuelgauge->i2c->dev, "%s: Error(%d)\n", __func__, ret);
+
+	msleep(700);
+
+	s2mu003_read_reg(fuelgauge->i2c, 0x04, data);
+
+	pr_info("%s: 0x04-> %02x  0x05-> %02x \n",
+			__func__, data[0], data[1]);
+
+	s2mu003_read_reg(fuelgauge->i2c, 0x0A, data);
+
+	pr_info("%s: 0x0A-> %02x  0x0B-> %02x \n",
+			__func__, data[0], data[1]);
 }
 
 static int s2mu003_init_regs(struct s2mu003_fuelgauge_data *fuelgauge)
@@ -280,6 +305,58 @@ static int s2mu003_get_avgvbat(struct s2mu003_fuelgauge_data *fuelgauge)
 	return old_vbat;
 }
 
+/* if ret < 0, discharge */
+static int sec_bat_check_discharge(int vcell)
+{
+	static int cnt;
+	static int pre_vcell = 0;
+
+	if (pre_vcell == 0)
+		pre_vcell = vcell;
+	else if (pre_vcell > vcell)
+		cnt++;
+	else if (vcell >= 3400)
+		cnt = 0;
+	else
+		cnt--;
+
+	pre_vcell = vcell;
+
+	if (cnt >= 3)
+		return -1;
+	else
+		return 1;
+}
+
+/* judge power off or not by current_avg */
+static int s2mu003_get_current_average(struct i2c_client *client)
+{
+	struct s2mu003_fuelgauge_data *fuelgauge = i2c_get_clientdata(client);
+	union power_supply_propval value_bat;
+	int vcell, soc, curr_avg;
+	int check_discharge;
+
+	psy_do_property("battery", get,
+			POWER_SUPPLY_PROP_HEALTH, value_bat);
+	vcell = s2mu003_get_vbat(fuelgauge);
+	soc = s2mu003_get_soc(fuelgauge) / 10;
+	check_discharge = sec_bat_check_discharge(vcell);
+
+	/* if 0% && under 3.4v && low power charging(1000mA), power off */
+	if (!lpcharge && (soc <= 0) && (vcell < 3400) &&
+			((check_discharge < 0) ||
+			 ((value_bat.intval == POWER_SUPPLY_HEALTH_OVERHEAT) ||
+			  (value_bat.intval == POWER_SUPPLY_HEALTH_COLD)))) {
+		pr_info("%s: SOC(%d), Vnow(%d) \n",
+				__func__, soc, vcell);
+		curr_avg = -1;
+	} else {
+		curr_avg = 0;
+	}
+
+	return curr_avg;
+}
+
 /* capacity is  0.1% unit */
 static void s2mu003_fg_get_scaled_capacity(
 		struct s2mu003_fuelgauge_data *fuelgauge,
@@ -447,6 +524,7 @@ static int s2mu003_fg_get_property(struct power_supply *psy,
 {
 	struct s2mu003_fuelgauge_data *fuelgauge =
 		container_of(psy, struct s2mu003_fuelgauge_data, psy_fg);
+	union power_supply_propval chg_current;
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
@@ -470,11 +548,18 @@ static int s2mu003_fg_get_property(struct power_supply *psy,
 		break;
 		/* Current (mA) */
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
-		val->intval = 0;
+		psy_do_property("sec-charger", get,
+			POWER_SUPPLY_PROP_CURRENT_NOW, chg_current);
+		val->intval = chg_current.intval;
 		break;
 		/* Average Current (mA) */
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
-		val->intval = 0;
+		val->intval = s2mu003_get_current_average(fuelgauge->i2c);
+		if (val->intval >= 0) {
+			psy_do_property("sec-charger", get,
+				POWER_SUPPLY_PROP_CURRENT_NOW, chg_current);
+			val->intval = chg_current.intval;
+		}
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_RAW) {
@@ -572,12 +657,7 @@ static int s2mu003_fg_set_property(struct power_supply *psy,
 		case POWER_SUPPLY_PROP_CAPACITY:
 			if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_RESET) {
 				fuelgauge->initial_update_of_soc = true;
-#if 0
-				if (!sec_hal_fg_reset(fuelgauge->i2c))
-					return -EINVAL;
-				else
-					break;
-#endif
+				s2mu003_restart_gauging(fuelgauge);
 			}
 			break;
 		case POWER_SUPPLY_PROP_TEMP:

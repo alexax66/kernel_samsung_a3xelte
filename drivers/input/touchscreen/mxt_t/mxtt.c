@@ -562,9 +562,6 @@ static void mxt_report_input_data(struct mxt_data *data)
 
 		input_mt_slot(data->input_dev, i);
 		if (data->fingers[i].state == MXT_STATE_RELEASE) {
-#if defined(TSP_SUPPROT_MULTIMEDIA) && !defined(CONFIG_SEC_FACTORY)
-			input_report_abs(data->input_dev, ABS_MT_PRESSURE, 0);
-#endif
 			input_mt_report_slot_state(data->input_dev,
 					MT_TOOL_FINGER, false);
 		} else {
@@ -582,18 +579,14 @@ static void mxt_report_input_data(struct mxt_data *data)
 					data->fingers[i].x);
 			input_report_abs(data->input_dev, ABS_MT_POSITION_Y,
 					data->fingers[i].y);
-			input_report_abs(data->input_dev, ABS_MT_TOUCH_MAJOR,
-					 data->fingers[i].m);
-			input_report_abs(data->input_dev, ABS_MT_TOUCH_MINOR,
-					 data->fingers[i].n);
 #ifdef REPORT_2D_Z
 			input_report_abs(data->input_dev, ABS_MT_PRESSURE,
 					 data->fingers[i].z);
 #endif
-#if defined(TSP_SUPPROT_MULTIMEDIA) && !defined(CONFIG_SEC_FACTORY)
-			input_report_abs(data->input_dev, ABS_MT_PRESSURE,
-					 data->fingers[i].z & 0xff);
-#endif
+			input_report_abs(data->input_dev, ABS_MT_TOUCH_MAJOR,
+					 data->fingers[i].m);
+			input_report_abs(data->input_dev, ABS_MT_TOUCH_MINOR,
+					 data->fingers[i].n);
 
 #if TSP_USE_PALM_FLAG
 			input_report_abs(data->input_dev, ABS_MT_PALM, data->palm);
@@ -1084,43 +1077,7 @@ static void mxt_treat_T100_object(struct mxt_data *data,
 			/* AUXDATA[n]'s order is depended on which values are
 			 * enabled or not.
 			 */
-#ifdef REPORT_2D_Z
 			data->fingers[id].z = msg[5];
-#endif
-#if defined(TSP_SUPPROT_MULTIMEDIA) && !defined(CONFIG_SEC_FACTORY)
-			/* Adjusting amplitude for the SoundCamp */
-			/* adj_amp = (amp - amp_const[30])*amp_coef[4] + amp_offset[55] */
-
-			if(data->velocity_enable||data->brush_enable){
-				if (msg[5] > data->amp_adj_max) {
-					tsp_debug_dbg(false, &data->client->dev, "1 data->amp_adj_max [%d] \n", data->amp_adj_max);
-					data->fingers[id].z = 255;
-				} else if (msg[5] > data->amp_adj_min) {
-					data->fingers[id].z = (int)((msg[5] - data->amp_const )*data->amp_coef+ data->amp_offset);
-
-					tsp_debug_dbg(false, &data->client->dev, "2 data->amp_adj_min [%d] amp_const[%d] amp_coef[%d] amp_offset[%d] data->fingers[id].z = %d \n",
-					data->amp_adj_min, data->amp_const, data->amp_coef, data->amp_offset, data->fingers[id].z);
-
-
-				} else {
-					tsp_debug_dbg(false, &data->client->dev, "3 else \n");
-					data->fingers[id].z = msg[5];
-				}
-
-				if (data->fingers[id].z <= 0) {
-					tsp_debug_err(true, &data->client->dev, "adjusted amp is below than 0\n");
-					data->fingers[id].z = 1;
-				}else if (data->fingers[id].z > 255) {
-					tsp_debug_err(true, &data->client->dev, "adjusted amp is over than 255\n");
-					data->fingers[id].z = 255;
-				}
-
-				tsp_debug_dbg(false, &data->client->dev, "ori[%d],adjusted amp[%d]\n", msg[5], data->fingers[id].z);
-			} else {
-				data->fingers[id].z = 255;
-			}
-#endif
-
 			data->fingers[id].n = min(msg[6],msg[7]);
 			data->fingers[id].m = max(msg[6],msg[7]);
 
@@ -1992,57 +1949,11 @@ static int mxt_make_highchg(struct mxt_data *data)
 }
 #endif
 
-#if defined(TSP_SUPPROT_MULTIMEDIA) && !defined(CONFIG_SEC_FACTORY)
-static int mxt_adjust_amp(struct mxt_data *data)
-{
-	struct mxt_object *object;
-	struct device *dev = &data->client->dev;
-	int ret = 0;
-
-	object = mxt_get_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTAINER_T71);
-	if (!object)
-		return -EIO;
-
-	/*	Read amplitude adjustment config */
-	ret = mxt_read_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTAINER_T71, 195, &data->amp_adj_min);
-	if (ret) {
-		goto out;
-	}
-
-	ret = mxt_read_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTAINER_T71, 196, &data->amp_adj_max);
-	if (ret) {
-		goto out;
-	}
-	ret = mxt_read_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTAINER_T71, 197, &data->amp_coef);
-	if (ret) {
-		goto out;
-	}
-	ret = mxt_read_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTAINER_T71, 198, &data->amp_const);
-	if (ret) {
-		goto out;
-	}
-	ret = mxt_read_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTAINER_T71, 199, &data->amp_offset);
-	if (ret) {
-		goto out;
-	}
-
-	tsp_debug_info(true, dev, "%s : amp_adj_min[%d], amp_adj_max[%d], amp_const[%d], amp_coef[%d], amp_offset[%d]\n",
-		__func__, data->amp_adj_min, data->amp_adj_max, data->amp_const, data->amp_coef, data->amp_offset);
-
-out:
-		return 0;
-}
-#endif
-
 static int mxt_touch_finish_init(struct mxt_data *data)
 {
 	struct i2c_client *client = data->client;
 
 	tsp_debug_dbg(true, &client->dev, "%s\n", __func__);
-
-#if defined(TSP_SUPPROT_MULTIMEDIA) && !defined(CONFIG_SEC_FACTORY)
-	mxt_adjust_amp(data);
-#endif
 
 	/*
 	* to prevent unnecessary report of touch event
@@ -2221,7 +2132,6 @@ load_fw:
 	return 0;
 }
 
-#if 0 /* Disable check_signal_limit() for checking panel connector */
 static int check_signal_limit(struct mxt_data *data)
 {
 	struct device *dev = &data->client->dev;
@@ -2305,8 +2215,6 @@ static int check_signal_limit(struct mxt_data *data)
 	tsp_debug_err(true, dev, "%s : Fail to check!\n", __func__);
 	return 1;
 }
-#endif
-
 static int  mxt_fw_update_on_probe(struct mxt_data *data)
 {
 	struct device *dev = &data->client->dev;
@@ -2319,7 +2227,6 @@ static int  mxt_fw_update_on_probe(struct mxt_data *data)
 	memset(&fw_info, 0, sizeof(struct mxt_fw_info));
 	fw_info.data = data;
 
-#if 0 /* Disable check_signal_limit() for checking panel connector */
 	/* Panel condition check(COB Type).                                            */
 	/* Skip fw update when use Multi Panel by TSP ID pins & Panel is off. */
 	ret = check_signal_limit(data);
@@ -2327,7 +2234,6 @@ static int  mxt_fw_update_on_probe(struct mxt_data *data)
 		tsp_debug_err(true, dev, "%s : TSP panel is off!\n", __func__);
 		goto ts_rest_init;
 	}
-#endif
 
 	if (data->pdata->firmware_name == NULL) {
 		tsp_debug_err(true, dev, "%s : tsp fw name is null, not update tsp fw!\n", __func__);
@@ -2785,11 +2691,6 @@ static int  mxt_probe(struct i2c_client *client,
 	input_set_abs_params(input_dev, ABS_MT_PRESSURE,
 							0, MXT_AMPLITUDE_MAX, 0, 0);
 #endif
-#if defined(TSP_SUPPROT_MULTIMEDIA) && !defined(CONFIG_SEC_FACTORY)
-    input_set_abs_params(input_dev, ABS_MT_PRESSURE,
-							0, MXT_AMPLITUDE_MAX, 0, 0);
-#endif
-
 #if TSP_USE_PALM_FLAG
 	input_set_abs_params(input_dev, ABS_MT_PALM,
 							0, MXT_PALM_MAX, 0, 0);

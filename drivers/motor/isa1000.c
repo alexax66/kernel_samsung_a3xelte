@@ -13,6 +13,8 @@
  *
  */
 
+#define pr_fmt(fmt)	"[VIB] " fmt
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/hrtimer.h>
@@ -26,26 +28,27 @@
 #include <linux/delay.h>
 #include <linux/isa1000.h>
 #include <linux/wakelock.h>
+#include <linux/kthread.h>
+#if defined(CONFIG_ISA1000_VDD_REGULATOR)
+#include <linux/regulator/consumer.h>
+#endif
 
 #include "../staging/android/timed_output.h"
-#if defined(CONFIG_IMM_VIB)
-#include "imm_vib.h"
-#endif
-#if defined(CONFIG_VIBETONZ)
-void (*vibtonz_en)(bool);
-void (*vibtonz_pwm)(int);
-static struct isa1000_ddata *g_ddata;
-#endif
+
+#define MAX_INTENSITY		10000
 
 struct isa1000_ddata {
 	struct isa1000_pdata *pdata;
 	struct pwm_device *pwm;
 	struct timed_output_dev dev;
 	struct hrtimer timer;
-	struct work_struct work;
-	unsigned int timeout;
+	struct kthread_worker kworker;
+	struct kthread_work kwork;
 	spinlock_t lock;
 	bool running;
+	u32 intensity;
+	u32 timeout;
+	int duty;
 	int gpio_en;
 };
 
@@ -56,7 +59,7 @@ static enum hrtimer_restart isa1000_timer_func(struct hrtimer *timer)
 
 	ddata->timeout = 0;
 
-	schedule_work(&ddata->work);
+	queue_kthread_work(&ddata->kworker, &ddata->kwork);
 	return HRTIMER_NORESTART;
 }
 
@@ -72,29 +75,6 @@ static int isa1000_get_time(struct timed_output_dev *dev)
 		return t.tv_sec * 1000 + t.tv_usec / 1000;
 	} else
 		return 0;
-}
-
-static void isa1000_enable(struct timed_output_dev *dev, int value)
-{
-	struct isa1000_ddata *ddata
-		= container_of(dev, struct isa1000_ddata, dev);
-	struct hrtimer *timer = &ddata->timer;
-	unsigned long flags;
-
-	cancel_work_sync(&ddata->work);
-	hrtimer_cancel(timer);
-	schedule_work(&ddata->work);
-
-	if (value > ddata->pdata->max_timeout)
-		value = ddata->pdata->max_timeout;
-
-	spin_lock_irqsave(&ddata->lock, flags);
-	ddata->timeout = value;
-	if (value > 0 ) {
-		hrtimer_start(timer, ns_to_ktime((u64)value * NSEC_PER_MSEC),
-			HRTIMER_MODE_REL);
-	}
-	spin_unlock_irqrestore(&ddata->lock, flags);
 }
 
 static void isa1000_pwm_config(struct isa1000_ddata *ddata, int duty)
@@ -122,83 +102,122 @@ static void isa1000_pwm_en(struct isa1000_ddata *ddata, bool en)
 
 static void isa1000_en(struct isa1000_ddata *ddata, bool en)
 {
-	printk(KERN_DEBUG "[VIB] %s\n", en ? "on" : "off");
-
-	gpio_direction_output(ddata->pdata->gpio_en, en);
+#if defined(CONFIG_ISA1000_VDD_REGULATOR)
+	int ret = 0;
 
 	if (en)
-		msleep(20);
-}
+		ret = regulator_enable(ddata->pdata->regulator);
+	else
+		ret = regulator_disable(ddata->pdata->regulator);
 
-#if defined(CONFIG_VIBETONZ)
-void isa1000_vibtonz_en(bool en)
-{
-	struct isa1000_ddata *ddata = g_ddata;
-
-	isa1000_en(ddata, en);
-	isa1000_pwm_en(ddata, en);
-}
-void isa1000_vibtonz_pwm(int nforce)
-{
-	struct isa1000_ddata *ddata = g_ddata;
-	int duty = ddata->pdata->period >> 1;
-	int tmp = (ddata->pdata->period >> 8);
-	tmp *= nforce;
-	duty += tmp;
-
-	isa1000_pwm_config(ddata, duty);
-}
+	if (ret < 0)
+		pr_err("failed to regulator %sable", en ? "en" : "dis");
 #endif
+	pr_info("%s\n", en ? "on" : "off");
 
-static void isa1000_work_func(struct work_struct *work)
+	if (ddata->pdata->gpio_en)
+		gpio_direction_output(ddata->pdata->gpio_en, en);
+}
+
+static void isa1000_enable(struct timed_output_dev *dev, int value)
+{
+	struct isa1000_ddata *ddata
+		= container_of(dev, struct isa1000_ddata, dev);
+	struct hrtimer *timer = &ddata->timer;
+	unsigned long flags;
+
+	flush_kthread_worker(&ddata->kworker);
+	hrtimer_cancel(timer);
+
+	if (value > ddata->pdata->max_timeout)
+		value = ddata->pdata->max_timeout;
+
+	ddata->timeout = value;
+	if (value > 0 ) {
+		if (!ddata->running) {
+			pr_info("%u %ums\n", ddata->duty, ddata->timeout);
+			ddata->running = true;
+			isa1000_pwm_config(ddata, ddata->duty);
+			isa1000_pwm_en(ddata, true);
+			isa1000_en(ddata, true);
+		}
+		spin_lock_irqsave(&ddata->lock, flags);
+		hrtimer_start(timer, ns_to_ktime((u64)value * NSEC_PER_MSEC),
+			HRTIMER_MODE_REL);
+		spin_unlock_irqrestore(&ddata->lock, flags);
+	} else {
+		queue_kthread_work(&ddata->kworker, &ddata->kwork);
+	}
+}
+
+static void isa1000_work_func(struct kthread_work *work)
 {
 	struct isa1000_ddata *ddata =
-		container_of(work, struct isa1000_ddata, work);
+		container_of(work, struct isa1000_ddata, kwork);
 
-	if (ddata->timeout) {
-		if (ddata->running)
-			return;
-		ddata->running = true;
-		isa1000_en(ddata, true);
-		isa1000_pwm_config(ddata, ddata->pdata->duty);
-		isa1000_pwm_en(ddata, true);
-	} else {
-		if (!ddata->running)
-			return;
+	if (ddata->running) {
 		ddata->running = false;
+		isa1000_en(ddata, false);
 		isa1000_pwm_config(ddata, ddata->pdata->period >> 1);
 		isa1000_pwm_en(ddata, false);
-		isa1000_en(ddata, false);
 	}
+
 	return;
 }
 
-#if defined(CONFIG_IMM_VIB)
-static void isa1000_set_force(void *_data, u8 index, int nforce)
+static ssize_t intensity_store(struct device *dev,
+	struct device_attribute *devattr, const char *buf, size_t count)
 {
-	struct isa1000_ddata *ddata = _data;
-	int duty = ddata->pdata->period >> 1;
-	int tmp = (ddata->pdata->period >> 8);
-	tmp *= nforce;
-	duty += tmp;
+	struct timed_output_dev *tdev = dev_get_drvdata(dev);
+	struct isa1000_ddata *drvdata
+		= container_of(tdev, struct isa1000_ddata, dev);
+	int duty = drvdata->pdata->period >> 1;
+	int intensity = 0, ret = 0;
 
-	isa1000_pwm_config(ddata, duty);
+	ret = kstrtoint(buf, 0, &intensity);
+
+	if (intensity < 0 || MAX_INTENSITY < intensity) {
+		pr_err("out of rage\n");
+		return -EINVAL;
+	}
+
+	if (MAX_INTENSITY == intensity)
+		duty = drvdata->pdata->duty;
+	else if (0 != intensity) {
+		long long tmp = drvdata->pdata->duty >> 1;
+
+		tmp *= (intensity / 100);
+		duty += (int)(tmp / 100);
+	}
+
+	drvdata->intensity = intensity;
+	drvdata->duty = duty;
+
+	pwm_config(drvdata->pwm, duty, drvdata->pdata->period);
+
+	return count;
 }
 
-static void isa1000_chip_enable(void *_data, bool en)
+static ssize_t intensity_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
 {
-	struct isa1000_ddata *ddata = _data;
+	struct timed_output_dev *tdev = dev_get_drvdata(dev);
+	struct isa1000_ddata *drvdata
+		= container_of(tdev, struct isa1000_ddata, dev);
 
-	isa1000_en(ddata, en);
-	isa1000_pwm_en(ddata, en);
+	return sprintf(buf, "intensity: %u\n", drvdata->intensity);
 }
-#endif	/* CONFIG_IMM_VIB */
+
+static DEVICE_ATTR(intensity, 0660, intensity_show, intensity_store);
 
 static struct isa1000_pdata *
 	isa1000_get_devtree_pdata(struct device *dev)
 {
 	struct device_node *node, *child_node;
 	struct isa1000_pdata *pdata;
+#if defined(CONFIG_ISA1000_VDD_REGULATOR)
+	const char *regulator;
+#endif
 	int ret = 0;
 
 	node = dev->of_node;
@@ -209,14 +228,14 @@ static struct isa1000_pdata *
 
 	child_node = of_get_next_child(node, child_node);
 	if (!child_node) {
-		printk("[VIB] failed to get dt node\n");
+		pr_err("failed to get dt node\n");
 		ret = -EINVAL;
 		goto err_out;
 	}
 
 	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
 	if (!pdata) {
-		printk("[VIB] failed to alloc\n");
+		pr_err("failed to alloc\n");
 		ret = -ENOMEM;
 		goto err_out;
 	}
@@ -226,15 +245,24 @@ static struct isa1000_pdata *
 	of_property_read_u32(child_node, "isa1000,period", &pdata->period);
 	of_property_read_u32(child_node, "isa1000,pwm_id", &pdata->pwm_id);
 	pdata->gpio_en = of_get_named_gpio(child_node, "isa1000,gpio_en", 0);
-
 	if (pdata->gpio_en)
 		gpio_request(pdata->gpio_en, "isa1000,gpio_en");
 
-	printk(KERN_DEBUG "[VIB] max_timeout = %d\n", pdata->max_timeout);
-	printk(KERN_DEBUG "[VIB] duty = %d\n", pdata->duty);
-	printk(KERN_DEBUG "[VIB] period = %d\n", pdata->period);
-	printk(KERN_DEBUG "[VIB] pwm_id = %d\n", pdata->pwm_id);
-	printk(KERN_DEBUG "[VIB] gpio_en = %d\n", pdata->gpio_en);
+#if defined(CONFIG_ISA1000_VDD_REGULATOR)
+	of_property_read_string(child_node, "isa1000,regulator", &regulator);
+	pdata->regulator = regulator_get(NULL, regulator);
+	if (IS_ERR(pdata->regulator)) {
+		pr_err("failed regulator get %s\n", regulator);
+		ret = PTR_ERR(pdata->regulator);
+		goto err_out;
+	}
+#endif
+
+	pr_info("max_timeout = %d\n", pdata->max_timeout);
+	pr_info("duty = %d\n", pdata->duty);
+	pr_info("period = %d\n", pdata->period);
+	pr_info("pwm_id = %d\n", pdata->pwm_id);
+	pr_info("gpio_en = %d\n", pdata->gpio_en);
 
 	return pdata;
 
@@ -246,27 +274,25 @@ static int isa1000_probe(struct platform_device *pdev)
 {
 	struct isa1000_pdata *pdata = dev_get_platdata(&pdev->dev);
 	struct isa1000_ddata *ddata;
-#if defined(CONFIG_IMM_VIB)
-	struct imm_vib_dev *vib_dev;
-#endif
+	struct task_struct *kworker_task;
 	int ret = 0;
 
 	if (!pdata) {
 #if defined(CONFIG_OF)
 		pdata = isa1000_get_devtree_pdata(&pdev->dev);
 		if (IS_ERR(pdata)) {
-			printk(KERN_ERR "[VIB] there is no device tree!\n");
+			pr_err("there is no device tree!\n");
 			ret = -ENODEV;
 			goto err_pdata;
 		}
 #else
-		printk(KERN_ERR "[VIB] there is no platform data!\n");
+		pr_err("there is no platform data!\n");
 #endif
 	}
 
 	ddata = kzalloc(sizeof(*ddata), GFP_KERNEL);
 	if (!ddata) {
-		printk(KERN_ERR "[VIB] failed to alloc\n");
+		pr_err("failed to alloc\n");
 		ret = -ENOMEM;
 		goto err_alloc;
 	}
@@ -274,13 +300,22 @@ static int isa1000_probe(struct platform_device *pdev)
 	hrtimer_init(&ddata->timer, CLOCK_MONOTONIC,
 			HRTIMER_MODE_REL);
 	spin_lock_init(&ddata->lock);
-	INIT_WORK(&ddata->work, isa1000_work_func);
+
+	init_kthread_worker(&ddata->kworker);
+	kworker_task = kthread_run(kthread_worker_fn,
+			&ddata->kworker, "isa1000_vib");
+	if(IS_ERR(kworker_task)) {
+		pr_err("Failed to create message pump task\n");
+		ret = -ENOMEM;
+		goto err_kthread;
+	}
+	init_kthread_work(&ddata->kwork, isa1000_work_func);
 
 	ddata->pdata = pdata;
 	ddata->timer.function = isa1000_timer_func;
 	ddata->pwm = pwm_request(ddata->pdata->pwm_id, "vibrator");
 	if (IS_ERR(ddata->pwm)) {
-		printk(KERN_ERR "[VIB] failed to request pwm\n");
+		pr_err("failed to request pwm\n");
 		ret = -EFAULT;
 		goto err_pwm_request;
 	}
@@ -291,35 +326,25 @@ static int isa1000_probe(struct platform_device *pdev)
 
 	ret = timed_output_dev_register(&ddata->dev);
 	if (ret < 0) {
-		printk(KERN_ERR "[VIB] failed to register timed output\n");
+		pr_err("failed to register timed output\n");
 		goto err_dev_reg;
 	}
 
-#if defined(CONFIG_IMM_VIB)
-	vib_dev = kzalloc(sizeof(struct imm_vib_dev), GFP_KERNEL);
-	if (vib_dev) {
-		vib_dev->private_data = ddata;
-		vib_dev->set_force = isa1000_set_force;
-		vib_dev->chip_en = isa1000_chip_enable;
-		vib_dev->num_actuators = 1;
-		imm_vib_register(vib_dev);
-	} else
-		printk(KERN_ERR "[VIB] Failed to alloc vibe memory.\n");
-#endif
+	ret = sysfs_create_file(&ddata->dev.dev->kobj,
+				&dev_attr_intensity.attr);
+	if (ret < 0) {
+		pr_err("Failed to register sysfs : %d\n", ret);
+		goto err_dev_reg;
+	}
 
 	platform_set_drvdata(pdev, ddata);
-
-#if defined(CONFIG_VIBETONZ)
-	g_ddata = ddata;
-	vibtonz_en = isa1000_vibtonz_en;
-	vibtonz_pwm = isa1000_vibtonz_pwm;
-#endif
 
 	return ret;
 
 err_dev_reg:
 	pwm_free(ddata->pwm);
 err_pwm_request:
+err_kthread:
 	kfree(ddata);
 err_alloc:
 err_pdata:
@@ -339,6 +364,7 @@ static int isa1000_suspend(struct platform_device *pdev,
 {
 	struct isa1000_ddata *ddata = platform_get_drvdata(pdev);
 
+	flush_kthread_worker(&ddata->kworker);
 	isa1000_pwm_en(ddata, false);
 	isa1000_en(ddata, false);
 	return 0;

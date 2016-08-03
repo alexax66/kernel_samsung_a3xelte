@@ -145,6 +145,7 @@ static ssize_t flash_store(struct device *dev, struct device_attribute *attr,
 {
 	int sel = 0;
 	sm_fled_info_t *fled_info = sm_fled_get_info_by_name(NULL);
+	sm5703_fled_info_t *info = (sm5703_fled_info_t *)fled_info;
 	int i, nValue=0;
 	struct pinctrl *pinctrl;
 
@@ -169,6 +170,8 @@ static ssize_t flash_store(struct device *dev, struct device_attribute *attr,
 			sm5703_fled_flash(fled_info,TURN_WAY_GPIO);
 			sm5703_fled_notification(fled_info);
 
+			/* Set torch current */
+			sm5703_fled_set_movie_current_sel(fled_info, info->pdata->fled_torch_current);
 			pinctrl = devm_pinctrl_get_select(sm5703_dev, FLED_PINCTRL_STATE_SLEEP);
 			if (IS_ERR(pinctrl))
 				pr_err("%s: flash %s pins are not configured\n", __func__, FLED_PINCTRL_STATE_SLEEP);
@@ -239,6 +242,7 @@ static ssize_t flash_store(struct device *dev, struct device_attribute *attr,
 }
 
 static DEVICE_ATTR(rear_flash, S_IWUSR|S_IWGRP, NULL, flash_store);
+static DEVICE_ATTR(rear_torch_flash, S_IWUSR|S_IWGRP, NULL, flash_store);
 
 int create_flash_sysfs(void)
 {
@@ -259,6 +263,12 @@ int create_flash_sysfs(void)
 	if (unlikely(err < 0)) {
 		pr_err("flash_sysfs: failed to create device file, %s\n",
 				dev_attr_rear_flash.attr.name);
+	}
+
+	err = device_create_file(flash_dev, &dev_attr_rear_torch_flash);
+	if (unlikely(err < 0)) {
+		pr_err("flash_sysfs: failed to create device file, %s\n",
+				dev_attr_rear_torch_flash.attr.name);
 	}
 	return 0;
 }
@@ -405,7 +415,7 @@ int32_t sm5703_boost_notification(struct sm_fled_info *fled_info, int32_t on)
 		}
 		else
 		{
-			sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P1);
+			sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P0);
 			sm5703_assign_bits(info->i2c_client,SM5703_CNTL,SM5703_OPERATION_MODE_MASK, SM5703_OPERATION_MODE_USB_OTG_MODE);
 		}
 	} else if(on == 0) {
@@ -927,6 +937,16 @@ static int sm5703_fled_remove(struct platform_device *pdev)
 	platform_device_unregister(&sm_fled_pdev);
 	mutex_destroy(&fled_info->led_lock);
 	kfree(fled_info);
+
+	if(flash_dev) {
+		device_remove_file(flash_dev, &dev_attr_rear_flash);
+		device_remove_file(flash_dev, &dev_attr_rear_torch_flash);
+	}
+
+	if (camera_class && flash_dev) {
+		device_destroy(camera_class, flash_dev->devt);
+	}
+
 	return 0;
 }
 

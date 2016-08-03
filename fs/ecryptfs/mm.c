@@ -199,8 +199,10 @@ static void ecryptfs_mm_drop_pagecache(struct super_block *sb, void *arg)
 	printk("%s start() sb:%s [%d], userid:%d\n", __func__,
 			sb->s_type->name, mount_crypt_stat->userid, param->user_id);
 	
-	if(mount_crypt_stat->userid != param->user_id)
-		return;
+	if (param->user_id >= 100 && param->user_id < 200) {
+		if(mount_crypt_stat->userid != param->user_id)
+			return;
+	}
 	
 	spin_lock(&inode_sb_list_lock);
 	list_for_each_entry(inode, &sb->s_inodes, i_sb_list)

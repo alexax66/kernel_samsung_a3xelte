@@ -86,7 +86,7 @@ enum sec_battery_adc_channel {
 	SEC_BAT_ADC_CHANNEL_INBAT_VOLTAGE,
 	SEC_BAT_ADC_CHANNEL_DISCHARGING_CHECK,
 	SEC_BAT_ADC_CHANNEL_DISCHARGING_NTC,
-	SEC_BAT_ADC_CHANNEL_NUM
+	SEC_BAT_ADC_CHANNEL_NUM,
 };
 
 /* charging mode */
@@ -413,8 +413,9 @@ struct sec_battery_platform_data {
 	void (*monitor_additional_check)(void);
 	bool (*bat_gpio_init)(void);
 	bool (*fg_gpio_init)(void);
+	bool (*chg_gpio_init)(void);
 	bool (*is_lpm)(void);
-	bool (*check_jig_status) (void);
+	bool (*check_jig_status)(void);
 	bool (*is_interrupt_cable_check_possible)(int);
 	int (*check_cable_callback)(void);
 	int (*get_cable_from_extended_cable_type)(int);
@@ -463,7 +464,7 @@ struct sec_battery_platform_data {
 	int bat_irq_gpio;
 	int cable_irq_gpio;
 	int wchg_ctl;
-	unsigned long bat_irq_attr;
+	unsigned int bat_irq_attr;
 	int jig_irq;
 	unsigned long jig_irq_attr;
 	sec_battery_cable_check_t cable_check_type;

@@ -847,7 +847,7 @@ uint32_t swap_uint32( uint32_t val )
 	return (val << 16) | (val >> 16);
 }
 
-u32 fimc_is_ois_facotry_read_cal_checksum_impl(struct fimc_is_core *core)
+u32 fimc_is_ois_facotry_read_cal_checksum(struct fimc_is_core *core)
 {
 	char *buf = NULL;
 	u32 checksum = 0;
@@ -862,12 +862,12 @@ u32 fimc_is_ois_facotry_read_cal_checksum_impl(struct fimc_is_core *core)
 	fimc_is_sec_get_cal_buf(&buf);
 
 	checksum = swap_uint32(*((int32_t *)(&buf[OIS_FW_EEPROM_CHECKSUM_ADDR])));
-	info("OIS[checksum - R(0x%08X)]\n", checksum);
+	info("OIS[facotry_read_cal_checksum - R(0x%08X)]\n", checksum);
 
 	return checksum;
 }
 
-u32 fimc_is_ois_factory_read_cal_checksum32_impl(struct fimc_is_core *core)
+u32 fimc_is_ois_factory_read_cal_checksum32(struct fimc_is_core *core)
 {
 	char *buf = NULL;
 	uint16_t addr = 0;
@@ -892,12 +892,106 @@ u32 fimc_is_ois_factory_read_cal_checksum32_impl(struct fimc_is_core *core)
 	return checksum32;
 }
 
+int fimc_is_ois_factory_read_IC_ROM_checksum_impl(struct fimc_is_core *core)
+{
+	int ret = 0;
+	u32 i = 0;
+	u32 j = 0;
+	u32 data = 0;
+	u32 IC_checksum = 0;
+	u8 write_data[4] = {0,};
+	u8 read_data[4] = {0,};
+	struct exynos_platform_fimc_is *core_pdata = NULL;
+	struct fimc_is_ois_info *ois_minfo = NULL;
+
+	core_pdata = dev_get_platdata(fimc_is_dev);
+	if (!core_pdata) {
+		err("core->pdata is null");
+		return false;
+	}
+
+	if (core_pdata->use_ois_hsi2c) {
+		fimc_is_ois_i2c_config(core->client1, true);
+	}
+
+	fimc_is_ois_get_module_version(&ois_minfo);
+
+	ret = fimc_is_ois_i2c_write(core->client1, 0x6080, 0x50);
+	if (ret) {
+		err("i2c write fail\n");
+		goto p_err;
+	}
+
+	msleep(100);
+
+	ret = fimc_is_ois_i2c_write(core->client1, 0x6083, 0x0F);
+	if (ret) {
+		err("i2c write fail\n");
+		goto p_err;
+	}
+
+	msleep(100);
+
+	for (i = 0x0000; i <= 0xB000; i += 0x1000) {
+		if (i == 0x4000)
+			i = 0x8000;
+
+		for (j = 0x0000; j <= 0x1FC; j += 0x04) {
+			write_data[0] = (u8)(((i+j) & 0xFF00) >> 8);
+			write_data[1] = (u8)((i+j) & 0x00FF);
+
+			ret = fimc_is_ois_i2c_write_multi(core->client1, 0x6081, write_data, 2);
+			if (ret) {
+				err("i2c write fail\n");
+				goto p_err;
+			}
+
+			write_data[0] = 0x00;
+			write_data[1] = 0x00;
+			write_data[2] = 0x00;
+			write_data[3] = 0x00;
+
+			ret = fimc_is_ois_i2c_write_multi(core->client1, 0x6084, write_data, 4);
+			if (ret) {
+				err("i2c write fail\n");
+				goto p_err;
+			}
+
+			ret = fimc_is_ois_i2c_read_multi(core->client1, 0x6084, read_data, 4);
+			if (ret) {
+				err("i2c read fail\n");
+				goto p_err;
+			}
+
+			data = (u32)(read_data[0]) + (u32)(read_data[1]) + (u32)(read_data[2]) + (u32)(read_data[3]);
+
+			IC_checksum += data;
+		}
+	}
+
+p_err:
+	if (core_pdata->use_ois_hsi2c) {
+		fimc_is_ois_i2c_config(core->client1, false);
+	}
+
+	info("OIS[IC_ROM_checksum - R(0x%08X)]\n", IC_checksum);
+	if (IC_checksum != OIS_IC_ROM_CHECKSUM_CONSTANT) {
+		err("OIS SelfTest in 15 - IC ROM data check fail\n");
+		ois_minfo->caldata = 0xff;
+	} else {
+		info("OIS SelfTest in 15 - IC ROM data check pass\n");
+		ois_minfo->caldata = 0x00;
+	}
+	info("OIS SelfTest in 15 - 0x%02X\n", ois_minfo->caldata);
+
+	return 0;
+}
+
 void fimc_is_ois_fw_status_impl(struct fimc_is_core *core)
 {
 	u32 checksum = 0;
 	u32 checksum_32= 0;
 	struct fimc_is_ois_info *ois_minfo = NULL;
-	struct fimc_is_ois_info *ois_pinfo = NULL;
 
 	checksum = fimc_is_ois_facotry_read_cal_checksum(core);
 	checksum_32 = fimc_is_ois_factory_read_cal_checksum32(core);
@@ -905,15 +999,16 @@ void fimc_is_ois_fw_status_impl(struct fimc_is_core *core)
 	info("OIS cal data check = (checksum-0x%08X : checksum_32-0x%08X)\n", checksum, checksum_32);
 
 	fimc_is_ois_get_module_version(&ois_minfo);
-	fimc_is_ois_get_phone_version(&ois_pinfo);
 
 	if (checksum != checksum_32) {
 		err("OIS SelfTest in 15 - cal data check fail\n");
-		ois_minfo->caldata = 0xff;
+		ois_minfo->caldata = ois_minfo->caldata | 0xff;
 	} else {
 		info("OIS SelfTest in 15 - cal data check pass\n");
-		ois_minfo->caldata = 0x00;
+		ois_minfo->caldata = ois_minfo->caldata | 0x00;
 	}
+
+	info("OIS SelfTest in 15 - 0x%02X\n", ois_minfo->caldata);
 }
 
 int fimc_is_ois_download_fw(struct fimc_is_core *core)

@@ -548,15 +548,19 @@ config SAMSUNG_JACK
 	 To samsung jack is reviewed and supported in all the
 	 samsung devices.
 
-config CHECK_GPIO_DETECT
-	tristate "Sub FPBC type"
-
 config TIMA_LOG
 	tristate "Support for dumping TIMA log"
 	depends on TIMA
 	default y
 	help
 	  This option enables support for dumping TIMA log.
+
+config UID_CPUTIME
+	tristate "Per-UID cpu time statistics"
+	depends on PROFILING
+	default y
+	help
+	  Per UID based cpu time statistics exported to /proc/uid_cputime
 
 config GENERIC_BLN
 	bool "Generic BLN support for backlight notification"

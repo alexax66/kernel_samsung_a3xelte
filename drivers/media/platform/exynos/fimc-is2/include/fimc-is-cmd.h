@@ -130,6 +130,7 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_VIDEO_WDR_AUTO = 25,
 	ISS_SUB_SCENARIO_STILL_PREVIEW_WDR_AUTO = 26,
 	ISS_SUB_SCENARIO_FHD_240FPS = 27,
+	ISS_SUB_SCENARIO_STILL_PREVIEW_BINNING = 40, /* 40: binning mode for low power */
 
 	ISS_SUB_SCENARIO_FRONT_VT1 = 31,		/*  31: front camera VT1 */
 	ISS_SUB_SCENARIO_FRONT_VT2 = 32,		/* 32: front camera VT2 */
@@ -140,6 +141,7 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_FRONT_C2_OFF_VIDEO = 37,    /* 37: C2 off front video */
 	ISS_SUB_SCENARIO_FRONT_VT4 = 38,        /* 38: front camera VT4 */
 	ISS_SUB_SCENARIO_FRONT_VT1_STILL_CAPTURE = 39,   /* 39: front camera VT1 still capture */
+	ISS_SUB_SCENARIO_FRONT_STILL_PREVIEW_BINNING = 40, /* 40: front camera binning mode for low power */
 	ISS_SUB_END,
 };
 

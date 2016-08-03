@@ -36,12 +36,12 @@
 /* define for signature verification */
 #define SMC_CMD_CHECK_SIGNATURE   0x820000F0
 
-#define SIGNATURE_LEN                                256
+#define SIGNATURE_LEN			256
 
 /* define for clock control */
-#define SMC_CMD_CLK                                   0x82001011
-#define SSS_CLK_ENABLE                             0
-#define SSS_CLK_DISABLE                            1
+#define SMC_CMD_CLK				0x82001011
+#define SSS_CLK_ENABLE			0
+#define SSS_CLK_DISABLE			1
 
 typedef struct {
 	FD_INFO *(*fd_version_get_func)(void);
@@ -172,6 +172,15 @@ struct fimc_is_lib_fd {
 
 	struct fd_setfile_info		setfile;
 	enum fd_format_mode		format_mode;
+
+	/*
+	 * The last y map must applied to HW FD of next frame.
+	 * The Y map data updated by the library.
+	 */
+	ulong				y_map_share;
+	u8				lib_y_map[256];
+	u8				last_y_map[256];
+	spinlock_t			y_map_lock;
 };
 
 struct fimc_is_lib_work {
@@ -188,6 +197,10 @@ struct fimc_is_lib {
 	struct kthread_worker		worker;
 	struct fimc_is_lib_work		work[MAX_FIMC_IS_LIB_TASK];
 	unsigned long			state;
+
+	void				*cookie;
+	ulong				kvaddr_offset;
+	u32				dvaddr_offset;
 
 	void				*lib_data;
 	struct fimc_is_device_ischain   *device;
@@ -259,16 +272,16 @@ typedef struct {
 } __attribute__((packed)) CHECK_IMAGE_INFO;
 
 int fimc_is_lib_fd_load(void);
-int fimc_is_lib_fd_open(struct fimc_is_lib *fd_lib);
+int fimc_is_lib_fd_open(struct fimc_is_lib *fd_lib, void *fw_cookie,
+		ulong kvaddr_offset, u32 dvaddr_offset);
 int fimc_is_lib_fd_close(struct fimc_is_lib *fd_lib);
 int fimc_is_lib_fd_create_detector(struct fimc_is_lib *fd_lib, struct vra_param *fd_param);
 int fimc_is_lib_fd_thread_init(struct fimc_is_lib *fd_lib);
 int fimc_is_lib_fd_map_init(struct fimc_is_lib *fd_lib, ulong *kvaddr_fd, u32 *dvaddr_fd,
 		ulong kvaddr_fshared, struct vra_param *fd_param);
 int fimc_is_lib_fd_map_size(FDD_DATA *m_data, struct fd_map_addr_str *m_addr,
-		ulong kbase, ulong dbase, ulong shared);
-int fimc_is_lib_fd_select_buf(struct fimc_is_lib_fd *lib_data, struct camera2_fd_uctl *fdUd,
-		ulong kfshared, ulong dfshared);
+		ulong kbase, ulong dbase);
+int fimc_is_lib_fd_select_buf(struct fimc_is_lib *fd_lib, struct camera2_fd_uctl *fdUd);
 int fimc_is_lib_fd_load_setfile(struct fimc_is_lib *fd_lib, ulong setfile_addr);
 int fimc_is_lib_fd_apply_setfile(struct fimc_is_lib *fd_lib, struct vra_param *fd_param);
 int fimc_is_lib_fd_convert_orientation(u32 src_orientation, s32 *fd_orientation);

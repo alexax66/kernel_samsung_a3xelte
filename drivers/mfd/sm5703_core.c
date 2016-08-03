@@ -114,18 +114,9 @@ static struct mfd_cell sm5703_fled_devs[] = {
 	REG_OF_COMP(_id)                   \
 }
 
-/*
 static struct mfd_cell sm5703_regulator_devs[] = {
-	SM5703_VR_DEVS(USBLDO1),
-	SM5703_VR_DEVS(USBLDO2),
 	SM5703_VR_DEVS(LDO1),
 	SM5703_VR_DEVS(LDO2),
-	SM5703_VR_DEVS(LDO3),
-	SM5703_VR_DEVS(BUCK),
-};
-*/
-static struct mfd_cell sm5703_regulator_devs[] = {
-	SM5703_VR_DEVS(LDO1),
 	SM5703_VR_DEVS(LDO3),
 	SM5703_VR_DEVS(BUCK),
 };
@@ -205,10 +196,18 @@ int sm5703_reg_read(struct i2c_client *i2c, int reg)
 {
 	struct sm5703_mfd_chip *chip = i2c_get_clientdata(i2c);
 	unsigned char data = 0;
-	int ret;
+	int ret, i = 0;
 
 	mutex_lock(&chip->io_lock);
 	ret = sm5703_read_device(i2c, reg, 1, &data);
+	if (ret < 0) {
+		for (i = 0; i < 3; i++) {
+			ret = sm5703_read_device(i2c, reg, 1, &data);
+			if (ret >= 0)
+				break;
+		}
+		pr_err("%s: i2c re-read error\n", __func__);			
+	}
 	mutex_unlock(&chip->io_lock);
 
 	pr_debug("%s : ret = 0x%x, reg = 0x%x, data = 0x%x\n", __func__, ret, reg, data);
@@ -224,10 +223,18 @@ int sm5703_reg_write(struct i2c_client *i2c, int reg,
 		unsigned char data)
 {
 	struct sm5703_mfd_chip *chip = i2c_get_clientdata(i2c);
-	int ret;
+	int ret, i = 0;
 
 	mutex_lock(&chip->io_lock);
 	ret = i2c_smbus_write_byte_data(i2c, reg, data);
+	if (ret < 0) {
+		for (i = 0; i < 3; i++) {
+			ret = i2c_smbus_write_byte_data(i2c, reg, data);
+			if (ret >= 0)
+				break;
+		}
+		pr_err("%s: i2c re-write error\n", __func__);
+	}
 	mutex_unlock(&chip->io_lock);
 
 	pr_debug("%s : ret = 0x%x, reg = 0x%x, data = 0x%x\n",
@@ -347,19 +354,18 @@ static int sm5703mfd_parse_dt(struct device *dev,
 	}
 
 	pdata->irq_base = -1;
-	
 	ret = of_property_read_u32(np, "sm5703,irq-base", (u32*)&pdata->irq_base);
 	if (ret < 0 || pdata->irq_base == -1) {
 		dev_info(dev, "%s : no assignment of irq_base, use irq_alloc_descs()\r\n",
 				__FUNCTION__);
-/*
+
 		ret = pdata->mrstb_gpio = of_get_named_gpio_flags(np,
 				"sm5703,mrstb-gpio", 0, NULL);
 		if (ret < 0) {
 			dev_err(dev, "%s : can't get mrstb-gpio\r\n", __FUNCTION__);
-			return ret;
+			pdata->mrstb_gpio = 0;
 		}
-*/
+
 	}
 	return 0;
 }
@@ -434,16 +440,18 @@ static int sm5703_mfd_probe(struct i2c_client *i2c,
 
 	/* Set MRSTB GPIO pin to high level to indicate that
 	 * system is alive (do NOT do reset) */
-	ret = gpio_request(pdata->mrstb_gpio, "sm5703_mrstb");
-	if (ret == 0) {
-		ret = gpio_direction_output(pdata->mrstb_gpio, 1);
-		if (ret < 0)
-			pr_err("%s : cannot set GPIO%d output direction(%d)\n",
+	if (pdata->mrstb_gpio) {
+		ret = gpio_request(pdata->mrstb_gpio, "sm5703_mrstb");
+		if (ret == 0) {
+			ret = gpio_direction_output(pdata->mrstb_gpio, 1);
+			if (ret < 0)
+				pr_err("%s : cannot set GPIO%d output direction(%d)\n",
 					__func__, pdata->mrstb_gpio, ret);
 
-	} else
-		pr_info("%s : Request GPIO %d failed\n",
+		} else
+			pr_info("%s : Request GPIO %d failed\n",
 				__func__, (int)pdata->mrstb_gpio);
+	}
 
 	wake_lock_init(&(chip->irq_wake_lock), WAKE_LOCK_SUSPEND,
 			"sm5703mfd_wakelock");
@@ -537,7 +545,8 @@ static int sm5703_mfd_remove(struct i2c_client *i2c)
 	sm5703_mfd_chip_t *chip = i2c_get_clientdata(i2c);
 
 	pr_info("%s : SM5703 MFD Driver remove\n", __func__);
-	gpio_free(chip->pdata->mrstb_gpio);
+	if (chip->pdata->mrstb_gpio)
+		gpio_free(chip->pdata->mrstb_gpio);
 	mfd_remove_devices(chip->dev);
 	wake_lock_destroy(&(chip->irq_wake_lock));
 	mutex_destroy(&chip->suspend_flag_lock);
@@ -627,7 +636,7 @@ static int __init sm5703_mfd_i2c_init(void)
 
 	return ret;
 }
-subsys_initcall(sm5703_mfd_i2c_init);
+device_initcall(sm5703_mfd_i2c_init);
 
 static void __exit sm5703_mfd_i2c_exit(void)
 {

@@ -1276,7 +1276,7 @@ static struct samsung_gate exynos7580_gate_clks[] __initdata = {
 	GATE(i2c1, "pclk_i2c1", "dout_aclk_peri_66", \
 			EXYNOS7580_EN_PCLK_PERIC, 8, 0, NULL),
 	GATE(i2c2, "pclk_i2c2", "dout_aclk_peri_66", \
-			EXYNOS7580_EN_PCLK_PERIC, 9, 0, NULL),
+			EXYNOS7580_EN_PCLK_PERIC, 9, 0, "i2c2_pclk"),
 	GATE(i2c3, "pclk_i2c3", "dout_aclk_peri_66", \
 			EXYNOS7580_EN_PCLK_PERIC, 10, CLK_IGNORE_UNUSED, NULL),
 	GATE(puart0, "pclk_uart0", "dout_aclk_peri_66", \

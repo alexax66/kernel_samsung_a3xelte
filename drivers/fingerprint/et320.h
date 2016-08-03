@@ -25,10 +25,11 @@
 
 #include <linux/module.h>
 #include <linux/spi/spi.h>
+
+#include <linux/platform_data/spi-s3c64xx.h>
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 #include <linux/wakelock.h>
 #include <linux/clk.h>
-#include <linux/platform_data/spi-s3c64xx.h>
 #include <linux/pm_runtime.h>
 #include <linux/spi/spidev.h>
 #include <linux/of.h>
@@ -36,9 +37,12 @@
 #include <linux/of_dma.h>
 #include <linux/amba/bus.h>
 #include <linux/amba/pl330.h>
-#include <mach/bts.h>
 #if defined(CONFIG_SECURE_OS_BOOSTER_API)
+#if defined(CONFIG_SOC_EXYNOS8890)
+#include <soc/samsung/secos_booster.h>
+#else
 #include <mach/secos_booster.h>
+#endif
 #endif
 
 struct sec_spi_info {
@@ -95,6 +99,9 @@ struct sec_spi_info {
 #define FP_DIABLE_SPI_CLOCK				0x10
 #define FP_CPU_SPEEDUP					0x11
 #define FP_SET_SENSOR_TYPE				0x14
+/* Do not use ioctl number 0x15 */
+#define FP_SET_LOCKSCREEN				0x16
+#define FP_SET_WAKE_UP_SIGNAL				0x17
 #endif
 
 #define FP_EEPROM_WREN					0x90
@@ -176,7 +183,13 @@ struct etspi_data {
 	unsigned int sleepPin;	/* Sleep GPIO pin number */
 	unsigned int ldo_pin;	/* Ldo GPIO pin number */
 	unsigned int ldo_pin2;	/* Ldo2 GPIO pin number */
-
+#ifndef ENABLE_SENSORS_FPRINT_SECURE
+#ifdef CONFIG_SOC_EXYNOS8890
+	/* set cs pin in fp driver, use only Exynos8890 */
+	/* for use auto cs mode with dualization fp sensor */
+	unsigned int cs_gpio;
+#endif
+#endif
 	unsigned int spi_cs;	/* spi cs pin <temporary gpio setting> */
 
 	unsigned int drdy_irq_flag;	/* irq flag */
@@ -197,12 +210,30 @@ struct etspi_data {
 #ifdef FEATURE_SPI_WAKELOCK
 	struct wake_lock fp_spi_lock;
 #endif
+	struct task_struct *t;
+	int user_pid;
+	int signal_id;
 #endif
 	bool tz_mode;
 	int detect_period;
 	int detect_threshold;
 	bool finger_on;
 };
+
+#ifdef ENABLE_SENSORS_FPRINT_SECURE
+/*
+ * Used by IOCTL command:
+ *         ETSPI_IOCTL_REGISTER_LOCK_SCREEN_WAKE_UP_SIGNAL
+ *
+ * @user_pid:Process ID to which SPI driver sends signal indicating that LOCK SCREEN
+ *			is asserted
+ * @signal_id:signal_id
+*/
+struct etspi_ioctl_register_signal {
+	int user_pid;
+	int signal_id;
+};
+#endif
 
 int etspi_io_read_register(struct etspi_data *etspi, u8 *addr, u8 *buf);
 int etspi_io_write_register(struct etspi_data *etspi, u8 *buf);

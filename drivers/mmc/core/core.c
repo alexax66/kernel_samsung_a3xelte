@@ -2700,6 +2700,9 @@ int _mmc_detect_card_removed(struct mmc_host *host)
 		return 1;
 
 	ret = host->bus_ops->alive(host);
+	/* Check SD card alive or not */
+	if (!ret)
+		return ret;
 
 	/*
 	 * Card detect status and alive check may be out of sync if card is
@@ -2817,6 +2820,11 @@ void mmc_rescan(struct work_struct *work)
 	mmc_bus_put(host);
 
 	if (host->ops->get_cd && host->ops->get_cd(host) == 0) {
+		/* check Card's status */
+		struct mmc_card *card = host->card;
+		u32 status;
+		if (card && !mmc_send_status(card, &status, 0))
+			goto out;
 		mmc_claim_host(host);
 		mmc_power_off(host);
 		mmc_release_host(host);
@@ -3382,6 +3390,20 @@ destroy_workqueue:
 
 	return ret;
 }
+#if defined(CONFIG_BCM43455) || defined(CONFIG_BCM43455_MODULE) || \
+    defined(CONFIG_BCM4343) || defined (CONFIG_BCM4343_MODULE) || \
+    defined(CONFIG_BCM43454) || defined (CONFIG_BCM43454_MODULE)
+void mmc_ctrl_power(struct mmc_host *host, bool onoff)
+{
+	 if (!onoff) {
+		mmc_claim_host(host);
+                mmc_set_clock(host, host->f_init);
+		mmc_delay(1);
+		mmc_release_host(host);
+	 }
+}
+EXPORT_SYMBOL(mmc_ctrl_power);
+#endif 
 
 static void __exit mmc_exit(void)
 {

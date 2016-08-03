@@ -24,11 +24,20 @@
 #endif /* #ifdef CONFIG_DEBUG_FS */
 
 #define FG_DRIVER_VER "0.0.0.1"
+#define USE_SUSPEND_LATE
 
 enum sm5703_valrt_mode {
 	SM5703_NORMAL_MODE = 0,
 	SM5703_RECOVERY_MODE,
 	SM5703_COLD_MODE,
+};
+
+enum sm5703_variants {
+	NOVEL = 0,
+	J2LTE,
+	O5LTE,
+	J3XATT,
+	J7LTE,
 };
 
 struct battery_data_t {
@@ -73,8 +82,8 @@ struct sm5703_fg_info {
 
 	struct mutex io_lock;
 	struct device *dev;
-	int32_t temperature;; /* 0.1 deg C*/
-	int32_t temp_fg;; /* 0.1 deg C*/
+	int32_t temperature; /* 0.1 deg C*/
+	int32_t temp_fg; /* 0.1 deg C*/
 	/* register programming */
 	int reg_addr;
 	u8 reg_data[2];
@@ -103,12 +112,17 @@ struct sm5703_fg_info {
 	uint32_t flag_full_charge : 1; /* 0 : no , 1 : yes*/
 	uint32_t flag_chg_status : 1; /* 0 : discharging, 1: charging*/
 
-
 	int32_t irq_ctrl;
 
 	uint32_t is_FG_initialised;
 	int iocv_error_count;
-	/* previous battery voltage */
+
+	int n_tem_poff;
+	int n_tem_poff_offset;
+	int l_tem_poff;
+	int l_tem_poff_offset;
+
+	/* previous battery voltage current*/
 	int p_batt_voltage;
 	int p_batt_current;
 };
@@ -121,6 +135,7 @@ struct sm5703_platform_data {
 	int fuel_alert_soc;
 	int fullsocthr;
 	int fg_irq;
+	int model_type;
 	unsigned long fg_irq_attr;
 
 	char *fuelgauge_name;
@@ -161,6 +176,9 @@ struct sm5703_fuelgauge_data {
 	unsigned int pre_soc;
 	int fg_irq;
 	int force_dec_mode;
+#ifdef USE_SUSPEND_LATE
+	bool	is_sleep_state;
+#endif
 };
 
 #endif // SM5703_FUELGAUGE_H

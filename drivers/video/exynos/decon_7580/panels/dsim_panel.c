@@ -19,19 +19,16 @@
 
 #if defined(CONFIG_PANEL_EA8064G_DYNAMIC)
 struct mipi_dsim_lcd_driver *mipi_lcd_driver = &ea8064g_mipi_lcd_driver;
-struct dsim_panel_ops *mipi_panel_ops = &ea8064g_panel_ops;
 #elif defined(CONFIG_PANEL_LTM184HL01)
 struct mipi_dsim_lcd_driver *mipi_lcd_driver = &ltm184hl01_mipi_lcd_driver;
-struct dsim_panel_ops *mipi_panel_ops = &ltm184hl01_panel_ops;
 #elif defined(CONFIG_PANEL_S6E3AA2_A3XE)
 struct mipi_dsim_lcd_driver *mipi_lcd_driver = &s6e3aa2_mipi_lcd_driver;
-struct dsim_panel_ops *mipi_panel_ops = &s6e3aa2_panel_ops;
 #elif defined(CONFIG_PANEL_S6E3FA3_A5XE)
 struct mipi_dsim_lcd_driver *mipi_lcd_driver = &s6e3fa3_mipi_lcd_driver;
-struct dsim_panel_ops *mipi_panel_ops = &s6e3fa3_panel_ops;
 #elif defined(CONFIG_PANEL_S6E3FA3_A7XE)
 struct mipi_dsim_lcd_driver *mipi_lcd_driver = &s6e3fa3_mipi_lcd_driver;
-struct dsim_panel_ops *mipi_panel_ops = &s6e3fa3_panel_ops;
+#elif defined(CONFIG_PANEL_EA8061_DYNAMIC)
+struct mipi_dsim_lcd_driver *mipi_lcd_driver = &ea8061_mipi_lcd_driver;
 #endif
 
 int dsim_panel_ops_init(struct dsim_device *dsim)
@@ -44,10 +41,6 @@ int dsim_panel_ops_init(struct dsim_device *dsim)
 	return ret;
 }
 
-struct dsim_panel_ops *dsim_panel_get_priv_ops(struct dsim_device *dsim)
-{
-	return mipi_panel_ops;
-}
 
 unsigned int lcdtype;
 EXPORT_SYMBOL(lcdtype);

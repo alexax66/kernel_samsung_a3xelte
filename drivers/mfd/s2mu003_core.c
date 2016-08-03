@@ -56,6 +56,7 @@ const static struct resource s2mu003_charger_res[] = {
 	S2MU003_DECLARE_IRQ(S2MU003_BSTINLV_IRQ),
 	S2MU003_DECLARE_IRQ(S2MU003_BSTILIM_IRQ),
 	S2MU003_DECLARE_IRQ(S2MU003_VMIDOVP_IRQ),
+	S2MU003_DECLARE_IRQ(S2MU003_WDT_IRQ),
 };
 
 static struct mfd_cell s2mu003_charger_devs[] = {

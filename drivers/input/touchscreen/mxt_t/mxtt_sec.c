@@ -216,8 +216,8 @@ static void mxt_treat_dbg_data(struct mxt_data *data,
 		fdata->delta[num] =
 			((u16)data_buffer[1]<<8) + (u16)data_buffer[0];
 
-		tsp_debug_dbg(false, &client->dev, "delta[%d] = %d[0X%x][0X%x]\n",
-			num, fdata->delta[num], data_buffer[1], data_buffer[0]);
+		tsp_debug_dbg(false, &client->dev, "delta[%d] = %d\n",
+			num, fdata->delta[num]);
 
 		if (abs(fdata->delta[num])
 			> abs(fdata->delta_max_data)) {
@@ -246,7 +246,7 @@ static void mxt_treat_dbg_data(struct mxt_data *data,
 		/* check that reference is in spec or not */
 		if (fdata->reference[num] < REF_MIN_VALUE
 			|| fdata->reference[num] > REF_MAX_VALUE) {
-			tsp_debug_info(true, &client->dev, "reference[%d] is out of range = %d(%d,%d)\n",
+			tsp_debug_dbg(false,&client->dev, "reference[%d] is out of range = %d(%d,%d)\n",
 				num, fdata->reference[num], x_num, y_num);
 		}
 
@@ -298,8 +298,8 @@ static int mxt_read_all_diagnostic_data(struct mxt_data *data, u8 dbg_mode)
 		ret = -EINVAL;
 		goto out;
 	}
-	fdata->ref_min_data = 0x7fffffff;
-	fdata->ref_max_data = 0;
+	fdata->ref_min_data = REF_MAX_VALUE;
+	fdata->ref_max_data = REF_MIN_VALUE;
 	fdata->delta_max_data = 0;
 	fdata->delta_max_node = 0;
 	end_page = (data->info.matrix_xsize * data->info.matrix_ysize)
@@ -529,10 +529,6 @@ out:
 
 	mxt_print_ic_version(data);
 
-#if defined(TSP_SUPPROT_MULTIMEDIA) && !defined(CONFIG_SEC_FACTORY)
-	mxt_adjust_amp(data);
-#endif
-
 	if (ret) {
 		snprintf(buff, sizeof(buff), "FAIL");
 		set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
@@ -748,83 +744,6 @@ static void get_config_ver(void *device_data)
 	tsp_debug_info(true, &client->dev, "%s: %s(%d)\n",
 		__func__, buff, (int)strnlen(buff, sizeof(buff)));
 }
-
-#if defined(TSP_SUPPROT_MULTIMEDIA) && !defined(CONFIG_SEC_FACTORY)
-static void velocity_enable(void *device_data)
-{
-	struct mxt_data *data = (struct mxt_data *)device_data;
-	struct mxt_fac_data *fdata = data->fdata;
-	u8 *patch_data = NULL;
-	int ret = 0;
-	char buff[16] = {0};
-
-	set_default_result(fdata);
-
-	if (fdata->cmd_param[0] < 0 || fdata->cmd_param[0] > 2) {
-		snprintf(buff, sizeof(buff), "NG");
-		fdata->cmd_state = CMD_STATUS_FAIL;
-		goto out;
-	}
-
-	if (data->velocity_enable != (fdata->cmd_param[0] ? true : false)) {
-		data->velocity_enable = fdata->cmd_param[0] ? true : false;
-	}
-
-	ret = mxt_patch_init(data, data->patch.patch);
-
-out:
-	kfree(patch_data);
-
-	if (ret) {
-		snprintf(buff, sizeof(buff), "FAIL");
-		set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
-		fdata->cmd_state = CMD_STATUS_FAIL;
-	} else {
-		snprintf(buff, sizeof(buff), "OK");
-		set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
-		fdata->cmd_state = CMD_STATUS_OK;
-	}
-	return;
-}
-
-static void brush_enable(void *device_data)
-{
-	struct mxt_data *data = (struct mxt_data *)device_data;
-	struct mxt_fac_data *fdata = data->fdata;
-	u8 *patch_data = NULL;
-	int ret = 0;
-	char buff[16] = {0};
-
-	set_default_result(fdata);
-
-	if (fdata->cmd_param[0] < 0 || fdata->cmd_param[0] > 2) {
-		snprintf(buff, sizeof(buff), "NG");
-		fdata->cmd_state = CMD_STATUS_FAIL;
-		goto out;
-	}
-
-	if (data->brush_enable != (fdata->cmd_param[0] ? true : false)) {
-		data->brush_enable = fdata->cmd_param[0] ? true : false;
-	}
-
-	ret = mxt_patch_init(data, data->patch.patch);
-
-out:
-	kfree(patch_data);
-
-	if (ret) {
-		snprintf(buff, sizeof(buff), "FAIL");
-		set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
-		fdata->cmd_state = CMD_STATUS_FAIL;
-	} else {
-		snprintf(buff, sizeof(buff), "OK");
-		set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
-		fdata->cmd_state = CMD_STATUS_OK;
-	}
-	return;
-}
-
-#endif
 
 static void get_checksum_data(void *device_data)
 {
@@ -1087,61 +1006,16 @@ static void get_y_num(void *device_data)
 		__func__, buff, (int)strnlen(buff, sizeof(buff)));
 }
 
-static void get_reference_all_data(void *device_data)
-{
-	struct mxt_data *data = (struct mxt_data *)device_data;
-	struct mxt_fac_data *fdata = data->fdata;
-	int ret;
-
-	ret = mxt_read_all_diagnostic_data(data, MXT_DIAG_REFERENCE_MODE);
-
-	if (ret)
-		fdata->cmd_state = CMD_STATUS_FAIL;
-	else {
-		fdata->cmd_state = CMD_STATUS_OK;
-
-		fdata->long_cmd_ret_val = true;
-		fdata->long_cmd_ret_point= 0;
-		fdata->long_cmd_type = LONG_CMD_REFERENCE;
-	}
-}
-
-static void get_delta_all_data(void *device_data)
-{
-	struct mxt_data *data = (struct mxt_data *)device_data;
-	struct mxt_fac_data *fdata = data->fdata;
-	int ret;
-
-	ret = mxt_read_all_diagnostic_data(data, MXT_DIAG_DELTA_MODE);
-
-	if (ret)
-		fdata->cmd_state = CMD_STATUS_FAIL;
-	else {
-		fdata->cmd_state = CMD_STATUS_OK;
-
-		fdata->long_cmd_ret_val = true;
-		fdata->long_cmd_ret_point= 0;
-		fdata->long_cmd_type = LONG_CMD_DELTA;
-	}
-}
-
 static void run_reference_read(void *device_data)
 {
 	struct mxt_data *data = (struct mxt_data *)device_data;
-	struct i2c_client *client = data->client;
 	struct mxt_fac_data *fdata = data->fdata;
 	int ret;
 	char buff[16] = {0};
-	int rx, tx;
-
-	char buffer_name[TSP_CMD_STR_LEN] = {0,};
-	char debug_buffer[1000];
-
-	memset(debug_buffer, 0, TSP_CMD_STR_LEN);
 
 	set_default_result(fdata);
 
-#if TSP_PATCH
+#if 0 //TSP_PATCH
 	if(data->patch.event_cnt)
 		mxt_patch_test_event(data, 2);
 #endif
@@ -1151,25 +1025,6 @@ static void run_reference_read(void *device_data)
 	if (ret)
 		fdata->cmd_state = CMD_STATUS_FAIL;
 	else {
-		tsp_debug_info(true, &client->dev, "%s: Print all refernce data. RX:[%d], TX:[%d].\n",
-											__func__, fdata->num_xnode, fdata->num_ynode);
-
-		for (rx = 0 ; rx < fdata->num_xnode ; rx++) {
-			memset(debug_buffer, 0, TSP_CMD_STR_LEN);
-			snprintf(buffer_name, TSP_CMD_STR_LEN, "rx[%2d]: ", rx);
-			strcat(debug_buffer, buffer_name);
-
-			for (tx = 0 ; tx < fdata->num_ynode ; tx++) {
-				if(tx % 10 == 0 && tx > 1)
-					strcat(debug_buffer, "| ");
-
-				snprintf(buffer_name, TSP_CMD_STR_LEN, "%5d, ",
-								fdata->reference[rx * fdata->num_ynode + tx]);
-				strcat(debug_buffer, buffer_name);
-			}
-			tsp_debug_info(true, &client->dev, "%s\n", debug_buffer);
-		}
-
 		snprintf(buff, sizeof(buff), "%d,%d",
 			fdata->ref_min_data, fdata->ref_max_data);
 		set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
@@ -1575,10 +1430,8 @@ static struct tsp_cmd tsp_cmds[] = {
 	{TSP_CMD("get_y_num", get_y_num),},
 	{TSP_CMD("run_reference_read", run_reference_read),},
 	{TSP_CMD("get_reference", get_reference),},
-	{TSP_CMD("get_reference_all_data", get_reference_all_data),},
 	{TSP_CMD("run_delta_read", run_delta_read),},
 	{TSP_CMD("get_delta", get_delta),},
-	{TSP_CMD("get_delta_all_data", get_delta_all_data),},
 	{TSP_CMD("find_delta", find_delta_node),},
 	{TSP_CMD("run_factory_cal", mxt_run_factory_cal),},
 	{TSP_CMD("set_jitter_level", set_jitter_level),},
@@ -1590,10 +1443,6 @@ static struct tsp_cmd tsp_cmds[] = {
 	{TSP_CMD("patch_update", patch_update),},
 #endif
 	{TSP_CMD("get_checksum_data", get_checksum_data),},
-#if defined(TSP_SUPPROT_MULTIMEDIA) && !defined(CONFIG_SEC_FACTORY)
-	{TSP_CMD("velocity_enable", velocity_enable),},
-	{TSP_CMD("brush_enable", brush_enable),},
-#endif
 
 	{TSP_CMD("not_support_cmd", not_support_cmd),},
 };
@@ -1718,7 +1567,7 @@ static ssize_t show_cmd_status(struct device *dev,
 	else if (fdata->cmd_state == CMD_STATUS_NOT_APPLICABLE)
 		snprintf(buff, sizeof(buff), "NOT_APPLICABLE");
 
-	return snprintf(buf, TSP_CMD_RESULT_STR_LEN, "%s\n", buff);
+	return snprintf(buf, TSP_BUF_SIZE, "%s\n", buff);
 }
 
 static ssize_t show_cmd_result(struct device *dev, struct device_attribute
@@ -1727,87 +1576,16 @@ static ssize_t show_cmd_result(struct device *dev, struct device_attribute
 	struct mxt_data *data = dev_get_drvdata(dev);
 	struct mxt_fac_data *fdata = data->fdata;
 
-	int i=0;
-	char buff[32] = { 0 };
-	char all_strbuff[TSP_CMD_RESULT_STR_LEN] = { 0 };
+	tsp_debug_info(true, &data->client->dev, "tsp cmd: result: %s\n",
+		fdata->cmd_result);
 
-	/* Support long return val  command */
-	if (fdata->long_cmd_ret_val) {
-		set_default_result(fdata);
+	mutex_lock(&fdata->cmd_lock);
+	fdata->cmd_is_running = false;
+	mutex_unlock(&fdata->cmd_lock);
 
-		for (i=0 ; i < LONG_CMD_RETURN_CNT ; i++) {
-			if (i+fdata->long_cmd_ret_point >= fdata->num_xnode * fdata->num_ynode) {
-				tsp_debug_info(true, &data->client->dev, "tsp cmd: reach end of data[%d].\n", i+fdata->long_cmd_ret_point);
-				fdata->long_cmd_ret_val	= false;
-				fdata->long_cmd_ret_point = 0;
-				fdata->long_cmd_type = LONG_CMD_NOT_DEFINED;
-				break;
+	fdata->cmd_state = CMD_STATUS_WAITING;
 
-			} else {
-				if (fdata->long_cmd_type == LONG_CMD_REFERENCE) {
-					tsp_debug_dbg(true, &data->client->dev, "tsp refer cmd: set result data[%d][%d].\n",
-								i+fdata->long_cmd_ret_point, fdata->reference[i+fdata->long_cmd_ret_point]);
-
-					sprintf(buff, "%d,", fdata->reference[i+fdata->long_cmd_ret_point]);
-					strcat(all_strbuff, buff);
-				} else if (fdata->long_cmd_type == LONG_CMD_DELTA) {
-					tsp_debug_dbg(true, &data->client->dev, "tsp delta cmd: set result data[%d][%d].\n",
-								i+fdata->long_cmd_ret_point, fdata->delta[i+fdata->long_cmd_ret_point]);
-
-					sprintf(buff, "%d,", fdata->delta[i+fdata->long_cmd_ret_point]);
-					strcat(all_strbuff, buff);
-				} else {
-					tsp_debug_err(true, &data->client->dev, "tsp cmd: Not defined cmd[%s].\n", fdata->cmd);
-				}
-			}
-		}
-
-		if (fdata->long_cmd_ret_val) {
-			fdata->long_cmd_ret_point += LONG_CMD_RETURN_CNT;
-			strcat(all_strbuff, "cont");
-
-		} else {
-			mutex_lock(&fdata->cmd_lock);
-			fdata->cmd_is_running = false;
-			mutex_unlock(&fdata->cmd_lock);
-			fdata->cmd_state = CMD_STATUS_WAITING;
-		}
-
-		set_cmd_result(fdata, all_strbuff, strnlen(all_strbuff, sizeof(all_strbuff)));
-
-		return snprintf(buf, TSP_CMD_RESULT_STR_LEN, "%s\n", fdata->cmd_result);
-	} else {
-		tsp_debug_info(true, &data->client->dev, "tsp cmd: result: %s\n",
-			fdata->cmd_result);
-
-		mutex_lock(&fdata->cmd_lock);
-		fdata->cmd_is_running = false;
-		mutex_unlock(&fdata->cmd_lock);
-
-		fdata->cmd_state = CMD_STATUS_WAITING;
-
-		return snprintf(buf, TSP_CMD_RESULT_STR_LEN, "%s\n", fdata->cmd_result);
-	}
-}
-static ssize_t cmd_list_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	int ii = 0;
-	char buffer_name[TSP_CMD_STR_LEN] = {0,};
-	char debug_buffer[TSP_CMD_RESULT_STR_LEN];
-
-	memset(debug_buffer, 0, TSP_CMD_RESULT_STR_LEN);
-
-	snprintf(buffer_name, TSP_CMD_RESULT_STR_LEN, "++factory command list++\n");
-	strcat(debug_buffer, buffer_name);
-
-	while (strncmp(tsp_cmds[ii].cmd_name, "not_support_cmd", 16) != 0) {
-		snprintf(buffer_name, TSP_CMD_RESULT_STR_LEN, "%s\n", tsp_cmds[ii].cmd_name);
-		strcat(debug_buffer, buffer_name);
-		ii++;
-	}
-
-	return snprintf(buf, TSP_CMD_RESULT_STR_LEN, "%s\n", debug_buffer);
+	return snprintf(buf, TSP_BUF_SIZE, "%s\n", fdata->cmd_result);
 }
 
 #if FOR_BRINGUP
@@ -1874,7 +1652,6 @@ static ssize_t set_tsp_for_inputmethod_store(struct device *dev,
 static DEVICE_ATTR(cmd, S_IWUSR | S_IWGRP, NULL, store_cmd);
 static DEVICE_ATTR(cmd_status, S_IRUGO, show_cmd_status, NULL);
 static DEVICE_ATTR(cmd_result, S_IRUGO, show_cmd_result, NULL);
-static DEVICE_ATTR(cmd_list, S_IRUGO, cmd_list_show, NULL);
 #if FOR_BRINGUP
 static DEVICE_ATTR(set_tsp_for_inputmethod, S_IRUGO | S_IWUSR | S_IWGRP,
 	set_tsp_for_inputmethod_show, set_tsp_for_inputmethod_store);
@@ -1883,7 +1660,6 @@ static struct attribute *touchscreen_factory_attributes[] = {
 	&dev_attr_cmd.attr,
 	&dev_attr_cmd_status.attr,
 	&dev_attr_cmd_result.attr,
-	&dev_attr_cmd_list.attr,
 	NULL,
 };
 

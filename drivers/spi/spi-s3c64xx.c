@@ -1198,6 +1198,7 @@ static int s3c64xx_spi_setup(struct spi_device *spi)
 		dev_err(&spi->dev, "No CS for SPI(%d)\n", spi->chip_select);
 		return -ENODEV;
 	}
+
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	if (sdd->port_id == CONFIG_SENSORS_FP_SPI_NUMBER)
 		return 0;
@@ -1370,6 +1371,7 @@ static void s3c64xx_spi_hwinit(struct s3c64xx_spi_driver_data *sdd, int channel)
 	if (channel == CONFIG_ESE_SECURE_SPI_PORT)
 		return;
 #endif
+
 	sdd->cur_speed = 0;
 
 	writel(S3C64XX_SPI_SLAVE_SIG_INACT, sdd->regs + S3C64XX_SPI_SLAVE_SEL);

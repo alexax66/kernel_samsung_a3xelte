@@ -63,13 +63,28 @@ static int axis_matrix[8][9] = {
 	{ 0, -1, 0, -1, 0, 0, 0, 0, -1,}, /* -Y -X Z */
 };
 
-static void int_debug(char *log, const char *func, int line)
+static int check_watchdog_reset(struct bhy_client_data *client_data);
+void report_last_step_counter_data(struct bhy_client_data *client_data);
+
+static void int_debug(struct bhy_client_data *client_data,
+	char *log, const char *func, int line)
 {
 	static int count;
+	int ret;
 
 	if (count++ > INT_DEBUG_COUNT) {
 		printk(KERN_INFO "[D]" KERN_DEBUG MODULE_TAG
 			"<%s><%d> %s \n", func, line, log);
+
+		disable_irq_nosync(client_data->data_bus.irq);
+		client_data->irq_force_disabled = true;
+
+		ret = check_watchdog_reset(client_data);
+
+		/*
+		printk(KERN_INFO "[D]" KERN_DEBUG MODULE_TAG
+			"<%s><%d> irq_force_disabled \n", func, line);
+			*/
 		count = 0;
 	}
 }
@@ -1162,6 +1177,10 @@ static void reset(struct bhy_client_data *client_data)
 	char temp = 0;
 	int ret = 0;
 
+	PINFO("Reset sequence started (%d)",
+		client_data->irq_force_disabled);
+
+	wake_lock(&client_data->reset_wlock);
 	if (client_data->ldo_enable_pin < 0) {
 		PINFO("no ldo_enable_pin");
 		goto direct_ram_patch;
@@ -1196,7 +1215,8 @@ static void reset(struct bhy_client_data *client_data)
 		filp_close(filp, current->files);
 	}
 
-	if (client_data->irq_enabled) {
+	if (client_data->irq_enabled &&
+		(!client_data->irq_force_disabled)) {
 		disable_irq(client_data->data_bus.irq);
 		msleep(20);
 	}
@@ -1259,7 +1279,7 @@ static void reset(struct bhy_client_data *client_data)
 	}
 
 	set_fs(old_fs);
-
+	wake_unlock(&client_data->reset_wlock);
 	return;
 
 direct_ram_patch:
@@ -1267,6 +1287,11 @@ direct_ram_patch:
 	ret = bhy_load_ram_patch(client_data);
 	if (ret < 0)
 		PERR("bhy_load_ram_patch failed");
+
+	if (client_data->irq_force_disabled)
+		enable_irq(client_data->data_bus.irq);
+	
+	wake_unlock(&client_data->reset_wlock);
 }
 
 u64 get_current_timestamp(void)
@@ -1295,7 +1320,8 @@ static int check_watchdog_reset(struct bhy_client_data *client_data)
 	}
 
 	if (reg_data & BHY_CHIP_STATUS_BIT_FIRMWARE_IDLE) {
-		PINFO("%s : MCU Watchdog! (%d)", MODEL_NAME, (reg_data & BHY_CHIP_STATUS_BIT_FIRMWARE_IDLE));
+		PINFO("%s : MCU Watchdog! (%d)", MODEL_NAME,
+			(reg_data & BHY_CHIP_STATUS_BIT_FIRMWARE_IDLE));
 		ret = 1;
 	} else {
 		ret = 0;
@@ -1307,7 +1333,7 @@ static int check_watchdog_reset(struct bhy_client_data *client_data)
 static int mcu_monitor_thread(void *arg)
 {
 	struct bhy_client_data *client_data = (struct bhy_client_data *)arg;
-	u64 tmp_timestamp;
+	u64 tmp_timestamp = 0ULL;
 	int ret = 0;
 	int i;
 	bool duplication_detected = false;
@@ -1333,6 +1359,24 @@ static int mcu_monitor_thread(void *arg)
 			break;
 		}
 
+		if (client_data->irq_force_disabled &&
+			(!client_data->skip_reset)) {
+
+			PINFO("Int High detected, Try to Reset#0");
+			reset(client_data);
+			client_data->irq_force_disabled = false;
+
+			tmp_timestamp = get_current_timestamp();
+
+			client_data->last_reset_time_buf[client_data->cnt_reset%3] = tmp_timestamp;
+			client_data->cnt_reset++;
+			client_data->cnt_total_reset++;
+			client_data->last_acc_check_time = tmp_timestamp;
+			client_data->last_reset_time = tmp_timestamp;
+		} else {
+			tmp_timestamp = get_current_timestamp();
+		}
+
 		if (client_data->acc_enabled) {
 			/* Monitor by Accelerometer. */
 			PINFO("DEBUG [%s]: %5d %5d %5d, RST: %d/3 (%d), SKIP: %d",
@@ -1349,16 +1393,15 @@ static int mcu_monitor_thread(void *arg)
 				client_data->last_reset_time_buf[1],
 				client_data->last_reset_time_buf[2]);
 
-			tmp_timestamp = get_current_timestamp();
-
 			/** Check No event **/
 			if (!client_data->skip_reset &&
+				(tmp_timestamp > client_data->last_acc_check_time) &&
 				(tmp_timestamp - client_data->last_acc_check_time) > ACC_EVENT_TIMEOUT) { /* 15 SEC */
 
 				PINFO("Timeout detected, Try to Reset#1");
 				reset(client_data);
 
-				client_data->last_reset_time_buf[client_data->cnt_reset] = tmp_timestamp;
+				client_data->last_reset_time_buf[client_data->cnt_reset%3] = tmp_timestamp;
 				client_data->cnt_reset++;
 				client_data->cnt_total_reset++;
 				client_data->last_acc_check_time = get_current_timestamp();
@@ -1399,7 +1442,7 @@ static int mcu_monitor_thread(void *arg)
 			/* Reset by MCU Watchdog. */
 			if (check_watchdog_reset(client_data)) {
 				client_data->cnt_no_response++;
-				PINFO("MCU Mlafunction Detected. %d/3", client_data->cnt_no_response);
+				PINFO("MCU Malfunction Detected. %d/3", client_data->cnt_no_response);
 			}
 
 			if (!client_data->skip_reset && (client_data->cnt_no_response > 0)) {
@@ -1537,12 +1580,17 @@ void process_step(struct bhy_client_data *client_data, u8 *data)
 				step_diff = 1;
 			}
 		}
-
 	/* logging mode */
 	} else {
 		step_diff += new_data.walk_count;
 		step_diff += new_data.run_count;
 		last_step += step_diff;
+		client_data->late_step_report = true;
+
+		if (client_data->start_index > 0 &&
+			client_data->current_index == 1) {
+			client_data->late_step_report = false;
+		}
 	}
 
 	if (client_data->step_cnt_enabled)
@@ -1591,13 +1639,13 @@ void process_data(struct bhy_client_data *client_data, u8 *data, u16 handle)
 		break;
 
 	case AR_SENSOR:
-		PINFO("ar: %d", data[0]);
+		PINFO("AR : %d", data[0]);
 		break;
 
 	case PEDOMETER_SENSOR:
 		memcpy(&new_data, data, sizeof(new_data));
 		if (new_data.data_index > MAX_LOGGING_SIZE) {
-			PINFO("PEDO: Wrong data = %u", new_data.data_index);
+			PINFO("PEDO: Dummy data = %u", new_data.data_index);
 		} else {
 			PINFO("PEDO: %u, %d, %d, %u, %lld, %lld",
 				new_data.data_index, new_data.walk_count,
@@ -1640,7 +1688,7 @@ void generate_step_data(struct bhy_client_data *client_data)
 		else
 			++q->head;
 		if (q->head == q->tail) {
-			frame_debug("One frame data lost for sdet!",
+			frame_debug("One frame data lost for scnt!",
 				__func__, __LINE__);
 			if (q->tail == BHY_FRAME_SIZE - 1)
 				q->tail = 0;
@@ -1656,9 +1704,11 @@ step_cnt:
 	if (client_data->step_cnt_enabled) {
 		if (client_data->last_step_count == client_data->step_count)
 			return;
+		if (client_data->late_step_report == true)
+			return;
 
 		q->frames[q->head].handle = BHY_SENSOR_HANDLE_STEP_COUNTER;
-		memcpy(q->frames[q->head].data,	&client_data->step_count,
+		memcpy(q->frames[q->head].data, &client_data->step_count,
 				BHY_SENSOR_DATA_LEN_STEP_COUNTER);
 
 		if (q->head == BHY_FRAME_SIZE - 1)
@@ -1666,7 +1716,7 @@ step_cnt:
 		else
 			++q->head;
 		if (q->head == q->tail) {
-			frame_debug("One frame data lost for sdet!",
+			frame_debug("One frame data lost",
 				__func__, __LINE__);
 			if (q->tail == BHY_FRAME_SIZE - 1)
 				q->tail = 0;
@@ -1674,6 +1724,32 @@ step_cnt:
 				++q->tail;
 		}
 
+		client_data->last_step_count = client_data->step_count;
+	}
+}
+
+void report_last_step_counter_data(
+	struct bhy_client_data *client_data)
+{
+	struct frame_queue *q = &client_data->data_queue;
+	if (client_data->step_cnt_enabled) {
+		PINFO("STEP: last step cnt = %d", client_data->step_count);
+		q->frames[q->head].handle = BHY_SENSOR_HANDLE_STEP_COUNTER;
+		memcpy(q->frames[q->head].data, &client_data->step_count,
+			BHY_SENSOR_DATA_LEN_STEP_COUNTER);
+
+		if (q->head == BHY_FRAME_SIZE - 1)
+			q->head = 0;
+		else
+			++q->head;
+		if (q->head == q->tail) {
+			frame_debug("One frame data lost",
+				__func__, __LINE__);
+			if (q->tail == BHY_FRAME_SIZE - 1)
+				q->tail = 0;
+			else
+				++q->tail;
+		}
 		client_data->last_step_count = client_data->step_count;
 	}
 }
@@ -1701,10 +1777,12 @@ void detect_init_event(struct bhy_client_data *client_data)
 #endif /*~ BHY_DEBUG */
 	if (bytes_remain == 0) {
 		mutex_unlock(&client_data->mutex_bus_op);
-		int_debug("Zero length FIFO detected", __func__, __LINE__);
+		int_debug(client_data, "Zero length FIFO detected",
+			__func__, __LINE__);
 		return;
 	}
 	if (bytes_remain > BHY_FIFO_LEN_MAX) {
+		mutex_unlock(&client_data->mutex_bus_op);
 		PDEBUG("Start up sequence error: Over sized FIFO");
 		return;
 	}
@@ -1749,7 +1827,7 @@ void detect_init_event(struct bhy_client_data *client_data)
 		else
 			++q->head;
 		if (q->head == q->tail) {
-			frame_debug("One frame data lost for sdet!",
+			frame_debug("One frame data lost",
 				__func__, __LINE__);
 			if (q->tail == BHY_FRAME_SIZE - 1)
 				q->tail = 0;
@@ -1790,7 +1868,8 @@ void detect_self_test_event(struct bhy_client_data *client_data)
 #endif /*~ BHY_DEBUG */
 	if (bytes_remain == 0) {
 		mutex_unlock(&client_data->mutex_bus_op);
-		int_debug("Zero length FIFO detected", __func__, __LINE__);
+		int_debug(client_data, "Zero length FIFO detected",
+			__func__, __LINE__);
 		return;
 	}
 	if (bytes_remain > BHY_FIFO_LEN_MAX) {
@@ -1845,7 +1924,7 @@ void detect_self_test_event(struct bhy_client_data *client_data)
 		else
 			++q->head;
 		if (q->head == q->tail) {
-			frame_debug("One frame data lost for sdet!",
+			frame_debug("One frame data lost",
 				__func__, __LINE__);
 			if (q->tail == BHY_FRAME_SIZE - 1)
 				q->tail = 0;
@@ -1930,9 +2009,18 @@ static void bhy_read_fifo_data(struct bhy_client_data *client_data)
 #endif /*~ BHY_DEBUG */
 	if (bytes_remain == 0) {
 		mutex_unlock(&client_data->mutex_bus_op);
-		int_debug("Zero length FIFO detected", __func__, __LINE__);
+		int_debug(client_data, "Zero length FIFO detected",
+			__func__, __LINE__);
 		return;
 	}
+
+	/* Over sized FIFO detected */
+	if (bytes_remain > BHY_FIFO_LEN_MAX) {
+		mutex_unlock(&client_data->mutex_bus_op);
+		PDEBUG("Over sized FIFO detected");
+		return;
+	}
+
 	ret = bhy_read_reg(client_data, BHY_REG_FIFO_BUFFER_0,
 			client_data->fifo_buf, bytes_remain);
 	if (ret < 0) {
@@ -1983,7 +2071,7 @@ static void bhy_read_fifo_data(struct bhy_client_data *client_data)
 		else
 			++q->head;
 		if (q->head == q->tail) {
-			frame_debug("One frame data lost for sdet!",
+			frame_debug("One frame data lost",
 				__func__, __LINE__);
 			if (q->tail == BHY_FRAME_SIZE - 1)
 				q->tail = 0;
@@ -2021,7 +2109,7 @@ static void bhy_read_fifo_data(struct bhy_client_data *client_data)
 	mutex_unlock(&q->lock);
 }
 
-static void bhy_irq_work_func(struct work_struct *work);
+static void bhy_irq_work_func(struct bhy_client_data *client_data);
 
 static irqreturn_t bhy_irq_handler(int irq, void *handle)
 {
@@ -2037,15 +2125,13 @@ static irqreturn_t bhy_irq_handler(int irq, void *handle)
 	}
 	bhy_get_ap_timestamp(&client_data->timestamp_irq);
 
-	bhy_irq_work_func(&client_data->irq_work);
+	bhy_irq_work_func(client_data);
 
 	return IRQ_HANDLED;
 }
 
-static void bhy_irq_work_func(struct work_struct *work)
+static void bhy_irq_work_func(struct bhy_client_data *client_data)
 {
-	struct bhy_client_data *client_data = container_of(work
-			, struct bhy_client_data, irq_work);
 	int reset_flag_copy, in_suspend_copy;
 	int ret;
 	u8 timestamp_fw[4];
@@ -2116,7 +2202,7 @@ static void bhy_irq_work_func(struct work_struct *work)
 	else
 		++q->head;
 	if (q->head == q->tail) {
-		frame_debug("One frame data lost for sdet!",
+		frame_debug("One frame data lost",
 			__func__, __LINE__);
 		if (q->tail == BHY_FRAME_SIZE - 1)
 			q->tail = 0;
@@ -2174,7 +2260,7 @@ static int bhy_request_irq(struct bhy_client_data *client_data)
 	if (ret < 0)
 		return ret;
 	irq = gpio_to_irq(irq_gpio);
-	INIT_WORK(&client_data->irq_work, bhy_irq_work_func);
+	/* INIT_WORK(&client_data->irq_work, bhy_irq_work_func);*/
 
 	/* Do not use RISING EDGE, Use HIGH LEVEL
 	ret = request_irq(irq, bhy_irq_handler, IRQF_TRIGGER_RISING,
@@ -2471,9 +2557,6 @@ static ssize_t bhy_store_sensor_conf(struct device *dev
 	PINFO("sensor: %d, enable: %d",
 		client_data->sensor_sel, buf[0] | buf[1]);
 
-	/** Monitor Thread **/
-	wake_up(&client_data->monitor_wq);
-
 	/* check acc sensor is enabled */
 	if (client_data->sensor_sel == BHY_SENSOR_HANDLE_ACCELEROMETER) {
 		client_data->acc_enabled = buf[0] | buf[1];
@@ -2496,6 +2579,7 @@ static ssize_t bhy_store_sensor_conf(struct device *dev
 			return ret;
 
 		client_data->step_cnt_enabled = buf[0] | buf[1];
+		report_last_step_counter_data(client_data);
 	} else if (client_data->sensor_sel == BHY_SENSOR_HANDLE_TILT_DETECTOR) {
 		client_data->tilt_enabled = buf[0] | buf[1];
 	} else if (client_data->sensor_sel
@@ -2507,6 +2591,9 @@ static ssize_t bhy_store_sensor_conf(struct device *dev
 	} else if (client_data->sensor_sel == AR_SENSOR) {
 		client_data->ar_enabled = buf[0] | buf[1];
 	}
+
+	/** Monitor Thread **/
+	wake_up(&client_data->monitor_wq);
 
 	return count;
 }
@@ -5509,7 +5596,7 @@ static ssize_t bhy_store_log_raw_data(struct device *dev
 	else
 		++q->head;
 	if (q->head == q->tail) {
-		frame_debug("One frame data lost for sdet!",
+		frame_debug("One frame data lost",
 			__func__, __LINE__);
 		if (q->tail == BHY_FRAME_SIZE - 1)
 			q->tail = 0;
@@ -5567,7 +5654,7 @@ static ssize_t bhy_store_log_input_data_gesture(struct device *dev
 	else
 		++q->head;
 	if (q->head == q->tail) {
-		frame_debug("One frame data lost for sdet!",
+		frame_debug("One frame data lost",
 			__func__, __LINE__);
 		if (q->tail == BHY_FRAME_SIZE - 1)
 			q->tail = 0;
@@ -5625,7 +5712,7 @@ static ssize_t bhy_store_log_input_data_tilt_ar(struct device *dev
 	else
 		++q->head;
 	if (q->head == q->tail) {
-		frame_debug("One frame data lost for sdet!",
+		frame_debug("One frame data lost",
 			__func__, __LINE__);
 		if (q->tail == BHY_FRAME_SIZE - 1)
 			q->tail = 0;
@@ -5670,7 +5757,7 @@ static ssize_t bhy_store_log_fusion_data(struct device *dev
 	else
 		++q->head;
 	if (q->head == q->tail) {
-		frame_debug("One frame data lost for sdet!",
+		frame_debug("One frame data lost",
 			__func__, __LINE__);
 		if (q->tail == BHY_FRAME_SIZE - 1)
 			q->tail = 0;
@@ -7301,6 +7388,7 @@ static void bhy_clear_up(struct bhy_client_data *client_data)
 #endif /*~ BHY_AR_HAL_SUPPORT */
 		wake_lock_destroy(&client_data->wlock);
 		wake_lock_destroy(&client_data->patch_wlock);
+		wake_lock_destroy(&client_data->reset_wlock);
 
 		kfree(client_data);
 	}
@@ -7473,6 +7561,7 @@ int bhy_probe(struct bhy_data_bus *data_bus)
 #endif /*~ BHY_AR_HAL_SUPPORT */
 
 	bhy_init_sensor_type_data_len(client_data);
+	client_data->late_step_report = false;
 
 	wake_lock_init(&client_data->wlock, WAKE_LOCK_SUSPEND, "bhy");
 
@@ -7495,9 +7584,12 @@ int bhy_probe(struct bhy_data_bus *data_bus)
 	/** Monitor Thread **/
 	init_waitqueue_head(&client_data->monitor_wq);
 	atomic_set(&client_data->ram_patch_loaded, RAM_PATCH_READY);
+	client_data->irq_force_disabled = false;
 
 	wake_lock_init(&client_data->patch_wlock,
 			WAKE_LOCK_SUSPEND, "bhy_patch");
+	wake_lock_init(&client_data->reset_wlock,
+		WAKE_LOCK_SUSPEND, "bhy_reset");
 
 	client_data->monitor_task = kthread_run(mcu_monitor_thread,
 				(void *)client_data, "bhy_monitor_thread");
@@ -7547,18 +7639,21 @@ int bhy_suspend(struct device *dev)
 	mutex_lock(&client_data->mutex_bus_op);
 	ret = bhy_read_reg(client_data, BHY_REG_HOST_CTRL, &data, 1);
 	if (ret < 0) {
+		mutex_unlock(&client_data->mutex_bus_op);
 		PERR("Read host ctrl reg failed");
 		return -EIO;
 	}
 	data |= HOST_CTRL_MASK_AP_SUSPENDED;
 	ret = bhy_write_reg(client_data, BHY_REG_HOST_CTRL, &data, 1);
 	if (ret < 0) {
+		mutex_unlock(&client_data->mutex_bus_op);
 		PERR("Write host ctrl reg failed");
 		return -EIO;
 	}
 	mutex_unlock(&client_data->mutex_bus_op);
 
-	enable_irq_wake(client_data->data_bus.irq);
+	if (!client_data->irq_force_disabled)
+		enable_irq_wake(client_data->data_bus.irq);
 
 	atomic_set(&client_data->in_suspend, 1);
 
@@ -7571,7 +7666,7 @@ int bhy_suspend(struct device *dev)
 	else
 		++q->head;
 	if (q->head == q->tail) {
-		frame_debug("One frame data lost for sdet!",
+		frame_debug("One frame data lost",
 			__func__, __LINE__);
 		if (q->tail == BHY_FRAME_SIZE - 1)
 			q->tail = 0;
@@ -7599,7 +7694,11 @@ int bhy_resume(struct device *dev)
 
 	PINFO("Enter resume");
 
-	disable_irq_wake(client_data->data_bus.irq);
+	/** Monitor Thread **/
+	client_data->last_acc_check_time = get_current_timestamp();
+
+	if (!client_data->irq_force_disabled)
+		disable_irq_wake(client_data->data_bus.irq);
 
 	mutex_lock(&client_data->mutex_bus_op);
 	ret = bhy_read_reg(client_data, BHY_REG_HOST_CTRL, &data, 1);
@@ -7637,7 +7736,7 @@ int bhy_resume(struct device *dev)
 	else
 		++q->head;
 	if (q->head == q->tail) {
-		frame_debug("One frame data lost for sdet!",
+		frame_debug("One frame data lost",
 			__func__, __LINE__);
 		if (q->tail == BHY_FRAME_SIZE - 1)
 			q->tail = 0;
@@ -7657,9 +7756,6 @@ int bhy_resume(struct device *dev)
 				return ret;
 		}
 	}
-
-	/** Monitor Thread **/
-	client_data->last_acc_check_time = get_current_timestamp();
 
 	return 0;
 }

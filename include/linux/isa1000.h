@@ -18,6 +18,7 @@
  #define MAX_TIMEOUT	10000
 
  struct isa1000_pdata {
+	struct regulator *regulator;
  	u32 duty;
  	u32 period;
  	u32 max_timeout;

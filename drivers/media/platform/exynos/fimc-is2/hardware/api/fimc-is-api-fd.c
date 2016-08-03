@@ -53,6 +53,24 @@ static int __init fimc_is_fd_reserved_mem_setup(struct reserved_mem *rmem)
 RESERVEDMEM_OF_DECLARE(fimc_is_fd, "fd-lib-shmem", fimc_is_fd_reserved_mem_setup);
 #endif
 
+static void fimc_is_lib_fd_res_invalid(struct fimc_is_lib *fd_lib,
+		ulong kvaddr, u32 size)
+{
+	vb2_ion_sync_for_device(fd_lib->cookie,
+			kvaddr - fd_lib->kvaddr_offset,
+			size,
+			DMA_FROM_DEVICE);
+}
+
+static void fimc_is_lib_fd_res_flush(struct fimc_is_lib *fd_lib,
+		ulong kvaddr, u32 size)
+{
+	vb2_ion_sync_for_device(fd_lib->cookie,
+			kvaddr - fd_lib->kvaddr_offset,
+			size,
+			DMA_TO_DEVICE);
+}
+
 int fimc_is_lib_fd_map_copy(struct file *fd_map, FDD_DATA *data, int map_cnt)
 {
 	int ret = 0;
@@ -159,7 +177,8 @@ p_err:
 	return ret;
 }
 
-int fimc_is_lib_fd_open(struct fimc_is_lib *fd_lib)
+int fimc_is_lib_fd_open(struct fimc_is_lib *fd_lib, void *fw_cookie,
+		ulong kvaddr_offset, u32 dvaddr_offset)
 {
 	int ret = 0;
 	struct fimc_is_lib_fd *fd_data = NULL;
@@ -171,6 +190,9 @@ int fimc_is_lib_fd_open(struct fimc_is_lib *fd_lib)
 		goto err;
 	}
 	fd_lib->lib_data = fd_data;
+	fd_lib->cookie = fw_cookie;
+	fd_lib->kvaddr_offset = kvaddr_offset;
+	fd_lib->dvaddr_offset = dvaddr_offset;
 
 	memset(fd_data, 0, sizeof(*fd_data));
 	memset(&fd_data->setfile, 0, sizeof(struct fd_setfile_info));
@@ -198,7 +220,10 @@ int fimc_is_lib_fd_open(struct fimc_is_lib *fd_lib)
 
 	/* initial buffer is set A */
 	set_bit(FD_SEL_DATA_A, &fd_data->fd_dma_select);
-	set_bit(FD_SEL_DATA_A, &fd_data->fd_lib_select);
+	clear_bit(FD_SEL_DATA_A, &fd_data->fd_lib_select);
+	clear_bit(FD_SEL_DATA_B, &fd_data->fd_lib_select);
+	clear_bit(FD_SEL_DATA_C, &fd_data->fd_lib_select);
+
 	fd_data->data_fd_lib = &fd_data->data_b;
 
 	clear_bit(FD_LIB_CONFIG, &fd_lib->state);
@@ -281,6 +306,8 @@ int fimc_is_lib_fd_create_detector(struct fimc_is_lib *fd_lib, struct vra_param 
 		err("failed to fimc_is_lib_fd_thread_init (%d)=n", ret);
 		goto err_heap;
 	}
+
+	spin_lock_init(&data->y_map_lock);
 
 	/* FD lib assigned heap memory like fd_data->heap = dummy_heap */
 	ret = (int)data->fd_lib_func->fd_create_heap_func(dummy_heap,
@@ -387,7 +414,7 @@ void fimc_is_lib_fd_run(struct fimc_is_lib *fd_lib)
 	hw_data.map4 = data_fd_lib->map4;
 	hw_data.map5 = data_fd_lib->map5;
 	hw_data.map6 = data_fd_lib->map6;
-	hw_data.map7 = data_fd_lib->map7;
+	hw_data.map7 = lib_data->lib_y_map;
 	hw_data.sat = data_fd_lib->sat;
 	hw_data.shift = lib_data->fd_lib_func->fd_get_shift_func(hw_data.width, hw_data.height);
 
@@ -395,6 +422,9 @@ void fimc_is_lib_fd_run(struct fimc_is_lib *fd_lib)
 	for (i = 0; i < 256; i++)
 		((u8 *)hw_data.map7)[i] = i;
 #endif
+
+	fimc_is_lib_fd_res_invalid(fd_lib,
+			(ulong)data_fd_lib->map1, SIZE_FD_INTERNEL_BUF);
 
 #ifdef FD_LIB_PERFORMANCE
 	TIME_STR1();
@@ -406,6 +436,11 @@ void fimc_is_lib_fd_run(struct fimc_is_lib *fd_lib)
 #else
 	status = lib_data->fd_lib_func->fd_detect_face_func(det, &image, NULL, NULL);
 #endif
+
+	spin_lock(&lib_data->y_map_lock);
+	memcpy(lib_data->last_y_map, lib_data->lib_y_map,
+		sizeof(lib_data->last_y_map));
+	spin_unlock(&lib_data->y_map_lock);
 
 	data_fd_lib->k = hw_data.k;
 	data_fd_lib->up = hw_data.up;
@@ -652,7 +687,8 @@ exit:
 int fimc_is_lib_fd_map_init(struct fimc_is_lib *fd_lib, ulong *kvaddr_fd, u32 *dvaddr_fd,
 		ulong kvaddr_fshared, struct vra_param *fd_param)
 {
-	int ret = 0, index = 0;
+	int ret = 0;
+	int y_map_cnt;
 	FDD_DATA *data = NULL;
 	struct fimc_is_lib_fd *fd_data;
 	struct fd_map_addr_str *map_addr = NULL;
@@ -667,6 +703,7 @@ int fimc_is_lib_fd_map_init(struct fimc_is_lib *fd_lib, ulong *kvaddr_fd, u32 *d
 		goto exit;
 
 	fd_data = (struct fimc_is_lib_fd *)fd_lib->lib_data;
+	fd_data->y_map_share = kvaddr_fshared;
 
 #ifdef ENABLE_FD_LIB_DIRECT_MAP
 	fd_data->data_a.map_width = fd_data->data_b.map_width =
@@ -683,8 +720,7 @@ int fimc_is_lib_fd_map_init(struct fimc_is_lib *fd_lib, ulong *kvaddr_fd, u32 *d
 	/* init settings for set A */
 	data = &fd_data->data_a;
 	map_addr = &fd_data->map_addr_a;
-	ret = fimc_is_lib_fd_map_size(data, map_addr, kvaddr_fd[0], (ulong)dvaddr_fd[0],
-			kvaddr_fshared + (0x200 * (index++)));
+	ret = fimc_is_lib_fd_map_size(data, map_addr, kvaddr_fd[0], (ulong)dvaddr_fd[0]);
 	if (ret) {
 		err("fimc_is_fd Map A alloc fail!!\n");
 		ret = -ENOMEM;
@@ -694,8 +730,7 @@ int fimc_is_lib_fd_map_init(struct fimc_is_lib *fd_lib, ulong *kvaddr_fd, u32 *d
 	/* init settings for set B */
 	data = &fd_data->data_b;
 	map_addr = &fd_data->map_addr_b;
-	ret = fimc_is_lib_fd_map_size(data, map_addr, kvaddr_fd[1], (ulong)dvaddr_fd[1],
-			kvaddr_fshared + (0x200 * (index++)));
+	ret = fimc_is_lib_fd_map_size(data, map_addr, kvaddr_fd[1], (ulong)dvaddr_fd[1]);
 	if (ret) {
 		err("fimc_is_fd Map B alloc fail!!\n");
 		ret = -ENOMEM;
@@ -705,12 +740,16 @@ int fimc_is_lib_fd_map_init(struct fimc_is_lib *fd_lib, ulong *kvaddr_fd, u32 *d
 	/* init settings for set C */
 	data = &fd_data->data_c;
 	map_addr = &fd_data->map_addr_c;
-	ret = fimc_is_lib_fd_map_size(data, map_addr, kvaddr_fd[2], (ulong)dvaddr_fd[2],
-			kvaddr_fshared + (0x200 * (index++)));
+	ret = fimc_is_lib_fd_map_size(data, map_addr, kvaddr_fd[2], (ulong)dvaddr_fd[2]);
 	if (ret) {
 		err("fimc_is_fd Map C alloc fail!!\n");
 		ret = -ENOMEM;
 		goto exit;
+	}
+
+	for (y_map_cnt = 0; y_map_cnt < 256; y_map_cnt++) {
+		fd_data->lib_y_map[y_map_cnt] = y_map_cnt;
+		fd_data->last_y_map[y_map_cnt] = y_map_cnt;
 	}
 
 	/* Set to shift value for HW FD */
@@ -732,10 +771,10 @@ exit:
 }
 
 int fimc_is_lib_fd_map_size(FDD_DATA *m_data, struct fd_map_addr_str *m_addr,
-		ulong kbase, ulong dbase, ulong fw_share)
+		ulong kbase, ulong dbase)
 {
 	int ret = 0;
-	ulong align = 0, map7_cnt = 0;
+	ulong align = 0;
 	u32 m_size = 0;
 
 	BUG_ON(!m_data);
@@ -756,7 +795,6 @@ int fimc_is_lib_fd_map_size(FDD_DATA *m_data, struct fd_map_addr_str *m_addr,
 	m_addr->map4.kvaddr = m_addr->map3.kvaddr + (m_size * 4 + align);
 	m_addr->map5.kvaddr = m_addr->map4.kvaddr + (m_size / 4 + align);
 	m_addr->map6.kvaddr = m_addr->map5.kvaddr + (m_size + align);
-	m_addr->map7.kvaddr = fw_share;
 
 	m_data->map1 = (void *)fimc_is_lib_fd_m_align((ulong)m_size * 2, 0x100, &m_addr->map1.kvaddr);
 	if (m_data->map1 == (void *)-ENOMEM) {
@@ -794,17 +832,8 @@ int fimc_is_lib_fd_map_size(FDD_DATA *m_data, struct fd_map_addr_str *m_addr,
 		goto err;
 	}
 
-	m_data->map7 = (void *)fimc_is_lib_fd_m_align((ulong)256, 0x100, &m_addr->map7.kvaddr);
-	if (m_data->map7 == (void *)-ENOMEM) {
-		ret = -ENOMEM;
-		goto err;
-	}
-
 	m_data->k = 0;
 	m_data->up = 0;
-
-	for (map7_cnt = 0; map7_cnt < 256; map7_cnt++)
-		((u8 *)m_data->map7)[map7_cnt] = map7_cnt;
 
 	/* Set device virtual address */
 	m_addr->map1.dvaddr = (u32)((ulong)m_data->map2 - kbase) + dbase;
@@ -835,8 +864,8 @@ ulong fimc_is_lib_fd_m_align(ulong size_in_byte, ulong align, ulong *alloc_addr)
 	if ((*alloc_addr + 64) == aligned_alloc_addr)
 		aligned_alloc_addr += align;
 
-	SET64((aligned_alloc_addr - 4), *alloc_addr);
-	SET64((aligned_alloc_addr - 8), alloc_size);
+	SET64(aligned_alloc_addr - 8, *alloc_addr);
+	SET64(aligned_alloc_addr - 16, alloc_size);
 
 	return aligned_alloc_addr;
 }
@@ -921,14 +950,16 @@ void fimc_is_lib_fd_trigger(struct fimc_is_lib *fd_lib)
 	queue_kthread_work(&fd_lib->worker, &fd_lib->work[work_index].work);
 }
 
-int fimc_is_lib_fd_select_buf(struct fimc_is_lib_fd *lib_data,
-		struct camera2_fd_uctl *fdUd, ulong kdshared, ulong ddshared)
+int fimc_is_lib_fd_select_buf(struct fimc_is_lib *fd_lib,
+		struct camera2_fd_uctl *fdUd)
 {
+	struct fimc_is_lib_fd *lib_data;
 	struct fd_map_addr_str *map_addr = NULL;
-	ulong y_map_addr = 0;
 
-	BUG_ON(!lib_data);
+	BUG_ON(!fd_lib);
 	BUG_ON(!fdUd);
+
+	lib_data = fd_lib->lib_data;
 
 	/*
 	 * The logic to select map data.
@@ -942,33 +973,27 @@ int fimc_is_lib_fd_select_buf(struct fimc_is_lib_fd *lib_data,
 	if (test_bit(FD_SEL_DATA_A, &lib_data->fd_dma_select)) {
 		if (test_bit(FD_SEL_DATA_A, &lib_data->fd_lib_select)) {
 			map_addr = &lib_data->map_addr_b;
-			y_map_addr = (ulong)lib_data->data_b.map7 - kdshared + ddshared;
 			set_bit(FD_SEL_DATA_C, &lib_data->fd_dma_select);
 		} else {
 			map_addr = &lib_data->map_addr_a;
-			y_map_addr = (ulong)lib_data->data_a.map7 - kdshared + ddshared;
 			set_bit(FD_SEL_DATA_B, &lib_data->fd_dma_select);
 		}
 		clear_bit(FD_SEL_DATA_A, &lib_data->fd_dma_select);
 	} else if (test_bit(FD_SEL_DATA_B, &lib_data->fd_dma_select)) {
 		if (test_bit(FD_SEL_DATA_B, &lib_data->fd_lib_select)) {
 			map_addr = &lib_data->map_addr_c;
-			y_map_addr = (ulong)lib_data->data_c.map7 - kdshared + ddshared;
 			set_bit(FD_SEL_DATA_A, &lib_data->fd_dma_select);
 		} else {
 			map_addr = &lib_data->map_addr_b;
-			y_map_addr = (ulong)lib_data->data_b.map7 - kdshared + ddshared;
 			set_bit(FD_SEL_DATA_C, &lib_data->fd_dma_select);
 		}
 		clear_bit(FD_SEL_DATA_B, &lib_data->fd_dma_select);
 	} else if (test_bit(FD_SEL_DATA_C, &lib_data->fd_dma_select)) {
 		if (test_bit(FD_SEL_DATA_C, &lib_data->fd_lib_select)) {
 			map_addr = &lib_data->map_addr_a;
-			y_map_addr = (ulong)lib_data->data_a.map7 - kdshared + ddshared;
 			set_bit(FD_SEL_DATA_B, &lib_data->fd_dma_select);
 		} else {
 			map_addr = &lib_data->map_addr_c;
-			y_map_addr = (ulong)lib_data->data_c.map7 - kdshared + ddshared;
 			set_bit(FD_SEL_DATA_A, &lib_data->fd_dma_select);
 		}
 		clear_bit(FD_SEL_DATA_C, &lib_data->fd_dma_select);
@@ -991,6 +1016,13 @@ int fimc_is_lib_fd_select_buf(struct fimc_is_lib_fd *lib_data,
 		return -1;
 	}
 
+	spin_lock(&lib_data->y_map_lock);
+	memcpy((u8 *)lib_data->y_map_share, lib_data->last_y_map,
+			sizeof(lib_data->last_y_map));
+	spin_unlock(&lib_data->y_map_lock);
+
+	fimc_is_lib_fd_res_flush(fd_lib, lib_data->y_map_share, 256);
+
 	/* Parameter copy for F/W */
 	fdUd->vendorSpecific[0] = map_addr->map1.dvaddr;
 	fdUd->vendorSpecific[1] = map_addr->map2.dvaddr;
@@ -1000,14 +1032,8 @@ int fimc_is_lib_fd_select_buf(struct fimc_is_lib_fd *lib_data,
 	fdUd->vendorSpecific[5] = map_addr->map6.dvaddr;
 	fdUd->vendorSpecific[6] = map_addr->map7.dvaddr;
 	fdUd->vendorSpecific[7] = map_addr->map8.dvaddr;
-
-	if ((y_map_addr < ddshared) || (y_map_addr >= (ddshared + 0x40000))) {
-		err("[FD] Y_map address error : %lx\n", y_map_addr);
-		fdUd->vendorSpecific[8] = 0;
-	} else {
-		fdUd->vendorSpecific[8] = y_map_addr;
-	}
-
+	fdUd->vendorSpecific[8] = (lib_data->y_map_share - fd_lib->kvaddr_offset) +
+					fd_lib->dvaddr_offset;
 	fdUd->vendorSpecific[9] = lib_data->data_fd_lib->k;
 	fdUd->vendorSpecific[10] = lib_data->data_fd_lib->up;
 	fdUd->vendorSpecific[11] = lib_data->shift;

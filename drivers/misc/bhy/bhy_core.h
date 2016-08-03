@@ -116,7 +116,7 @@ struct __attribute__((__packed__)) fifo_frame {
 #define MAX_ACCEL_4G            32768
 
 #define MODEL_NAME		"BHA250"
-#define FIRMWARE_REVISION	15112500
+#define FIRMWARE_REVISION	16041100
 
 
 /* CRYSTAL 32000 = 1 SEC */
@@ -166,7 +166,7 @@ struct pedometer_data {
 struct bhy_client_data {
 	struct mutex mutex_bus_op;
 	struct bhy_data_bus data_bus;
-	struct work_struct irq_work;
+	/*struct work_struct irq_work;*/
 	struct input_dev *input;
 #ifdef BHY_AR_HAL_SUPPORT
 	struct input_dev *input_ar;
@@ -219,6 +219,7 @@ struct bhy_client_data {
 	unsigned int last_total_step;
 	unsigned int step_count;
 	unsigned int last_step_count;
+	bool late_step_report;
 	unsigned char start_index;
 	unsigned char current_index;
 	unsigned short acc_delay;
@@ -252,6 +253,7 @@ struct bhy_client_data {
 	struct task_struct *monitor_task;
 	atomic_t ram_patch_loaded;
 	struct wake_lock patch_wlock;
+	struct wake_lock reset_wlock;
 	bool irq_enabled;
 	bool irq_ready;
 	wait_queue_head_t monitor_wq;
@@ -267,6 +269,7 @@ struct bhy_client_data {
 	unsigned int cnt_acc_history;
 
 	int ldo_enable_pin;
+	bool irq_force_disabled;
 };
 
 

@@ -1709,9 +1709,12 @@ static int shmem_xmit_boot(struct link_device *ld, struct io_device *iod,
 
 	/**
 	 * Check the size of the boot image
+	 * fix the integer overflow of "mf.m_offset + mf.len" from Jose Duart
 	 */
-	if (mf.size > valid_space) {
-		mif_err("%s: ERR! Invalid binary size %d\n", ld->name, mf.size);
+	if (mf.size > valid_space || mf.len > valid_space
+			|| mf.m_offset > valid_space - mf.len) {
+		mif_err("%s: ERR! Invalid args: size %x, offset %x, len %x\n",
+			ld->name, mf.size, mf.m_offset, mf.len);
 		return -EINVAL;
 	}
 
@@ -1941,6 +1944,26 @@ static inline u16 read_ap2cp_irq(struct mem_link_device *mld)
 	return mbox_get_value(mld->mbx_ap2cp_msg);
 }
 
+#define SHMEM_SRINFO_OFFSET 0xF00 /* 4KB - 0x100 */
+#define SHMEM_SRINFO_SBD_OFFSET 0xFF00 /* 64KB - 0x100 */
+#define SHMEM_SRINFO_SIZE 0x100
+#define SHMEM_SRINFO_DATA_STR 64
+
+struct shmem_srinfo {
+	unsigned int size;
+	char buf[0];
+};
+
+static char *shmem_get_srinfo_address(struct link_device *ld)
+{
+	struct mem_link_device *mld = ld_to_mem_link_device(ld);
+	unsigned offs = (mld->link_dev.sbd_ipc) ?
+		SHMEM_SRINFO_SBD_OFFSET : SHMEM_SRINFO_OFFSET;
+	char *base = mld->base + offs;
+
+	return base;
+}
+
 /* not in use */
 static int shmem_ioctl(struct link_device *ld, struct io_device *iod,
 		       unsigned int cmd, unsigned long arg)
@@ -1948,22 +1971,41 @@ static int shmem_ioctl(struct link_device *ld, struct io_device *iod,
 	mif_err("%s: cmd 0x%08X\n", ld->name, cmd);
 
 	switch (cmd) {
-	case IOCTL_MODEM_GET_SHMEM_INFO:
+	case IOCTL_MODEM_GET_SHMEM_SRINFO:
 	{
-		struct shdmem_info mem_info;
-		void __user *dst;
-		unsigned long size;
+		struct shmem_srinfo __user *sr_arg =
+			(struct shmem_srinfo __user *)arg;
+		unsigned count, size = SHMEM_SRINFO_SIZE;
 
-		mif_err("%s: IOCTL_MODEM_GET_SHMEM_INFO\n", ld->name);
-
-		mem_info.base = shm_get_phys_base();
-		mem_info.size = shm_get_phys_size();
-		dst = (void __user *)arg;
-		size = sizeof(struct shdmem_info);
-
-		if (copy_to_user(dst, &mem_info, size))
+		if (copy_from_user(&count, &sr_arg->size, sizeof(unsigned)))
 			return -EFAULT;
 
+		mif_info("get srinfo:%s, size = %d\n", iod->name, count);
+
+		size = min(size, count);
+		if (copy_to_user(&sr_arg->size, &size, sizeof(unsigned)))
+			return -EFAULT;
+
+		if (copy_to_user(sr_arg->buf, shmem_get_srinfo_address(ld),
+			size))
+			return -EFAULT;
+		break;
+	}
+
+	case IOCTL_MODEM_SET_SHMEM_SRINFO:
+	{
+		struct shmem_srinfo __user *sr_arg =
+			(struct shmem_srinfo __user *)arg;
+		unsigned count, size = SHMEM_SRINFO_SIZE;
+
+		if (copy_from_user(&count, &sr_arg->size, sizeof(unsigned)))
+			return -EFAULT;
+
+		mif_info("set srinfo:%s, size = %d\n", iod->name, count);
+
+		if (copy_from_user(shmem_get_srinfo_address(ld), sr_arg->buf,
+			min(count, size)))
+			return -EFAULT;
 		break;
 	}
 

@@ -23,39 +23,21 @@
 #include <linux/hidraw.h>
 #include "hid-ids.h"
 
-#if defined(CONFIG_SOC_EXYNOS7420)
-#define WLAN_RPS_CONTROL
-#define WLAN_DEV_NAME "wlan0"
-#define WLAN_DEV_NAME_LEN (5)
-#define SET_CPUS "f0"
-#define SET_CPUS_LEN (2)
-#elif defined(CONFIG_ARCH_APQ8084)
-#define WLAN_RPS_CONTROL
-#define WLAN_DEV_NAME "wlan0"
-#define WLAN_DEV_NAME_LEN (5)
-#define SET_CPUS "c"
-#define SET_CPUS_LEN (1)
-
-#define WLAN_IRQ_CONTROL
-#define WLAN_IRQ_NUM (276)
-#define SET_IRQ_AFFINITY "2"
-#define SET_IRQ_AFFINITY_LEN (1)
-#define DEFAULT_IRQ_AFFINITY "f"
-#define DEFAULT_IRQ_AFFINITY_LEN (1)
+#ifdef CONFIG_ARCH_EXYNOS7
+#define WLAN0_RPS_CONTROL // 7420
 #endif
 
 #define USB_TRACKER_INTERFACE_PROTOCOL	0
 
 /* number of reports to buffer */
 #define OVR_HIDRAW_BUFFER_SIZE 64
-#define OVR_HIDRAW_MAX_DEVICES 64
-#define OVR_FIRST_MINOR 0
-#define OVR_HIDRAW_MAX_SERIAL 256
 
-static char ovr_serial[OVR_HIDRAW_MAX_SERIAL] = {0,};
-static char ovr_serial_len = 0;
+#define OVR_HIDRAW_MAX_DEVICES 8
+
+#define OVR_FIRST_MINOR 0
 
 static struct class *ovr_class;
+
 static struct hidraw *ovr_hidraw_table[OVR_HIDRAW_MAX_DEVICES];
 static DEFINE_MUTEX(minors_lock);
 static DEFINE_SPINLOCK(list_lock);
@@ -63,13 +45,13 @@ static DEFINE_SPINLOCK(list_lock);
 static int ovr_major;
 static struct cdev ovr_cdev;
 
-#define MONITOR_MAX 32
+#define MONITOR_MAX 20
 static int opens = 0;
-static unsigned long monitor_info[MONITOR_MAX][4] = {{0,},};
+static unsigned long monitor_info[MONITOR_MAX][3] = {{0,},};
 static unsigned int isr_count = 0;
 static unsigned long last_isr = 0;
 
-static unsigned int ovr_minor = 0;
+unsigned int ovr_minor = 0;
 static void ovr_monitor_work(struct work_struct *work);
 static struct workqueue_struct *ovr_wq;
 static DECLARE_DELAYED_WORK(ovr_work, ovr_monitor_work);
@@ -129,7 +111,7 @@ static ssize_t ovr_hidraw_read(struct file *file, char __user *buffer, size_t co
 			{
 				int i;
 				for (i=0; i<MONITOR_MAX; i++) {
-					if (monitor_info[i][0] == (unsigned long)file) {
+					if (monitor_info[i][0] == current->pid) {
 						monitor_info[i][1]++;
 						monitor_info[i][2] = jiffies;
 						break;
@@ -225,28 +207,30 @@ static void ovr_monitor_work(struct work_struct *work)
 	mutex_lock(&minors_lock);
 	if (opens > 0 && ovr_minor >= 0 && ovr_hidraw_table[ovr_minor] && ovr_hidraw_table[ovr_minor]->exist) {
 		dev = ovr_hidraw_table[ovr_minor]->hid;
-		if (dev && dev->hid_get_raw_report) {
-			buf = kmalloc(count * sizeof(__u8), GFP_KERNEL);
-			if (buf) {
-				ret = dev->hid_get_raw_report(dev, report_number, buf, count, report_type);
-				if (ret < 0) {
-					printk("OVR: hid_get_raw_report error %d\n", ret);
+/*		if (dev->product == USB_DEVICE_ID_SAMSUNG_GEARVR_2) { */
+			if (dev && dev->hid_get_raw_report) {
+				buf = kmalloc(count * sizeof(__u8), GFP_KERNEL);
+				if (buf) {
+					ret = dev->hid_get_raw_report(dev, report_number, buf, count, report_type);
+					if (ret < 0) {
+						printk("OVR: hid_get_raw_report error %d\n", ret);
+					} else {
+						printk("OVR: timestamp(0x%2.2X%2.2X%2.2X%2.2X) sensor(0x%2.2X%2.2X%2.2X%2.2X) pui(0x%2.2X%2.2X%2.2X%2.2X) proxy(%d) mainloop(0x%2.2X) (%2.2X %2.2X %2.2X %2.2X %2.2X %2.2X)\n",
+							buf[7], buf[6], buf[5], buf[4], buf[11], buf[10], buf[9], buf[8], buf[15], buf[14], buf[13], buf[12], buf[16], buf[17], buf[18], buf[19], buf[20], buf[21], buf[22], buf[23]);
+					}
+					kfree(buf);
 				} else {
-					printk("OVR: timestamp(0x%2.2X%2.2X%2.2X%2.2X) sensor(0x%2.2X%2.2X%2.2X%2.2X) pui(0x%2.2X%2.2X%2.2X%2.2X) proxy(%d) mainloop(0x%2.2X) (%2.2X %2.2X %2.2X %2.2X %2.2X %2.2X)\n",
-						buf[7], buf[6], buf[5], buf[4], buf[11], buf[10], buf[9], buf[8], buf[15], buf[14], buf[13], buf[12], buf[16], buf[17], buf[18], buf[19], buf[20], buf[21], buf[22], buf[23]);
+					printk("OVR: no mem for monitor report\n");
 				}
-				kfree(buf);
-			} else {
-				printk("OVR: no mem for monitor report\n");
 			}
-		}
+/*		} */
 
 		printk("OVR: isr(%d), diff(isr):%ums\n", isr_count, jiffies_to_msecs(now-last_isr));
 		isr_count = 0;
 
 		for (i=0; i<MONITOR_MAX; i++) {
 			if (monitor_info[i][0]) {
-				printk("OVR: 0x%x %lu(%lu), diff(read):%u secs\n", (unsigned int)monitor_info[i][0], monitor_info[i][3], monitor_info[i][1], jiffies_to_msecs(now-monitor_info[i][2])/1000);
+				printk("OVR: %lu(%lu), diff(read):%ums\n", monitor_info[i][0], monitor_info[i][1], jiffies_to_msecs(now-monitor_info[i][2]));
 				monitor_info[i][1] = 0;
 			}
 		}
@@ -354,7 +338,7 @@ static int ovr_hidraw_open(struct inode *inode, struct file *file)
 		goto out_unlock;
 	}
 
-	printk("OVR: open %d (%d:%s) >>>\n", minor, current->pid, current->comm);
+	printk("OVR: open (%d:%s) >>>\n", current->pid, current->comm);
 
 	list->hidraw = ovr_hidraw_table[minor];
 	mutex_init(&list->read_mutex);
@@ -366,27 +350,47 @@ static int ovr_hidraw_open(struct inode *inode, struct file *file)
 	file->private_data = list;
 
 	dev = ovr_hidraw_table[minor];
-	dev->open++;
-
-	if (minor == ovr_minor) {
-		int i;
-
-		for (i=0; i<MONITOR_MAX; i++) {
-			if (monitor_info[i][0] == 0) {
-				monitor_info[i][0] = (unsigned long)file;
-				monitor_info[i][1] = 0;
-				monitor_info[i][2] = jiffies;
-				monitor_info[i][3] = current->pid;
-				break;
-			}
+	if (!dev->open++) {
+		err = hid_hw_power(dev->hid, PM_HINT_FULLON);
+		if (err < 0) {
+			dev->open--;
+			goto out_unlock;
 		}
 
-		opens = dev->open;
-		if (opens == 1) {
+		err = hid_hw_open(dev->hid);
+		if (err < 0) {
+			hid_hw_power(dev->hid, PM_HINT_NORMAL);
+			dev->open--;
+		} else {
+			/* 1st open */
+			int i;
+
+			for (i=0; i<MONITOR_MAX; i++)
+				monitor_info[i][0] = 0;
+
+			opens = 0;
+			ovr_minor = minor;
 			queue_delayed_work(ovr_wq, &ovr_work, msecs_to_jiffies(2000));
 		}
 	}
 
+	if (dev->open > opens) {
+		int i;
+
+		for (i=0; i<MONITOR_MAX; i++) {
+			if (monitor_info[i][0] == current->pid)
+				break;
+		}
+		if (i >= MONITOR_MAX) {
+			for (i=0; i<MONITOR_MAX; i++) {
+				if (monitor_info[i][0] == 0) {
+					monitor_info[i][0] = current->pid;
+					break;
+				}
+			}
+		}
+	}
+	opens = dev->open;
 	printk("OVR: open(%d) err %d <<<\n", opens, err);
 
 out_unlock:
@@ -419,31 +423,19 @@ static int ovr_hidraw_release(struct inode * inode, struct file * file)
 		goto unlock;
 	}
 
-	printk("OVR: release %d (%d:%s) >>>\n", minor, current->pid, current->comm);
+	printk("OVR: release (%d:%s) >>>\n", current->pid, current->comm);
 
 	spin_lock_irqsave(&list_lock, flags);
 	list_del(&list->node);
 	spin_unlock_irqrestore(&list_lock, flags);
 
 	dev = ovr_hidraw_table[minor];
-	--dev->open;
-
-	if (minor == ovr_minor) {
-		for (i=0; i<MONITOR_MAX; i++) {
-			if (monitor_info[i][0] == (unsigned long)file) {
-				monitor_info[i][0] = 0;
-				break;
-			}
-		}
-
-		opens = dev->open;
-	}
-
-	if (!dev->open) {
-		if (!list->hidraw->exist) {
-			printk("OVR: freed ovr_hidraw_table %d\n", minor);
+	if (!--dev->open) {
+		if (list->hidraw->exist) {
+			hid_hw_power(dev->hid, PM_HINT_NORMAL);
+			hid_hw_close(dev->hid);
+		} else {
 			kfree(list->hidraw);
-			ovr_hidraw_table[minor] = NULL;
 		}
 	}
 
@@ -452,6 +444,17 @@ static int ovr_hidraw_release(struct inode * inode, struct file * file)
 	kfree(list);
 	ret = 0;
 
+	for (i=0; i<MONITOR_MAX; i++) {
+		if (monitor_info[i][0] == current->pid) {
+			monitor_info[i][0] = 0;
+		}
+	}
+
+	opens = dev->open;
+	if (opens <= 0) {
+		opens = 0;
+		ovr_minor = -1;
+	}
 	printk("OVR: release(%d) <<<\n", opens);
 
 unlock:
@@ -460,7 +463,7 @@ unlock:
 	return ret;
 }
 
-static int ovr_report_event(struct hid_device *hid, u8 *data, int len)
+int ovr_report_event(struct hid_device *hid, u8 *data, int len)
 {
 	struct hidraw *dev = hid->hidovr;
 	struct hidraw_list *list;
@@ -491,199 +494,32 @@ static int ovr_report_event(struct hid_device *hid, u8 *data, int len)
 	return ret;
 }
 
-#ifdef WLAN_RPS_CONTROL
-#include <linux/netdevice.h>
-
-static int default_cpus_len = 0;
-static char default_cpus[256] = {0,};
-
-static ssize_t get_rps_cpus(char *name, int name_size, char *buf)
+#ifdef WLAN0_RPS_CONTROL
+#include <linux/kernel.h>
+#include <linux/init.h>
+#include <linux/syscalls.h>
+#include <linux/file.h>
+#include <linux/fs.h>
+#include <linux/fcntl.h>
+#include <asm/uaccess.h>
+static void write_file(char *filename, char *data)
 {
-	size_t len = 0;
-
-#ifdef CONFIG_RPS
-	struct net_device *dev;
-	struct netdev_rx_queue *queue = NULL;
-	struct rps_map *map;
-	cpumask_var_t mask;
-	int i;
-
-	if (name_size <= 0) {
-		return len;
+	struct file *fp;
+	loff_t pos = 0;
+	mm_segment_t old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	fp = filp_open(filename, O_WRONLY, (int)0644);
+	if (fp) {
+		fp->f_op->write(fp, data, strlen(data), &pos);
+		filp_close(fp, current->files);
 	}
-
-	dev = first_net_device(&init_net);
-	while (dev) {
-		if (!memcmp(name, dev->name, name_size)) {
-			queue = dev->_rx;
-			if (!queue) {
-				return -1;
-			}
-
-			if (!zalloc_cpumask_var(&mask, GFP_KERNEL))
-				return -ENOMEM;
-
-			rcu_read_lock();
-			map = rcu_dereference(queue->rps_map);
-			if (map)
-				for (i = 0; i < map->len; i++)
-					cpumask_set_cpu(map->cpus[i], mask);
-
-			len += cpumask_scnprintf(buf + len, PAGE_SIZE, mask);
-			if (PAGE_SIZE - len < 3) {
-				rcu_read_unlock();
-				free_cpumask_var(mask);
-				return -EINVAL;
-			}
-			rcu_read_unlock();
-
-			free_cpumask_var(mask);
-			sprintf(buf + len, "\n");
-
-			break;
-		}
-
-		dev = next_net_device(dev);
-	}
-#endif
-
-	return len;
-}
-
-static int set_rps_cpus(char *name, int name_size, char *buf, size_t len)
-{
-	int ret = -1;
-
-#ifdef CONFIG_RPS
-	struct net_device *dev;
-	struct netdev_rx_queue *queue = NULL;
-	struct rps_map *old_map, *map;
-	cpumask_var_t mask;
-	int err, cpu, i;
-	static DEFINE_SPINLOCK(rps_map_lock);
-
-	if (name_size <= 0 || len < 0 || len > 2) {
-		return ret;
-	}
-
-	dev = first_net_device(&init_net);
-	while (dev) {
-		if (!memcmp(name, dev->name, name_size)) {
-			queue = dev->_rx;
-			if (!queue) {
-				return -1;
-			}
-
-			if (len == 0 || (len == 1 && buf[0] == '0') || (len == 2 && buf[0] == '0' && buf[1] == '0')) {
-				map = rcu_dereference_protected(queue->rps_map, 1);
-				if (map) {
-					RCU_INIT_POINTER(queue->rps_map, NULL);
-					kfree_rcu(map, rcu);
-				}
-
-				return 0;
-			}
-
-			if (!alloc_cpumask_var(&mask, GFP_KERNEL)) {
-				return -ENOMEM;
-			}
-
-			err = bitmap_parse(buf, len, cpumask_bits(mask), nr_cpumask_bits);
-			if (err) {
-				free_cpumask_var(mask);
-				return err;
-			}
-
-			map = kzalloc(max_t(unsigned int,
-				RPS_MAP_SIZE(cpumask_weight(mask)), L1_CACHE_BYTES),
-				GFP_KERNEL);
-			if (!map) {
-				free_cpumask_var(mask);
-				return -ENOMEM;
-			}
-
-			i = 0;
-			for_each_cpu(cpu, mask)
-				map->cpus[i++] = cpu;
-
-			if (i)
-				map->len = i;
-			else {
-				kfree(map);
-				map = NULL;
-				free_cpumask_var(mask);
-				return -1;
-			}
-
-			spin_lock(&rps_map_lock);
-			old_map = rcu_dereference_protected(queue->rps_map,
-				lockdep_is_held(&rps_map_lock));
-			rcu_assign_pointer(queue->rps_map, map);
-			spin_unlock(&rps_map_lock);
-
-			if (map)
-				static_key_slow_inc(&rps_needed);
-			if (old_map) {
-				kfree_rcu(old_map, rcu);
-				static_key_slow_dec(&rps_needed);
-			}
-			free_cpumask_var(mask);
-			ret = map->len;
-
-			break;
-		}
-
-		dev = next_net_device(dev);
-	}
-#endif
-
-	return ret;
+	set_fs(old_fs);
 }
 #endif
 
-#ifdef WLAN_IRQ_CONTROL
-#include <linux/interrupt.h>
-extern int irq_select_affinity_usr(unsigned int irq, struct cpumask *mask);
-
-static int write_irq_affinity(unsigned int irq, const char __user *buffer, size_t count)
+int ovr_connect(struct hid_device *hid)
 {
-	int err = -1;
-
-#ifdef CONFIG_SMP
-	cpumask_var_t new_value;
-
-	if (count < 1 || count > 2) {
-		return err;
-	}
-
-	if (!irq_can_set_affinity(irq))
-		return -EIO;
-
-	if (!alloc_cpumask_var(&new_value, GFP_KERNEL))
-		return -ENOMEM;
-
-	err = cpumask_parse_user(buffer, count, new_value);
-	if (err)
-		goto free_cpumask;
-
-	if (!cpumask_intersects(new_value, cpu_online_mask)) {
-		err = irq_select_affinity_usr(irq, new_value) ? -EINVAL : count;
-	} else {
-		irq_set_affinity(irq, new_value);
-		err = count;
-	}
-
-free_cpumask:
-	free_cpumask_var(new_value);
-#endif
-
-	return err;
-}
-#endif
-
-static int ovr_connect(struct hid_device *hid)
-{
-	int minor, result, i;
+	int minor, result;
 	struct hidraw *dev;
 
 	/* we accept any HID device, no matter the applications */
@@ -698,17 +534,13 @@ static int ovr_connect(struct hid_device *hid)
 
 	for (minor = 0; minor < OVR_HIDRAW_MAX_DEVICES; minor++)
 	{
-		if (ovr_hidraw_table[minor]) {
-			printk("OVR: old ovr_hidraw_table %d\n", minor);
+		if (ovr_hidraw_table[minor])
 			continue;
-		}
 
 		ovr_hidraw_table[minor] = dev;
 		result = 0;
 		break;
 	}
-
-	printk("OVR: connect %d %d (%d:%s) >>>\n", minor, result, current->pid, current->comm);
 
 	if (result) {
 		mutex_unlock(&minors_lock);
@@ -727,14 +559,6 @@ static int ovr_connect(struct hid_device *hid)
 		goto out;
 	}
 
-	for (i=0; i<MONITOR_MAX; i++)
-		monitor_info[i][0] = 0;
-
-	opens = 0;
-	ovr_minor = minor;
-
-	printk("OVR: connect <<<\n");
-
 	mutex_unlock(&minors_lock);
 	init_waitqueue_head(&dev->wait);
 	INIT_LIST_HEAD(&dev->list);
@@ -745,52 +569,38 @@ static int ovr_connect(struct hid_device *hid)
 	dev->exist = 1;
 	hid->hidovr = dev;
 
-#ifdef WLAN_RPS_CONTROL
-	default_cpus_len = get_rps_cpus(WLAN_DEV_NAME, WLAN_DEV_NAME_LEN, default_cpus);
-	set_rps_cpus(WLAN_DEV_NAME, WLAN_DEV_NAME_LEN, SET_CPUS, SET_CPUS_LEN);
-#endif
-#ifdef WLAN_IRQ_CONTROL
-	write_irq_affinity(WLAN_IRQ_NUM, SET_IRQ_AFFINITY, SET_IRQ_AFFINITY_LEN);
+#ifdef WLAN0_RPS_CONTROL
+	write_file("/sys/class/net/wlan0/queues/rx-0/rps_cpus","f0");
 #endif
 
 out:
 	return result;
 }
 
-static void ovr_disconnect(struct hid_device *hid)
+void ovr_disconnect(struct hid_device *hid)
 {
 	struct hidraw *hidraw = hid->hidovr;
 
 	mutex_lock(&minors_lock);
 
-	printk("OVR: disconnect %d %d (%d:%s) >>>\n", hidraw->minor, hidraw->open, current->pid, current->comm);
-
-	if (hidraw->minor == ovr_minor) {
-		opens = 0;
-		ovr_minor = -1;
-	}
-
 	hidraw->exist = 0;
 
 	device_destroy(ovr_class, MKDEV(ovr_major, hidraw->minor));
 
+	ovr_hidraw_table[hidraw->minor] = NULL;
+
 	if (hidraw->open) {
+		hid_hw_close(hid);
+
 		wake_up_interruptible(&hidraw->wait);
 	} else {
-		printk("OVR: freed ovr_hidraw_table %d\n", hidraw->minor);
-		ovr_hidraw_table[hidraw->minor] = NULL;
 		kfree(hidraw);
 	}
 
-	printk("OVR: disconnect <<<\n");
-
 	mutex_unlock(&minors_lock);
 
-#ifdef WLAN_RPS_CONTROL
-	set_rps_cpus(WLAN_DEV_NAME, WLAN_DEV_NAME_LEN, default_cpus, default_cpus_len);
-#endif
-#ifdef WLAN_IRQ_CONTROL
-	write_irq_affinity(WLAN_IRQ_NUM, DEFAULT_IRQ_AFFINITY, DEFAULT_IRQ_AFFINITY_LEN);
+#ifdef WLAN0_RPS_CONTROL
+	write_file("/sys/class/net/wlan0/queues/rx-0/rps_cpus","0");
 #endif
 }
 
@@ -846,15 +656,6 @@ static long ovr_hidraw_ioctl(struct file *file, unsigned int cmd, unsigned long 
 			{
 				struct hid_device *hid = dev->hid;
 				if (_IOC_TYPE(cmd) != 'H') {
-					if (_IOC_TYPE(cmd) == 'S' &&
-						_IOC_NR(cmd) == _IOC_NR(HIDIOCGFEATURE(0))) {
-						if (ovr_serial_len > 0) {
-							ret = copy_to_user(user_arg, ovr_serial, ovr_serial_len) ?
-							-EFAULT : ovr_serial_len;
-							break;
-						}
-					}
-
 					ret = -EINVAL;
 					break;
 				}
@@ -935,41 +736,15 @@ static int ovr_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		goto exit;
 	}
 
-	if (!intf || intf->cur_altsetting->desc.bInterfaceProtocol
+	if (intf->cur_altsetting->desc.bInterfaceProtocol
 			!= USB_TRACKER_INTERFACE_PROTOCOL) {
 		return 0;
-	}
-
-	if (intf) {
-		struct usb_device *udev = interface_to_usbdev(intf);
-		if (udev) {
-			ovr_serial_len = strnlen(udev->serial, OVR_HIDRAW_MAX_SERIAL);
-			if (ovr_serial_len > 0) {
-				strncpy(ovr_serial, udev->serial, ovr_serial_len);
-				printk("OVR: %s(%d)\n", udev->serial, ovr_serial_len);
-			}
-		}
 	}
 
 	retval = ovr_connect(hdev);
 
 	if (retval) {
 		hid_err(hdev, "ovr - Couldn't connect\n");
-		goto exit_stop;
-	}
-
-	retval = hid_hw_power(hdev, PM_HINT_FULLON);
-	if (retval < 0) {
-		hid_err(hdev, "ovr - Couldn't feed power\n");
-		ovr_disconnect(hdev);
-		goto exit_stop;
-	}
-
-	retval = hid_hw_open(hdev);
-	if (retval < 0) {
-		hid_err(hdev, "ovr - Couldn't open hid\n");
-		hid_hw_power(hdev, PM_HINT_NORMAL);
-		ovr_disconnect(hdev);
 		goto exit_stop;
 	}
 
@@ -989,10 +764,6 @@ static void ovr_remove(struct hid_device *hdev)
 		hid_hw_stop(hdev);
 		return;
 	}
-
-	hid_hw_close(hdev);
-
-	hid_hw_power(hdev, PM_HINT_NORMAL);
 
 	ovr_disconnect(hdev);
 

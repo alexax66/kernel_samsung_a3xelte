@@ -1200,7 +1200,11 @@ static void wq_func_subdev(struct fimc_is_subdev *leader,
 	struct fimc_is_frame *ldr_frame;
 	struct camera2_node *capture;
 #ifdef ENABLE_FD_DMA_INPUT
+	int ret;
 	struct fimc_is_device_ischain *device;
+	struct fd_shot *fd_shot;
+	struct fimc_is_lib_fd *lib_data;
+	struct camera2_shot *shot;
 #endif
 
 	BUG_ON(!sub_frame);
@@ -1262,20 +1266,57 @@ static void wq_func_subdev(struct fimc_is_subdev *leader,
 	}
 
 #ifdef ENABLE_FD_DMA_INPUT
-	if(!status){
-		if(subdev->id == ENTRY_SCP){
-			device = container_of(subdev, struct fimc_is_device_ischain, scp);
+	if ((status) || (subdev->id != ENTRY_SCP))
+		goto bypass_fd;
 
-			if (!device->fd_shot->fd_cfg[ldr_frame->fcount%MAX_FD_BUF].fd_bypass){
-				fimc_is_hw_shot_nblk(device->interface,
-						device->instance,
-						GROUP_ID(GROUP_ID_FD),
-						device->imemory.dvaddr_fdshot[ldr_frame->fcount%MAX_FD_BUF],
-						ldr_frame->fcount,
-						ldr_frame->rcount);
-			}
-		}
+	device = container_of(subdev, struct fimc_is_device_ischain, scp);
+	if (!device) {
+		err("device is null\n");
+		return;
 	}
+
+	fd_shot = device->fd_shot;
+	if (!fd_shot) {
+		err("fd_shot is null\n");
+		return;
+	}
+
+	if (fd_shot->fd_cfg[ldr_frame->fcount % MAX_FD_BUF].fd_bypass)
+		goto bypass_fd;
+
+	lib_data = device->fd_lib->lib_data;
+
+	shot = (struct camera2_shot *)device->imemory.kvaddr_fdshot[ldr_frame->fcount % MAX_FD_BUF];
+	if (!shot) {
+		merr("FD shot is null\n", device);
+		return;
+	}
+
+	ret = fimc_is_lib_fd_convert_orientation(shot->uctl.scalerUd.orientation,
+			&lib_data->orientation);
+	if (ret) {
+		merr("Invalided orientation value of Host FD", device);
+		return;
+	}
+
+	ret = fimc_is_lib_fd_select_buf(device->fd_lib, &shot->uctl.fdUd);
+	if (ret) {
+		merr("failed to FD buffer select\n", device);
+		return;
+	}
+
+	vb2_ion_sync_for_device(device->imemory.fw_cookie,
+			(ulong)shot - device->imemory.kvaddr,
+			sizeof(struct camera2_shot),
+			DMA_TO_DEVICE);
+
+	fimc_is_hw_shot_nblk(device->interface,
+			device->instance,
+			GROUP_ID(GROUP_ID_FD),
+			device->imemory.dvaddr_fdshot[ldr_frame->fcount % MAX_FD_BUF],
+			ldr_frame->fcount,
+			ldr_frame->rcount);
+bypass_fd:
 #endif
 	clear_bit(subdev->id, &ldr_frame->out_flag);
 

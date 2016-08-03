@@ -351,7 +351,7 @@ int decon_set_par(struct fb_info *info)
 
 	win_regs = &decon->win_regs;
 	memset(win_regs, 0, sizeof(struct decon_regs_data));
-	decon_warn("setting framebuffer parameters\n");
+//	decon_warn("setting framebuffer parameters\n");
 
 	if (decon->state == DECON_STATE_OFF)
 		return 0;

@@ -156,6 +156,7 @@ static int gpu_noc_notifier(struct notifier_block *nb, unsigned long event, void
 
 static int gpu_power_on(struct kbase_device *kbdev)
 {
+	int ret;
 	struct exynos_context *platform = (struct exynos_context *) kbdev->platform_context;
 	if (!platform)
 		return -ENODEV;
@@ -164,14 +165,18 @@ static int gpu_power_on(struct kbase_device *kbdev)
 
 	gpu_control_disable_customization(kbdev);
 
-	if (pm_runtime_resume(kbdev->dev)) {
+	ret = pm_runtime_resume(kbdev->dev);
+	if (ret > 0) {
 		if (platform->early_clk_gating_status) {
 			GPU_LOG(DVFS_INFO, DUMMY, 0u, 0u, "already power on\n");
 			gpu_control_enable_clock(kbdev);
 		}
 		return 0;
-	} else {
+	} else if (ret == 0) {
 		return 1;
+	} else {
+		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "runtime pm returned %d\n", ret);
+		return 0;
 	}
 }
 

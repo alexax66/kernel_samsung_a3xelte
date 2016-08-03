@@ -70,7 +70,7 @@ config BCM43454
 
 config BROADCOM_WIFI
 	bool "Broadcom WiFi Driver"
-	depends on (BCM4330 ||BCM4343 || BCM4334 || BCM4335 || BCM4339 || BCM4354 || BCM43241 || BCM43455)
+	depends on (BCM4330 || BCM4334 || BCM43241)
 	default y
 	---help---
 		This is a configuration for broadcom WLAN driver.
@@ -117,6 +117,12 @@ config BROADCOM_WIFI_RESERVED_MEM
 	---help---
 	  This is a configuration for broadcom WLAN driver.
 
+config WIFI_BROADCOM_COB
+        bool "BROADCOM WIFI COB"
+        depends on (BCM43455 || BCM4343 || BCM43454)
+        ---help---
+          This is a configuration for broadcom WIFI COB Type.
+
 config BCM4335BT
 	bool "BROADCOM BTLOCK Enable"
 	depends on BCM4335
@@ -131,15 +137,9 @@ config BCMDHD_WIFI_PM
 	---help---
 	Enable support for changing the WiFi power mode for screen-off.
 
-config WIFI_BROADCOM_COB
-  bool "BROADCOM COB type chip is enabled"
-  depends on (BCM4330 || BCM4334 || BCM4335 || BCM4339 || BCM4354 || BCM43241 || BCM43454 || BCM43455 || BCM4343)
-  ---help---
-  This is a configuration for COB type feature.
-
 config WLAN_REGION_CODE
 	int "---Region codes for Broadcom WiFi Driver"
-	depends on (BCM4330 || BCM4343 || BCM4334 || BCM4335 || BCM4339 || BCM4354 || BCM43241 || BCM43455)
+	depends on (BCM4330 || BCM4343 || BCM4334 || BCM4335 || BCM4339 || BCM4354 || BCM43241 || BCM43455 || BCM43454)
 	default 100
 	---help---
 		This is a region code for Broadcom Wi-Fi featured functions.

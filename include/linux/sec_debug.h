@@ -56,7 +56,7 @@ extern void sec_debug_avc_log(char *fmt, ...);
 
 #ifdef CONFIG_SEC_DEBUG_TSP_LOG
 extern void sec_debug_tsp_log(char *fmt, ...);
-#if defined(CONFIG_TOUCHSCREEN_FTS) || defined(CONFIG_TOUCHSCREEN_MELFAS_MMS449) || defined(CONFIG_TOUCHSCREEN_SEC_TS)
+#if defined(CONFIG_TOUCHSCREEN_FTS) || defined(CONFIG_TOUCHSCREEN_MELFAS_MMS449)
 extern void tsp_dump(void);
 #endif
 #else

@@ -658,7 +658,7 @@ static int sensor_5e3_power_setpin(struct platform_device *pdev,
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "pin", PIN_FUNCTION, 0, 0);
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_reset, "sen_rst high", PIN_OUTPUT, 1, 0);
 #elif defined(CONFIG_MACH_UNIVERSAL7580)
-#if defined(CONFIG_CAMERA_A3X) || defined(CONFIG_CAMERA_A5X) || defined(CONFIG_CAMERA_A7X)
+#if defined(CONFIG_CAMERA_A3X) || defined(CONFIG_CAMERA_A5X) || defined(CONFIG_CAMERA_A7X) || defined(CONFIG_CAMERA_J7X)
 	/* Front Camera ON */
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "VDD_CAM_SENSOR_A2P8", PIN_REGULATOR, 1, 1000);
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "VDD_VTCAM_1P2", PIN_REGULATOR, 1, 1000);

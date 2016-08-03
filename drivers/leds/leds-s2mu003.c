@@ -395,6 +395,7 @@ static ssize_t rear_flash_store(struct device *dev,
 {
 	int value = 0;
 	struct pinctrl *pinctrl;
+	u32 temp;
 
 	if ((buf == NULL) || kstrtouint(buf, 10, &value)) {
 		return -1;
@@ -453,6 +454,12 @@ static ssize_t rear_flash_store(struct device *dev,
 		global_led_datas[S2MU003_TORCH_LED]->data->brightness = S2MU003_TORCH_OUT_I_75MA;
 		led_set(global_led_datas[S2MU003_TORCH_LED]);
 
+	} else if (1001 <= value && value <= 1010) {
+		/* Turn on Torch Step 25mA ~ 250mA */
+		temp = (value - 1000) * 25;
+		global_led_datas[S2MU003_TORCH_LED]->data->brightness = S2MU003_TORCH_BRIGHTNESS(temp);
+		led_set(global_led_datas[S2MU003_TORCH_LED]);
+
 	} else {
 		pr_info("[LED]%s , Invalid value:%d\n", __func__, value);
 	}
@@ -467,6 +474,7 @@ static ssize_t rear_flash_store(struct device *dev,
 }
 
 static DEVICE_ATTR(rear_flash, 0644, rear_flash_show, rear_flash_store);
+static DEVICE_ATTR(rear_torch_flash, 0644, rear_flash_show, rear_flash_store);
 
 #if defined(CONFIG_OF)
 static int s2mu003_led_dt_parse_pdata(struct s2mu003_mfd_chip *iodev,
@@ -702,6 +710,13 @@ static int s2mu003_led_probe(struct platform_device *pdev)
 					&dev_attr_rear_flash);
 			if (ret < 0)
 				pr_err("%s :unable to create file\n", __func__);
+
+			ret = device_create_file(s2mu003_dev,
+					&dev_attr_rear_torch_flash);
+			if (ret < 0) {
+				pr_err("flash_sysfs: failed to create device file, %s\n",
+						dev_attr_rear_torch_flash.attr.name);
+			}
 		}
 
 		led_data->lvp_enable = pdata->lvp_enable;
@@ -739,9 +754,13 @@ static int s2mu003_led_remove(struct platform_device *pdev)
 		if (led_datas[i] == NULL)
 			continue;
 
-		if (led_datas[i]->data->id == S2MU003_TORCH_LED)
+		if (led_datas[i]->data->id == S2MU003_TORCH_LED) {
 			device_remove_file(led_datas[i]->cdev.dev,
 					&dev_attr_rear_flash);
+			device_remove_file(led_datas[i]->cdev.dev,
+					&dev_attr_rear_torch_flash);
+		}
+
 		cancel_work_sync(&led_datas[i]->work);
 		mutex_destroy(&led_datas[i]->lock);
 		led_classdev_unregister(&led_datas[i]->cdev);

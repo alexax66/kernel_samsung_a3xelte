@@ -37,15 +37,6 @@
 
 #define OP_SDP_ERROR 99
 
-typedef struct __sdp_chamber_dir_cmd {
-    unsigned int request_id;
-    unsigned int userid;
-
-    unsigned char opcode;
-    unsigned char partition_id;
-    unsigned long ino;
-}sdp_chamber_dir_cmd_t;
-
 typedef struct result {
     u32 request_id;
     u8 opcode;
@@ -78,7 +69,7 @@ typedef struct __sdp_fs_handler_request {
 
     enum req_state state;
 
-    sdp_chamber_dir_cmd_t command;
+    sdp_fs_command_t command;
     result_t result;
 
     fs_request_cb_t callback;

@@ -88,27 +88,45 @@ void fpsimd_flush_thread(void)
 }
 
 #ifdef CONFIG_KERNEL_MODE_NEON
+static DEFINE_PER_CPU(struct fpsimd_partial_state, hardirq_fpsimdstate);
+static DEFINE_PER_CPU(struct fpsimd_partial_state, softirq_fpsimdstate);
 
 /*
  * Kernel-side NEON support functions
  */
-void kernel_neon_begin(void)
+void kernel_neon_begin_partial(u32 num_regs)
 {
-	/* Avoid using the NEON in interrupt context */
-	BUG_ON(in_interrupt());
-	preempt_disable();
+	if (in_interrupt()) {
+		struct fpsimd_partial_state *s = this_cpu_ptr(
+				in_irq() ? &hardirq_fpsimdstate : &softirq_fpsimdstate);
+		BUG_ON(num_regs > 32);
+		fpsimd_save_partial_state(s, roundup(num_regs, 2));
+	} else {
+		/*
+		 * Save the userland FPSIMD state if we have one and if we
+		 * haven't done so already. Clear fpsimd_last_state to indicate
+		 * that there is no longer userland FPSIMD state in the
+		 * registers.
+		 */
+		preempt_disable();
 
-	if (current->mm)
-		fpsimd_save_state(&current->thread.fpsimd_state);
+		if (current->mm)
+			fpsimd_save_state(&current->thread.fpsimd_state);
+	}
 }
-EXPORT_SYMBOL(kernel_neon_begin);
+EXPORT_SYMBOL(kernel_neon_begin_partial);
 
 void kernel_neon_end(void)
 {
-	if (current->mm)
-		fpsimd_load_state(&current->thread.fpsimd_state);
-
-	preempt_enable();
+	if (in_interrupt()) {
+		struct fpsimd_partial_state *s = this_cpu_ptr(
+				in_irq() ? &hardirq_fpsimdstate : &softirq_fpsimdstate);
+		fpsimd_load_partial_state(s);
+	} else {
+		if (current->mm)
+			fpsimd_load_state(&current->thread.fpsimd_state);
+		preempt_enable();
+	}
 }
 EXPORT_SYMBOL(kernel_neon_end);
 

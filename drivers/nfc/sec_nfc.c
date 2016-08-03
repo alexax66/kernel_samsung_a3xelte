@@ -383,7 +383,7 @@ int sec_nfc_i2c_probe(struct i2c_client *client)
 	struct device_node *np = dev->of_node;
 	int ret;
 
-    dev_dbg(info->dev, "%s: start: %p\n", __func__, info);
+	dev_dbg(info->dev, "%s: start: %p\n", __func__, info);
 
 	info->i2c_info.buflen = SEC_NFC_MAX_BUFFER_SIZE;
 	info->i2c_info.buf = kzalloc(SEC_NFC_MAX_BUFFER_SIZE, GFP_KERNEL);
@@ -416,7 +416,7 @@ int sec_nfc_i2c_probe(struct i2c_client *client)
 	}
 
 	prop = of_find_property(np, "sec-nfc,nfc_clkint", NULL);
-	if(prop){
+	if(prop) {
 		info->clk_irq = gpio_to_irq(pdata->clk_irq);
 		ret = request_threaded_irq(info->clk_irq, NULL, sec_nfc_clk_irq,
 			IRQF_TRIGGER_RISING | IRQF_ONESHOT, "nfc_clk",

@@ -55,6 +55,7 @@ enum sm5705_muic_reg_init_value {
 	REG_INTMASK3AFC_VALUE	= (0x00),
 	REG_TIMING1_VALUE	= (ADC_DETECT_TIME_200MS |
 				KEY_PRESS_TIME_100MS),
+	REG_AFC_HYSTERESIS_OPT	= (0x20),
 	REG_RSVDID2_VALUE	= (0x24),
 	REG_AFC_SSYNC_CHECK	= (0x40),
 	REG_AFC_TXD_VALUE	= (0x46),
@@ -100,6 +101,7 @@ enum sm5705_muic_reg {
 
 	REG_RESET	= 0x22,
 	REG_AFCCNTL2	= 0x32,
+	REG_AFC_DMCNTL	= 0x37,
 	REG_END,
 };
 
@@ -319,6 +321,7 @@ static regmap_t sm5705_muic_regmap_table[] = {
 	[REG_AFCRXD6]	= {"AFC_RXD6",	0xFF, 0x00, INIT_NONE,},
 	[REG_RESET]	= {"RESET",		0x00, 0x00, INIT_NONE,},
 	[REG_AFCCNTL2]	= {"AFC_CNTL2",	0x00, 0x00, REG_AFC_SSYNC_CHECK,},
+	[REG_AFC_DMCNTL]= {"AFC_DMCNTL",0x00, 0x00, REG_AFC_HYSTERESIS_OPT,},
 	[REG_END]	= {NULL, 0, 0, INIT_NONE},
 };
 
@@ -700,6 +703,12 @@ static int sm5705_afc_ta_attach(struct regmap_desc *pdesc)
 
 	pr_info("%s:%s AFC_TA_ATTACHED \n",MUIC_DEV_NAME, __func__);
 
+	// read clear : AFC_STATUS
+	value = muic_i2c_read_byte(i2c, REG_AFCSTAT);
+	if (value < 0)
+		printk(KERN_ERR "%s: err read AFC_STATUS %d\n", __func__, value);
+	pr_info("%s:%s AFC_STATUS [0x%02x]\n",MUIC_DEV_NAME, __func__, value);
+
 	if (pmuic->is_flash_on) {
 		pr_info("%s:%s FLASH On, Skip AFC\n",MUIC_DEV_NAME, __func__);
 		pmuic->attached_dev = ATTACHED_DEV_AFC_CHARGER_5V_MUIC;
@@ -792,6 +801,11 @@ static int sm5705_afc_vbus_update(struct regmap_desc *pdesc)
 	int vbus_status;
 
 	pr_info("%s:%s AFC_VBUS_UPDATE \n",MUIC_DEV_NAME, __func__);
+
+	if (pmuic->attached_dev == ATTACHED_DEV_NONE_MUIC) {
+		pr_info("%s:%s Device type is None\n",MUIC_DEV_NAME, __func__);
+		return 0;
+	}
 
 	vbus_status = muic_i2c_read_byte(i2c, REG_VBUSSTAT);
 	pr_info("%s: vbus_status [0x%02x]\n",MUIC_DEV_NAME, vbus_status);

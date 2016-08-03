@@ -775,7 +775,7 @@ static void kbasep_job_slot_soft_or_hard_stop(struct kbase_device *kbdev, struct
 						js, hw_action, core_reqs, katom);
 			} else {
 				/* The job is in the next registers */
-				//beenthere(kctx, "clearing job from next registers on slot %d", js);
+				beenthere(kctx, "clearing job from next registers on slot %d", js);
 				kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_COMMAND_NEXT), JS_COMMAND_NOP, NULL);
 				/* Check to see if we did remove a job from the next registers */
 				if (kbase_reg_read(kbdev, JOB_SLOT_REG(js, JS_HEAD_NEXT_LO), NULL) != 0 || kbase_reg_read(kbdev, JOB_SLOT_REG(js, JS_HEAD_NEXT_HI), NULL) != 0) {
@@ -801,7 +801,7 @@ static void kbasep_job_slot_soft_or_hard_stop(struct kbase_device *kbdev, struct
 				} else {
 					/* The job transitioned into the current registers before we managed to evict it,
 					 * in this case we fall back to soft/hard-stopping the job */
-					//beenthere(kctx, "missed job in next register, soft/hard-stopping slot %d", js);
+					beenthere(kctx, "missed job in next register, soft/hard-stopping slot %d", js);
 					kbasep_job_slot_soft_or_hard_stop_do_action(kbdev,
 							js, hw_action, core_reqs, katom);
 				}
@@ -844,7 +844,7 @@ static void kbasep_job_slot_soft_or_hard_stop(struct kbase_device *kbdev, struct
 					continue;
 
 				if (!can_safely_stop) {
-					//beenthere(kctx, "clearing job from next registers on slot %d", js);
+					beenthere(kctx, "clearing job from next registers on slot %d", js);
 					kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_COMMAND_NEXT), JS_COMMAND_NOP, NULL);
 
 					/* Check to see if we did remove a job from the next registers */
@@ -871,7 +871,7 @@ static void kbasep_job_slot_soft_or_hard_stop(struct kbase_device *kbdev, struct
 				}
 
 				/* Next is now free, so we can soft/hard-stop the slot */
-				//beenthere(kctx, "soft/hard-stopped slot %d (there was a job in next which was successfully cleared)\n", js);
+				beenthere(kctx, "soft/hard-stopped slot %d (there was a job in next which was successfully cleared)\n", js);
 				kbasep_job_slot_soft_or_hard_stop_do_action(kbdev,
 						js, hw_action, core_reqs, katom);
 			}
@@ -1247,7 +1247,6 @@ void kbase_job_check_leave_disjoint(struct kbase_device *kbdev,
 /* MALI_SEC_INTEGRATION */
 void kbase_debug_dump_registers(struct kbase_device *kbdev)
 {
-#if 0
 	int i;
 	dev_err(kbdev->dev, "Register state:");
 	dev_err(kbdev->dev, "  GPU_IRQ_RAWSTAT=0x%08x GPU_STATUS=0x%08x",
@@ -1277,7 +1276,6 @@ void kbase_debug_dump_registers(struct kbase_device *kbdev)
 	dev_err(kbdev->dev, "  SHADER_CONFIG=0x%08x   L2_MMU_CONFIG=0x%08x",
 		kbase_reg_read(kbdev, GPU_CONTROL_REG(SHADER_CONFIG), NULL),
 		kbase_reg_read(kbdev, GPU_CONTROL_REG(L2_MMU_CONFIG), NULL));
-#endif
 }
 
 void kbasep_reset_timeout_worker(struct work_struct *data)

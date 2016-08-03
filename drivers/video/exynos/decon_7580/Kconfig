@@ -19,6 +19,13 @@ config EXYNOS_DECON_FB
 	  Say Y here if you want support for the DECON in Samsung S5P SoCs.
 	  This device produce image data to one of output interfaces.
 
+config EXYNOS_DECON_DPU
+	bool "Samsung DPU driver"
+	depends on EXYNOS_DECON_FB
+	default n
+	help
+	  Say Y here if you want to support for DPU in Samsung SoCs.
+
 config EXYNOS_MIPI_DSI
 	bool "Samsung Exynos MIPI-DSI driver"
 	depends on EXYNOS_DECON_EXYNOS7580

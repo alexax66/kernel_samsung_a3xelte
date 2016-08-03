@@ -469,18 +469,25 @@ int sm5705_fled_prepare_flash(unsigned char index)
 	}
 
 #if defined(CONFIG_MUIC_UNIVERSAL_SM5705_AFC)
-	/* W/A : for protect form VBUS drop */
-	sm5705_charger_oper_push_event(SM5705_CHARGER_OP_EVENT_FLASH, 1);
 #ifdef IGNORE_AFC_STATE
 	sm5705_fled_muic_flash_work_on(g_sm5705_fled);
 #else
-	if(!sm5705_fled_check_valid_vbus_from_MUIC()) {
-		pr_err("%s: Can't used FLED, because of failed AFC V_drop\n", __func__);
+	if (sm5705_charger_oper_get_current_op_mode() == SM5705_CHARGER_OP_MODE_CHG_ON) {
+		/* W/A : for protect form VBUS drop */
+		sm5705_charger_oper_push_event(SM5705_CHARGER_OP_EVENT_FLASH, 1);
+		if(!sm5705_fled_check_valid_vbus_from_MUIC()) {
+			pr_err("%s: Can't used FLED, because of failed AFC V_drop\n", __func__);
+			sm5705_charger_oper_push_event(SM5705_CHARGER_OP_EVENT_FLASH, 0);
+			return -1;
+		}
 		sm5705_charger_oper_push_event(SM5705_CHARGER_OP_EVENT_FLASH, 0);
-		return -1;
+	} else {
+		if(!sm5705_fled_check_valid_vbus_from_MUIC()) {
+			pr_err("%s: Can't used FLED, because of failed AFC V_drop\n", __func__);
+			return -1;
+		}
 	}
 #endif
-	sm5705_charger_oper_push_event(SM5705_CHARGER_OP_EVENT_FLASH, 0);
 #endif
 
 	sm5705_FLEDx_set_torch_current(g_sm5705_fled, index,
@@ -699,6 +706,8 @@ static ssize_t sm5705_rear_flash_show(struct device *dev,
 
 static DEVICE_ATTR(rear_flash, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
 	sm5705_rear_flash_show, sm5705_rear_flash_store);
+static DEVICE_ATTR(rear_torch_flash, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
+	sm5705_rear_flash_show, sm5705_rear_flash_store);
 
 /**
  * SM5705 Flash-LED device driver management functions
@@ -869,6 +878,12 @@ static int sm5705_fled_probe(struct platform_device *pdev)
 		goto fled_rear_device_err;
 	}
 
+	ret = device_create_file(sm5705_fled->rear_fled_dev, &dev_attr_rear_torch_flash);
+	if (IS_ERR_VALUE(ret)) {
+		dev_err(dev, "%s fail to create device file for rear_torch_flash\n", __func__);
+		goto fled_rear_device_err;
+	}
+
 	sm5705_fled_pdata->fled_pinctrl = devm_pinctrl_get(dev->parent);
 	if (IS_ERR_OR_NULL(sm5705_fled_pdata->fled_pinctrl)) {
 		pr_err("%s:%d Getting pinctrl handle failed\n",
@@ -928,6 +943,8 @@ static int sm5705_fled_remove(struct platform_device *pdev)
 	int i;
 
 	device_remove_file(sm5705_fled->rear_fled_dev, &dev_attr_rear_flash);
+	device_remove_file(sm5705_fled->rear_fled_dev, &dev_attr_rear_torch_flash);
+
 	device_destroy(camera_class, sm5705_fled->rear_fled_dev->devt);
 
 	for (i = 0; i != SM5705_FLED_MAX; ++i) {

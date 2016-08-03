@@ -61,14 +61,17 @@
 #define OIS_GYRO_SCALE_FACTOR_V003		262
 #define OIS_GYRO_SCALE_FACTOR_V004		131
 
+#define OIS_IC_ROM_CHECKSUM_CONSTANT	0x0001ED98
+
 int fimc_is_ois_sine_mode_impl(struct fimc_is_core *core, int mode);
 void fimc_is_ois_offset_test_impl(struct fimc_is_core *core, long *raw_data_x, long *raw_data_y);
 int fimc_is_ois_self_test_impl(struct fimc_is_core *core);
 void fimc_is_ois_fw_update_impl(struct fimc_is_core *core);
 void fimc_is_ois_get_offset_data_impl(struct fimc_is_core *core, long *raw_data_x, long *raw_data_y);
 bool fimc_is_ois_check_fw_impl(struct fimc_is_core *core);
-u32 fimc_is_ois_factory_read_cal_checksum32_impl(struct fimc_is_core *core);
-u32 fimc_is_ois_facotry_read_cal_checksum_impl(struct fimc_is_core *core);
+u32 fimc_is_ois_factory_read_cal_checksum32(struct fimc_is_core *core);
+u32 fimc_is_ois_facotry_read_cal_checksum(struct fimc_is_core *core);
+int fimc_is_ois_factory_read_IC_ROM_checksum_impl(struct fimc_is_core *core);
 void fimc_is_ois_fw_status_impl(struct fimc_is_core *core);
 bool fimc_is_ois_diff_test_impl(struct fimc_is_core *core, int *x_diff, int *y_diff);
 int fimc_is_ois_gpio_on_impl(struct fimc_is_core *core);

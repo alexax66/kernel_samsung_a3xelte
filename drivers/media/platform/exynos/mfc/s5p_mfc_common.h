@@ -964,6 +964,7 @@ struct s5p_mfc_ctx {
 	struct list_head ts_list;
 	int ts_count;
 	int ts_is_full;
+	int skype_scenario;
 };
 
 #define fh_to_mfc_ctx(x)	\

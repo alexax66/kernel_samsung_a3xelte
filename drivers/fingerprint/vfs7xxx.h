@@ -24,8 +24,14 @@
 #ifndef VFS7XXX_H_
 #define VFS7XXX_H_
 
+#if defined(CONFIG_SOC_EXYNOS8890)
+/* exynos8890 evt0 board don't support to SPI clock rate 13MHz under */
+#define SLOW_BAUD_RATE      13000000
+#define MAX_BAUD_RATE       13000000
+#else
 #define SLOW_BAUD_RATE      4800000
 #define MAX_BAUD_RATE       9600000
+#endif
 #define BAUD_RATE_COEF      1000
 #define DRDY_TIMEOUT_MS     40
 #define DRDY_ACTIVE_STATUS  1
@@ -128,6 +134,9 @@
 						19, unsigned int)
 #define VFSSPI_IOCTL_SET_SENSOR_TYPE     _IOW(VFSSPI_IOCTL_MAGIC,	\
 							20, unsigned int)
+/* IOCTL #21 was already used Synaptics service. Do not use #21 */
+#define VFSSPI_IOCTL_SET_LOCKSCREEN     _IOW(VFSSPI_IOCTL_MAGIC,	\
+							22, unsigned int)
 #endif
 /* get sensor orienation from the SPI driver*/
 #define VFSSPI_IOCTL_GET_SENSOR_ORIENT	\

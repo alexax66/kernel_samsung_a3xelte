@@ -70,6 +70,13 @@ enum {
 };
 
 enum {
+    SM5705_TOPOFF_TIMER_10m         = 0x0,
+    SM5705_TOPOFF_TIMER_20m         = 0x1,
+    SM5705_TOPOFF_TIMER_30m         = 0x2,
+    SM5705_TOPOFF_TIMER_45m         = 0x3,
+};
+
+enum {
     SM5705_BUCK_BOOST_FREQ_3MHz     = 0x0,
     SM5705_BUCK_BOOST_FREQ_2_4MHz   = 0x1,
     SM5705_BUCK_BOOST_FREQ_1_5MHz   = 0x2,
@@ -120,6 +127,7 @@ struct sm5705_charger_data {
 #if EN_OTGFAIL_IRQ
 	int irq_otgfail;
 #endif
+	int irq_done;
 
 	/* for Workqueue & wake-lock, mutex process */
 	struct mutex charger_mutex;

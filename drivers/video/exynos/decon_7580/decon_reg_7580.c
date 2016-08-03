@@ -347,6 +347,69 @@ void decon_reg_config_win_channel(u32 id, u32 win_idx,
 			win_idx, type, decon_read(id, WINCHMAP0));
 }
 
+#if defined(CONFIG_EXYNOS_DECON_DPU)
+void decon_reg_enable_apb_clk(u32 id, u32 en)
+{
+	u32 val = en ? ~0 : 0;
+
+	decon_write_mask(id, ENHANCER_MIC_CTRL,
+			val, ENHANCER_MIC_CTRL_DPU_APB_CLK_GATE);
+}
+
+void decon_reg_set_pixel_count_se(u32 id, u32 width, u32 height)
+{
+	u32 val = width * height;
+
+	decon_write_mask(id, DPU_PIXEL_COUNT_SE, val, DPU_PIXEL_COUNT_SE_MASK);
+}
+
+void decon_reg_set_image_size_se(u32 id, u32 width, u32 height)
+{
+	u32 val = ((width - 1) << DPU_SE_HOZVAL_F)
+			| ((height-1) << DPU_SE_LINEVAL_F);
+
+	decon_write_mask(id, DPU_IMG_SIZE_SE, val, DPU_IMG_SIZE_SE_MASK);
+}
+
+void decon_reg_set_porch_se(u32 id, u32 vfp, u32 vsa, u32 vbp,
+					u32 hfp, u32 hsa, u32 hbp)
+{
+	u32 val = (vsa << DPU_SE_VSPW_F) | (vfp << DPU_SE_VFPD_F);
+
+	decon_write_mask(id, DPU_VTIME1_SE, val, DPU_VTIME1_SE_MASK);
+
+	val = vbp;
+
+	decon_write_mask(id, DPU_VTIME0_SE, val, DPU_VTIME0_SE_MASK);
+
+	val = (hsa << DPU_SE_HSPW_F) | (hfp << DPU_SE_HFPD_F);
+
+	decon_write_mask(id, DPU_HTIME1_SE, val, DPU_HTIME1_SE_MASK);
+
+	val = hbp;
+
+	decon_write_mask(id, DPU_HTIME0_SE, val, DPU_HTIME0_SE_MASK);
+}
+
+void decon_reg_set_bit_order_se(u32 id, u32 out_order, u32 in_order)
+{
+	u32 val = (out_order << 2) | (in_order << 0);
+
+	decon_write_mask(id, DPU_BIT_ORDER_SE, val, DPU_BIT_ORDER_SE_MASK);
+}
+
+void decon_reg_enable_dpu(u32 id, u32 en)
+{
+	u32 val = en ? ~0 : 0;
+
+	decon_write_mask(id, ENHANCER_MIC_CTRL,
+				val, ENHANCER_MIC_CTRL_DPU_ON_F);
+
+	decon_reg_update_standalone(id);
+}
+#endif
+
+
 /***************** CAL APIs implementation *******************/
 void decon_reg_init(u32 id, enum decon_dsi_mode dsi_mode,
 			struct decon_init_param *p)

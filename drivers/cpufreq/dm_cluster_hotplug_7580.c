@@ -7,6 +7,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/suspend.h>
+#include <linux/pm_qos.h>
 
 static struct delayed_work exynos_hotplug;
 static struct delayed_work start_hotplug;
@@ -42,6 +43,7 @@ struct exynos_hotplug_ctrl {
 	unsigned int down_threshold;
 	unsigned int up_tasks;
 	unsigned int down_tasks;
+	unsigned int down_freq_limit;
 	int max_lock;
 	int min_lock;
 	int force_hstate;
@@ -101,6 +103,7 @@ static struct exynos_hotplug_ctrl ctrl_hotplug = {
 	.max_lock = -1,
 	.cur_hstate = H0,
 	.old_state = H0,
+	.down_freq_limit = 400000,
 };
 
 static DEFINE_MUTEX(hotplug_lock);
@@ -109,40 +112,67 @@ static DEFINE_SPINLOCK(hstate_status_lock);
 static atomic_t freq_history[STAY] =  {ATOMIC_INIT(0), ATOMIC_INIT(0)};
 static bool lcd_on = true;
 
+/*
+ * If 'state' is less than "MAX_STATE"
+ *	return core_count of 'state'
+ * else
+ *	return core count of 'H0'
+ */
 static int get_core_count(enum hstate state)
 {
-	int old = ctrl_hotplug.old_state;
-
-	/* CPU UP */
-	if (ctrl_hotplug.old_state < state)
-		return hstate_set[old].core_count - hstate_set[state].core_count;
+	if (state < MAX_HSTATE)
+		return hstate_set[state].core_count;
 	else
-		return hstate_set[state].core_count - hstate_set[old].core_count;
+		return hstate_set[H0].core_count;
 }
 
 static void __ref cluster_down(enum hstate state)
 {
-	int i, count, cpu;
+	int i, cnt_old, cnt_target;
 
-	count = get_core_count(state);
+	cnt_old = get_core_count(ctrl_hotplug.old_state);
+	cnt_target = get_core_count(state);
 
-	for (i = 0; i < count; i++) {
-		cpu = num_online_cpus() - 1;
-		if (cpu > 0 && cpu_online(cpu))
-			cpu_down(cpu);
+	if (cnt_old > cnt_target) {	/* Hotplug out condition */
+		/* Check the Online CPU supposed to be online */
+		for (i = 0 ; i < cnt_target ; i++) {
+			if (!cpu_online(i))
+				cpu_up(i);
+		}
+		/* Hotplug out the target */
+		for (i = num_possible_cpus() ; i >= cnt_target ; i--) {
+			if (cpu_online(i))
+				cpu_down(i);
+		}
+	} else {
+		/* Should not be here */
+		panic("Invalid Condition in cluster down");
 	}
 }
 
 static void __ref cluster_up(enum hstate state)
 {
-	int i, count, cpu;
+	int i, cnt_old, cnt_target;
 
-	count = get_core_count(state);
+	cnt_old = get_core_count(ctrl_hotplug.old_state);
+	cnt_target = get_core_count(state);
 
-	for (i = 0; i < count; i++) {
-		cpu = num_online_cpus();
-		if (cpu < num_possible_cpus() && !cpu_online(cpu))
-			cpu_up(cpu);
+	if (cnt_old < cnt_target) {	/* Hotplug in condition */
+		/* Turn on the Online CPU supposed to be online
+		 * And target CPU
+		 */
+		for (i = 0 ; i < cnt_target ; i++) {
+			if (!cpu_online(i))
+				cpu_up(i);
+		}
+		/* Check the offline CPU supposed to be offline */
+		for (i = num_possible_cpus() ; i >= cnt_target ; i--) {
+			if (cpu_online(i))
+				cpu_down(i);
+		}
+	} else {
+		/* Should not be here */
+		panic("Invalid Condition in Cluster up");
 	}
 }
 
@@ -274,8 +304,35 @@ static enum action select_up_down(void)
 
 	up_threshold = ctrl_hotplug.up_threshold;
 	down_threshold = ctrl_hotplug.down_threshold;
-	down_freq = ctrl_hotplug.down_freq;
-	up_freq = ctrl_hotplug.up_freq;
+
+	/* In the case of Hotplug-outted, and thermal throttled.
+		up_freq = min(ctrl_hotplug.up_freq, pm_qos_max)
+		up_freq = max(up_freq, down_freq)
+	*/
+	if(ctrl_hotplug.cur_hstate > H0) {
+		/*
+			up_freq is less than ctrl_hotplug.up_freq (1.3GHz)
+		*/
+		up_freq = pm_qos_request(PM_QOS_CLUSTER0_FREQ_MAX);
+		up_freq = (ctrl_hotplug.up_freq > up_freq) \
+			? (up_freq) : (ctrl_hotplug.up_freq);
+
+		/*
+			down_freq is basically up_freq * 3 / 4
+			but up_freq *3/4 > ctrl_hotplug.down_freq(800)
+			    use 800MHz
+
+			and up_freq *3/4 is more than down_freq_limit (400MHz)
+		*/
+		down_freq = (up_freq * 3) / 4;
+		down_freq = (down_freq > ctrl_hotplug.down_freq) \
+			? (ctrl_hotplug.down_freq) : (down_freq);
+		down_freq = (down_freq > ctrl_hotplug.down_freq_limit)  \
+			? (down_freq) : (ctrl_hotplug.down_freq_limit);
+	} else {
+		up_freq = ctrl_hotplug.up_freq;
+		down_freq = ctrl_hotplug.down_freq;
+	}
 
 	if (((c0_freq < up_freq) && (c0_freq > down_freq)) ||
 	    ((c1_freq < up_freq && c1_freq > down_freq))) {
@@ -343,7 +400,8 @@ static void exynos_work(struct work_struct *dwork)
 	mutex_lock(&hotplug_lock);
 
 	target_state = hotplug_adjust_state(move);
-	if (move != STAY)
+	if ((get_core_count(ctrl_hotplug.old_state) != num_online_cpus())
+		|| (move != STAY))
 		hotplug_enter_hstate(false, target_state);
 
 	queue_delayed_work_on(0, khotplug_wq, &exynos_hotplug, msecs_to_jiffies(ctrl_hotplug.sampling_rate));

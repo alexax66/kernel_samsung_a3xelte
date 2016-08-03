@@ -65,6 +65,34 @@ static unsigned char *coordinate_data[MODE_MAX] = {
 	coordinate_data_1,
 };
 
+static unsigned char adjust_ldu_data_1[] = {
+	0xff, 0xff, 0xff,
+	0xf6, 0xfa, 0xff,
+	0xf4, 0xf8, 0xff,
+	0xe9, 0xf2, 0xff,
+	0xe2, 0xef, 0xff,
+	0xd4, 0xe8, 0xff,
+};
+
+static unsigned char adjust_ldu_data_2[] = {
+	0xff, 0xfa, 0xf1,
+	0xff, 0xfd, 0xf8,
+	0xff, 0xfd, 0xfa,
+	0xfa, 0xfd, 0xff,
+	0xf5, 0xfb, 0xff,
+	0xe5, 0xf3, 0xff,
+};
+
+static unsigned char *adjust_ldu_data[MODE_MAX] = {
+	adjust_ldu_data_1,
+	adjust_ldu_data_2,
+	adjust_ldu_data_2,
+	adjust_ldu_data_1,
+	adjust_ldu_data_1,
+	adjust_ldu_data_1,
+};
+
+
 static unsigned char GRAYSCALE_1[] = {
 	0xEC,
 	0x98, /* lce_on gain 0 00 0000 */
@@ -9094,172 +9122,6 @@ static unsigned char LOCAL_CE_2[] = {
 	0x3f, /* ascr algo lce 10 10 10 */
 };
 
-static unsigned char LOCAL_CE_TEXT_1[] = {
-	0xEC,
-	0x86, /* lce_on gain 0 00 0000 */
-	0x0c, /* lce_color_gain 00 0000 */
-	0x00, /* lce_scene_trans 0000 */
-	0xf0, /* lce_illum_gain */
-	0x01, /* lce_ref_offset 9 */
-	0x0e,
-	0x01, /* lce_ref_gain 9 */
-	0x00,
-	0x66, /* lce_block_size h v 000 000 */
-	0x17, /* lce_black reduct_slope 0 0000 */
-	0x00, /* lce_dark_th 000 */
-	0x96, /* lce_min_ref_offset */
-	0x04, /* nr fa de cs gamma 0 0000 */
-	0xff, /* nr_mask_th */
-	0x00, /* de_gain 10 */
-	0x30,
-	0x00, /* de_maxplus 11 */
-	0xa0,
-	0x00, /* de_maxminus 11 */
-	0xa0,
-	0x14, /* fa_edge_th */
-	0x00, /* fa_step_p 10 */
-	0x0a,
-	0x00, /* fa_step_n 10 */
-	0x32,
-	0x01, /* fa_max_de_gain 10 */
-	0xf4,
-	0x0b, /* fa_pcl_ppi 14 */
-	0x8a,
-	0x20, /* fa_os_cnt_10_co */
-	0x2d, /* fa_os_cnt_20_co */
-	0x6e, /* fa_skin_cr */
-	0x99, /* fa_skin_cb */
-	0x1b, /* fa_dist_left */
-	0x17, /* fa_dist_right */
-	0x14, /* fa_dist_down */
-	0x1e, /* fa_dist_up */
-	0x02, /* fa_div_dist_left */
-	0x5f,
-	0x02, /* fa_div_dist_right */
-	0xc8,
-	0x03, /* fa_div_dist_down */
-	0x33,
-	0x02, /* fa_div_dist_up */
-	0x22,
-	0x10, /* fa_px_min_weight */
-	0x10, /* fa_fr_min_weight */
-	0x07, /* fa_skin_zone_w */
-	0x07, /* fa_skin_zone_h */
-	0x01, /* cs_gain 10 */
-	0x40,
-	0x00, /* curve_1_b */
-	0x6b, /* curve_1_a */
-	0x03, /* curve_2_b */
-	0x48, /* curve_2_a */
-	0x08, /* curve_3_b */
-	0x32, /* curve_3_a */
-	0x08, /* curve_4_b */
-	0x32, /* curve_4_a */
-	0x08, /* curve_5_b */
-	0x32, /* curve_5_a */
-	0x08, /* curve_6_b */
-	0x32, /* curve_6_a */
-	0x08, /* curve_7_b */
-	0x32, /* curve_7_a */
-	0x10, /* curve_8_b */
-	0x28, /* curve_8_a */
-	0x10, /* curve_9_b */
-	0x28, /* curve_9_a */
-	0x10, /* curve10_b */
-	0x28, /* curve10_a */
-	0x10, /* curve11_b */
-	0x28, /* curve11_a */
-	0x10, /* curve12_b */
-	0x28, /* curve12_a */
-	0x19, /* curve13_b */
-	0x22, /* curve13_a */
-	0x19, /* curve14_b */
-	0x22, /* curve14_a */
-	0x19, /* curve15_b */
-	0x22, /* curve15_a */
-	0x19, /* curve16_b */
-	0x22, /* curve16_a */
-	0x19, /* curve17_b */
-	0x22, /* curve17_a */
-	0x19, /* curve18_b */
-	0x22, /* curve18_a */
-	0x23, /* curve19_b */
-	0x1e, /* curve19_a */
-	0x2e, /* curve20_b */
-	0x1b, /* curve20_a */
-	0x33, /* curve21_b */
-	0x1a, /* curve21_a */
-	0x40, /* curve22_b */
-	0x18, /* curve22_a */
-	0x48, /* curve23_b */
-	0x17, /* curve23_a */
-	0x00, /* curve24_b */
-	0xFF, /* curve24_a */
-	0x00, /* linear_on ascr_skin_on strength 0 0 00000 */
-	0x6a, /* ascr_skin_cb */
-	0x9a, /* ascr_skin_cr */
-	0x25, /* ascr_dist_up */
-	0x1a, /* ascr_dist_down */
-	0x16, /* ascr_dist_right */
-	0x2a, /* ascr_dist_left */
-	0x00, /* ascr_div_up 20 */
-	0x37,
-	0x5a,
-	0x00, /* ascr_div_down */
-	0x4e,
-	0xc5,
-	0x00, /* ascr_div_right */
-	0x5d,
-	0x17,
-	0x00, /* ascr_div_left */
-	0x30,
-	0xc3,
-	0xff, /* ascr_skin_Rr */
-	0x38, /* ascr_skin_Rg */
-	0x48, /* ascr_skin_Rb */
-	0xff, /* ascr_skin_Yr */
-	0xf0, /* ascr_skin_Yg */
-	0x00, /* ascr_skin_Yb */
-	0xd8, /* ascr_skin_Mr */
-	0x00, /* ascr_skin_Mg */
-	0xd9, /* ascr_skin_Mb */
-	0xff, /* ascr_skin_Wr */
-	0xff, /* ascr_skin_Wg */
-	0xff, /* ascr_skin_Wb */
-	0x00, /* ascr_Cr */
-	0xe0, /* ascr_Rr */
-	0xff, /* ascr_Cg */
-	0x00, /* ascr_Rg */
-	0xf6, /* ascr_Cb */
-	0x00, /* ascr_Rb */
-	0xd8, /* ascr_Mr */
-	0x3b, /* ascr_Gr */
-	0x00, /* ascr_Mg */
-	0xff, /* ascr_Gg */
-	0xd9, /* ascr_Mb */
-	0x00, /* ascr_Gb */
-	0xff, /* ascr_Yr */
-	0x14, /* ascr_Br */
-	0xf9, /* ascr_Yg */
-	0x00, /* ascr_Bg */
-	0x00, /* ascr_Yb */
-	0xff, /* ascr_Bb */
-	0xff, /* ascr_Wr */
-	0x00, /* ascr_Kr */
-	0xff, /* ascr_Wg */
-	0x00, /* ascr_Kg */
-	0xff, /* ascr_Wb */
-	0x00, /* ascr_Kb */
-	/* end */
-};
-
-static unsigned char LOCAL_CE_TEXT_2[] = {
-	/* start */
-	0xEB,
-	0x01, /* mdnie_en */
-	0x00, /* data_width mask 00 0000 */
-	0x3f, /* ascr algo lce 10 10 10 */
-};
 
 static unsigned char LEVEL_UNLOCK[] = {
 	0xF0,
@@ -9296,8 +9158,7 @@ static struct mdnie_table accessibility_table[ACCESSIBILITY_MAX] = {
 };
 
 static struct mdnie_table hbm_table[HBM_MAX] = {
-	[HBM_ON] = MDNIE_SET(LOCAL_CE),
-	MDNIE_SET(LOCAL_CE_TEXT)
+	[HBM_ON] = MDNIE_SET(LOCAL_CE)
 };
 
 #ifdef CONFIG_LCD_HMT
@@ -9407,6 +9268,8 @@ static struct mdnie_tune tune_info = {
 	.main_table = main_table,
 
 	.coordinate_table = coordinate_data,
+	.adjust_ldu_table = adjust_ldu_data,
+	.max_adjust_ldu = 6,
 	.scr_info = &scr_info,
 	.color_offset = {color_offset_f1, color_offset_f2, color_offset_f3, color_offset_f4}
 };

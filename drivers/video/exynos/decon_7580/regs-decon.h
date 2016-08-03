@@ -246,4 +246,43 @@
 #define DECON_UPDATE				0x0710
 #define DECON_UPDATE_STANDALONE_F		(1 << 0)
 
+#if defined(CONFIG_EXYNOS_DECON_DPU)
+#define ENHANCER_MIC_CTRL			0x06D0
+#define ENHANCER_MIC_CTRL_DPU_ON_F		(1 << 12)
+#define ENHANCER_MIC_CTRL_DPU_APB_CLK_GATE	(1 << 10)
+#endif
+
+#if defined(CONFIG_EXYNOS_DECON_DPU)
+#define DPU_PIXEL_COUNT_SE			0x2600
+#define DPU_PIXEL_COUNT_SE_MASK			0xffffffff
+
+#define DPU_IMG_SIZE_SE				0x2604
+#define DPU_SE_HOZVAL_F				16
+#define DPU_SE_LINEVAL_F			0
+#define DPU_IMG_SIZE_SE_MASK			0x3fff3fff
+
+#define DPU_VTIME0_SE				0x2608
+#define DPU_VTIME0_SE_MASK			0xfff
+
+#define DPU_VTIME1_SE				0x260C
+#define DPU_SE_VSPW_F				16
+#define DPU_SE_VFPD_F				0
+#define DPU_VTIME1_SE_MASK			0xfff0fff
+
+#define DPU_HTIME0_SE				0x2610
+#define DPU_HTIME0_SE_MASK			0xfff
+
+#define DPU_HTIME1_SE				0x2614
+#define DPU_SE_HSPW_F				16
+#define DPU_SE_HFPD_F				0
+#define DPU_HTIME1_SE_MASK			0xfff0fff
+
+#define DPU_BIT_ORDER_SE			0x2618
+#define DPU_R1G1B1R0G0B0			0x0
+#define DPU_B1G1R1B0G0R0			0x1
+#define DPU_R0G0B0R1G1B1			0x2
+#define DPU_B0G0R0B1G1R1			0x3
+#define DPU_BIT_ORDER_SE_MASK			0xf
+#endif
+
 #endif /* _REGS_DECON_H */

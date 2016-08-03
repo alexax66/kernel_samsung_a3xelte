@@ -70,6 +70,9 @@
 #ifdef CONFIG_OIS_USE
 #include "fimc-is-device-ois.h"
 #endif
+#if defined(CONFIG_LEDS_S2MU005_FLASH) && defined(CONFIG_LEDS_SUPPORT_FRONT_FLASH)
+#include <linux/leds-s2mu005.h>
+#endif
 #endif
 
 /* Default setting values */
@@ -1776,6 +1779,9 @@ static int fimc_is_itf_open(struct fimc_is_device_ischain *device,
 {
 	int ret = 0;
 	u32 offset_ext, offset_path;
+#ifdef ENABLE_FD_SW
+	u32 offset_fd_shared;
+#endif
 	struct is_region *region;
 	struct fimc_is_module_enum *module;
 	struct fimc_is_device_sensor *sensor;
@@ -1798,6 +1804,13 @@ static int fimc_is_itf_open(struct fimc_is_device_ischain *device,
 
 	offset_path = (sizeof(struct sensor_open_extended) / 4) + 1;
 	memcpy(&region->shared[offset_path], path, sizeof(struct fimc_is_path_info));
+
+#ifdef ENABLE_FD_SW
+	/* kvaddr_fd_shared = Y map data(256Byte) */
+	offset_fd_shared = offset_path;
+	offset_fd_shared += (sizeof(struct fimc_is_path_info) / 4) + 1;
+	device->imemory.kvaddr_fd_shared = (ulong)&region->shared[offset_fd_shared];
+#endif
 
 	fimc_is_ischain_region_flush(device);
 
@@ -2672,6 +2685,12 @@ int fimc_is_ischain_power(struct fimc_is_device_ischain *device, int on)
 			goto p_err;
 		}
 
+#if defined(CONFIG_LEDS_S2MU005_FLASH) && defined(CONFIG_LEDS_SUPPORT_FRONT_FLASH)
+		/* select flash control reg */
+		if (core->current_position == SENSOR_POSITION_REAR) {
+			s2mu005_led_select_ctrl(S2MU005_FLED_CH1);
+		}
+#endif
 		set_bit(FIMC_IS_ISCHAIN_POWER_ON, &device->state);
 	} else {
 		if (test_bit(IS_IF_SUSPEND, &device->interface->fw_boot)) {
@@ -2698,6 +2717,10 @@ int fimc_is_ischain_power(struct fimc_is_device_ischain *device, int on)
 		if (ret)
 			err("fimc_is_runtime_suspend_post is fail(%d)", ret);
 
+#if defined(CONFIG_LEDS_S2MU005_FLASH) && defined(CONFIG_LEDS_SUPPORT_FRONT_FLASH)
+		/* default rear flash */
+		s2mu005_led_select_ctrl(S2MU005_FLED_OFF);
+#endif
 		clear_bit(FIMC_IS_ISCHAIN_POWER_ON, &device->state);
 	}
 
@@ -3360,10 +3383,11 @@ static int fimc_is_ischain_open(struct fimc_is_device_ischain *device)
 	imemory->dvaddr_3dnr	= minfo->dvaddr_3dnr;
 	imemory->kvaddr_3dnr	= minfo->kvaddr_3dnr;
 #ifdef ENABLE_FD_SW
+	/* FD share region is set in the fimc_is_itf_open().*/
+	imemory->kvaddr_fd_shared = 0;
+
 	imemory->dvaddr_fd	= minfo->dvaddr_fd;
 	imemory->kvaddr_fd	= minfo->kvaddr_fd;
-	imemory->dvaddr_fshared	= minfo->dvaddr_fshared;
-	imemory->kvaddr_fshared	= minfo->kvaddr_fshared;
 #endif
 #ifdef ENABLE_FD_DMA_INPUT
 	imemory->dvaddr_fdshot	= minfo->dvaddr_fdshot;
@@ -3677,7 +3701,9 @@ static int fimc_is_ischain_init(struct fimc_is_device_ischain *device,
 		goto p_err;
 	}
 
-	ret = fimc_is_lib_fd_open(device->fd_lib);
+	ret = fimc_is_lib_fd_open(device->fd_lib,
+			device->imemory.fw_cookie,
+			device->imemory.kvaddr, device->imemory.dvaddr);
 	if (ret != FDS_OK) {
 		merr("failed to fimc_is_lib_open (%d)\n", device, ret);
 		kfree(device->fd_lib);
@@ -6175,16 +6201,18 @@ static int fimc_is_ischain_scp_start(struct fimc_is_device_ischain *device,
 {
 	int ret = 0;
 	struct param_dma_output *dma_output;
-	struct param_otf_input *otf_input;
 	struct param_otf_output *otf_output;
 	struct param_scaler_input_crop *input_crop;
 	struct param_scaler_output_crop *output_crop;
 	struct param_scaler_imageeffect *imageeffect;
 #ifdef ENABLE_FD_SW
 	struct param_fd_config *fd_config;
-#endif
+	struct param_control *control;
 #ifdef ENABLE_FD_DMA_INPUT
 	struct param_dma_input	*dma_input;
+#else
+	struct param_otf_input *otf_input;
+#endif
 #endif
 	u32 format, order, crange;
 
@@ -6283,13 +6311,17 @@ static int fimc_is_ischain_scp_start(struct fimc_is_device_ischain *device,
 	*hindex |= HIGHBIT_OF(PARAM_SCALERP_OTF_OUTPUT);
 	(*indexes)++;
 
-	otf_input = fimc_is_itf_g_param(device, frame, PARAM_FD_OTF_INPUT);
-	otf_input->width = otcrop->w;
-	otf_input->height = otcrop->h;
-	*lindex |= LOWBIT_OF(PARAM_FD_OTF_INPUT);
-	*hindex |= HIGHBIT_OF(PARAM_FD_OTF_INPUT);
-	(*indexes)++;
+#ifdef ENABLE_FD_SW
+	/* Retry if FD enable command transmission fail */
+	if (!test_bit(FIMC_IS_SUBDEV_RUN, &device->vra.state))
+		goto vra_bypass;
 
+	control = fimc_is_itf_g_param(device, frame, PARAM_FD_CONTROL);
+	control->cmd = CONTROL_COMMAND_START;
+	control->bypass = CONTROL_BYPASS_DISABLE;
+	*lindex |= LOWBIT_OF(PARAM_FD_CONTROL);
+	*hindex |= HIGHBIT_OF(PARAM_FD_CONTROL);
+	(*indexes)++;
 #ifdef ENABLE_FD_DMA_INPUT
 	dma_input = fimc_is_itf_g_param(device, frame, PARAM_FD_DMA_INPUT);
 	dma_input->width = otcrop->w;
@@ -6297,9 +6329,14 @@ static int fimc_is_ischain_scp_start(struct fimc_is_device_ischain *device,
 	*lindex |= LOWBIT_OF(PARAM_FD_DMA_INPUT);
 	*hindex |= HIGHBIT_OF(PARAM_FD_DMA_INPUT);
 	(*indexes)++;
+#else
+	otf_input = fimc_is_itf_g_param(device, frame, PARAM_FD_OTF_INPUT);
+	otf_input->width = otcrop->w;
+	otf_input->height = otcrop->h;
+	*lindex |= LOWBIT_OF(PARAM_FD_OTF_INPUT);
+	*hindex |= HIGHBIT_OF(PARAM_FD_OTF_INPUT);
+	(*indexes)++;
 #endif
-
-#ifdef ENABLE_FD_SW
 	fd_config = fimc_is_itf_g_param(device, frame, PARAM_FD_CONFIG);
 
 	fimc_is_lib_fd_size_check(device->fd_lib, fd_config, &subdev->output,
@@ -6308,6 +6345,8 @@ static int fimc_is_ischain_scp_start(struct fimc_is_device_ischain *device,
 	*lindex |= LOWBIT_OF(PARAM_FD_CONFIG);
 	*hindex |= HIGHBIT_OF(PARAM_FD_CONFIG);
 	(*indexes)++;
+
+vra_bypass:
 #endif
 
 	set_bit(FIMC_IS_SUBDEV_RUN, &subdev->state);
@@ -6558,8 +6597,10 @@ static int fimc_is_ischain_vra_tag(struct fimc_is_device_ischain *device,
 #endif
 
 	ret = fimc_is_lib_fd_map_init(device->fd_lib,
-			device->imemory.kvaddr_fd, device->imemory.dvaddr_fd,
-			device->imemory.kvaddr_fshared, vra_param);
+			device->imemory.kvaddr_fd,
+			device->imemory.dvaddr_fd,
+			device->imemory.kvaddr_fd_shared,
+			vra_param);
 	if (ret) {
 		merr("[FD] fimc_is_lib_fd_map_init fail\n", device);
 		return ret;
@@ -6571,6 +6612,7 @@ static int fimc_is_ischain_vra_tag(struct fimc_is_device_ischain *device,
 		return ret;
 	}
 
+#ifndef ENABLE_FD_DMA_INPUT
 	ret = fimc_is_lib_fd_convert_orientation(uctl->scalerUd.orientation,
 			&lib_data->orientation);
 	if (ret) {
@@ -6578,8 +6620,8 @@ static int fimc_is_ischain_vra_tag(struct fimc_is_device_ischain *device,
 		return ret;
 	}
 
-	ret = fimc_is_lib_fd_select_buf(lib_data, &uctl->fdUd,
-		device->imemory.kvaddr_fshared, device->imemory.dvaddr_fshared);
+	ret = fimc_is_lib_fd_select_buf(device->fd_lib, &uctl->fdUd);
+#endif
 
 vra_exit:
 	return ret;

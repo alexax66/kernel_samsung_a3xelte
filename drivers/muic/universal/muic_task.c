@@ -92,7 +92,7 @@ static int muic_irq_handler_afc(muic_data_t *pmuic, int irq)
 {
 	struct i2c_client *i2c = pmuic->i2c;
 	struct afc_ops *afcops = pmuic->regmapdesc->afcops;
-	int intr1, intr2, intr3;
+	int intr1, intr2, intr3, ret;
 
 	pr_info("%s:%s irq(%d)\n", pmuic->chip_name, __func__, irq);
 
@@ -119,8 +119,10 @@ static int muic_irq_handler_afc(muic_data_t *pmuic, int irq)
 		}
 		intr1 |= intr_tmp;
 	}
-	if (intr1 & MUIC_INT_DETACH_MASK)
+	if (intr1 & MUIC_INT_DETACH_MASK) {
 		cancel_delayed_work(&pmuic->afc_retry_work);
+		cancel_delayed_work(&pmuic->afc_restart_work);
+	}
 
 	pr_info("%s:%s intr[1:0x%x, 2:0x%x, 3:0x%x]\n", pmuic->chip_name, __func__,
 			intr1, intr2, intr3);
@@ -152,6 +154,16 @@ static int muic_irq_handler_afc(muic_data_t *pmuic, int irq)
 	pmuic->intr.intr1 = intr1;
 	pmuic->intr.intr2 = intr2;
 	pmuic->intr.intr3 = intr3;
+
+	if ((irq == -1) && (intr3 & INT3_AFC_TA_ATTACHED_MASK))
+	{
+		ret = muic_i2c_write_byte(i2c, 0x0F, 0x01);
+		if(ret < 0){
+			pr_err("%s: err write register value \n", __func__);
+			return INT_REQ_DISCARD;
+		}
+		return INT_REQ_DONE;
+	}
 
 	if ((intr1 & MUIC_INT_DETACH_MASK) && (intr2 & MUIC_INT_VBUS_OFF_MASK))
 		return INT_REQ_DONE;

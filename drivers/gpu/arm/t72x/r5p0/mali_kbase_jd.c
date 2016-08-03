@@ -1704,7 +1704,7 @@ void kbase_jd_zap_context(struct kbase_context *kctx)
 	/* Wait for all jobs to finish, and for the context to be not-scheduled
 	 * (due to kbase_job_zap_context(), we also guarentee it's not in the JS
 	 * policy queue either */
-	wait_event(kctx->jctx.zero_jobs_wait, kctx->jctx.job_nr == 0);
+	wait_event_timeout(kctx->jctx.zero_jobs_wait, kctx->jctx.job_nr == 0, (unsigned int) msecs_to_jiffies(500));
 	wait_event(kctx->jctx.sched_info.ctx.is_scheduled_wait, kctx->jctx.sched_info.ctx.is_scheduled == MALI_FALSE);
 
 	spin_lock_irqsave(&reset_data.lock, flags);

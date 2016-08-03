@@ -21,8 +21,8 @@ int mms_power_control(struct mms_ts_info *info, int enable)
 {
 	int ret = 0;
 	struct i2c_client *client = info->client;
-	struct regulator *regulator_dvdd = NULL;
-	struct regulator *regulator_avdd = NULL;
+	struct regulator *regulator_dvdd;
+	struct regulator *regulator_avdd;
 	struct pinctrl_state *pinctrl_state;
 	static bool on;
 
@@ -40,7 +40,8 @@ int mms_power_control(struct mms_ts_info *info, int enable)
 		if (IS_ERR(regulator_dvdd)) {
 				tsp_debug_err(true, &client->dev,"%s: Failed to get %s regulator.\n",
 				 __func__, info->dtdata->gpio_io_en);
-			return PTR_ERR(regulator_dvdd);
+			ret = PTR_ERR(regulator_dvdd);
+			goto out;
 		}
 	}
 
@@ -48,7 +49,8 @@ int mms_power_control(struct mms_ts_info *info, int enable)
 	if (IS_ERR(regulator_avdd)) {
 		tsp_debug_err(true, &client->dev,"%s: Failed to get %s regulator.\n",
 			 __func__, info->dtdata->gpio_vdd_en);
-		return PTR_ERR(regulator_avdd);
+		ret = PTR_ERR(regulator_avdd);
+		goto out;
 	}
 
 	if (enable) {

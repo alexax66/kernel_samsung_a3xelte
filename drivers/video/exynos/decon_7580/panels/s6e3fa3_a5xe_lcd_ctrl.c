@@ -41,15 +41,10 @@
 #define LEVEL_IS_HBM_INTERPOLATION(auto_brightness, brightness)	(auto_brightness >= 6 && brightness == UI_MAX_BRIGHTNESS)
 #define LEVEL_IS_ACL_OFF(auto_brightness, brightness)		(auto_brightness < 6 && brightness == UI_MAX_BRIGHTNESS)
 
-#define UI_MAX_BRIGHTNESS	255
-#define UI_MIN_BRIGHTNESS	0
-#define UI_DEFAULT_BRIGHTNESS	128
-#define NORMAL_TEMPERATURE	25	/* 25 degrees Celsius */
-
 #define DSI_WRITE(cmd, size)		do {				\
-	ret = dsim_write_hl_data(dsim, cmd, size);			\
+	ret = dsim_write_hl_data(lcd->dsim, cmd, size);			\
 	if (ret < 0) {							\
-		dev_err(&lcd->ld->dev, "%s: fail to write %s\n", __func__, #cmd);	\
+		dev_err(&lcd->ld->dev, "%s: failed to write %s\n", __func__, #cmd);	\
 		ret = -EPERM;						\
 		goto exit;						\
 	}								\
@@ -103,7 +98,7 @@ struct lcd_info {
 	union elvss_info		current_elvss;
 	union elvss_info		current_aor;
 	unsigned int			current_hbm;
-	unsigned int			ldi_enable;
+	unsigned int			state;
 
 	struct lcd_device		*ld;
 	struct backlight_device		*bd;
@@ -121,6 +116,7 @@ struct lcd_info {
 	int				temperature;
 	unsigned int			temperature_index;
 
+	unsigned char			id[LDI_LEN_ID];
 	unsigned char			code[LDI_LEN_CHIP_ID];
 	unsigned char			date[LDI_LEN_DATE];
 	unsigned int			coordinate[2];
@@ -141,11 +137,15 @@ struct lcd_info {
 #endif
 
 	struct dsim_device		*dsim;
+	struct mutex			lock;
 
 	struct pinctrl			*pins;
 	struct pinctrl_state		*pins_state[2];
 
 	struct hbm_interpolation_t	hitp;
+
+	unsigned int			ldu_index;
+	unsigned char			(*aor_ldu_table)[AID_CMD_CNT];
 };
 
 static int pinctrl_enable(struct lcd_info *lcd, int enable)
@@ -165,15 +165,14 @@ static int pinctrl_enable(struct lcd_info *lcd, int enable)
 }
 
 #ifdef CONFIG_PANEL_AID_DIMMING
-static void dsim_panel_gamma_ctrl(struct dsim_device *dsim, u8 force)
+static void dsim_panel_gamma_ctrl(struct lcd_info *lcd, u8 force)
 {
 	u8 *gamma = NULL;
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 
 	gamma = lcd->gamma_table[lcd->bl];
 	if (gamma == NULL) {
-		dev_err(&lcd->ld->dev, "%s: faied to get gamma\n", __func__);
+		dev_err(&lcd->ld->dev, "%s: failed to get gamma\n", __func__);
 		goto exit;
 	}
 
@@ -191,16 +190,15 @@ exit:
 	return;
 }
 
-static void dsim_panel_aid_ctrl(struct dsim_device *dsim, u8 force)
+static void dsim_panel_aid_ctrl(struct lcd_info *lcd, u8 force)
 {
 	u8 *aid = NULL;
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 	union aor_info aor_value;
 
-	aid = lcd->aor_table[lcd->brightness];
+	aid = lcd->ldu_index ? lcd->aor_ldu_table[lcd->bl] : lcd->aor_table[lcd->brightness];
 	if (aid == NULL) {
-		dev_err(&lcd->ld->dev, "%s: faield to get aid value\n", __func__);
+		dev_err(&lcd->ld->dev, "%s: failed to get aid value\n", __func__);
 		goto exit;
 	}
 
@@ -215,11 +213,10 @@ exit:
 	return;
 }
 
-static int dsim_panel_set_tset(struct dsim_device *dsim, int force)
+static int dsim_panel_set_tset(struct lcd_info *lcd, int force)
 {
 	int ret = 0;
 	unsigned char tset = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 
 	tset = ((lcd->temperature < 0) ? BIT(7) : 0) | abs(lcd->temperature);
 
@@ -232,11 +229,10 @@ exit:
 	return ret;
 }
 
-static void dsim_panel_set_elvss(struct dsim_device *dsim, u8 force)
+static void dsim_panel_set_elvss(struct lcd_info *lcd, u8 force)
 {
 	u8 *elvss = NULL;
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 	union elvss_info elvss_value;
 
 	elvss = lcd->elvss_table[lcd->bl][lcd->temperature_index];
@@ -265,10 +261,9 @@ exit:
 	return;
 }
 
-static int dsim_panel_set_acl(struct dsim_device *dsim, int force)
+static int dsim_panel_set_acl(struct lcd_info *lcd, int force)
 {
 	int ret = 0, level = ACL_STATUS_8P;
-	struct lcd_info *lcd = dsim->priv.par;
 
 	if (lcd->siop_enable || lcd->acl_enable)
 		goto acl_update;
@@ -287,9 +282,8 @@ exit:
 	return ret;
 }
 
-static int dsim_panel_set_hbm(struct dsim_device *dsim, int force)
+static int dsim_panel_set_hbm(struct lcd_info *lcd, int force)
 {
-	struct lcd_info *lcd = dsim->priv.par;
 	int ret = 0, level = LEVEL_IS_HBM(lcd->auto_brightness, lcd->brightness);
 
 	if (force || lcd->current_hbm != lcd->hbm_table[level][LDI_OFFSET_HBM]) {
@@ -302,27 +296,26 @@ exit:
 	return ret;
 }
 
-static int low_level_set_brightness(struct dsim_device *dsim, int force)
+static int low_level_set_brightness(struct lcd_info *lcd, int force)
 {
-	struct lcd_info *lcd = dsim->priv.par;
 	int ret = 0;
 
 	DSI_WRITE(SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
 	DSI_WRITE(SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC));
 
-	dsim_panel_gamma_ctrl(dsim, force);
+	dsim_panel_gamma_ctrl(lcd, force);
 
-	dsim_panel_aid_ctrl(dsim, force);
+	dsim_panel_aid_ctrl(lcd, force);
 
-	dsim_panel_set_tset(dsim, force);
+	dsim_panel_set_tset(lcd, force);
 
-	dsim_panel_set_elvss(dsim, force);
+	dsim_panel_set_elvss(lcd, force);
 
 	DSI_WRITE(SEQ_GAMMA_UPDATE, ARRAY_SIZE(SEQ_GAMMA_UPDATE));
 
-	dsim_panel_set_acl(dsim, force);
+	dsim_panel_set_acl(lcd, force);
 
-	dsim_panel_set_hbm(dsim, force);
+	dsim_panel_set_hbm(lcd, force);
 
 	DSI_WRITE(SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
 	DSI_WRITE(SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC));
@@ -331,22 +324,21 @@ exit:
 	return 0;
 }
 
-static int get_backlight_level_from_brightness(int brightness)
+static int get_backlight_level_from_brightness(int brightness, int ldu)
 {
-	return brightness_table[brightness];
+	return brightness_table[brightness][ldu];
 }
 #endif
 
 #ifdef CONFIG_LCD_HMT
-static void dsim_panel_gamma_ctrl_for_hmt(struct dsim_device *dsim, u8 force)
+static void dsim_panel_gamma_ctrl_for_hmt(struct lcd_info *lcd, u8 force)
 {
 	u8 *gamma = NULL;
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 
 	gamma = lcd->gamma_table_hmt[lcd->hmt_bl];
 	if (gamma == NULL) {
-		dev_err(&lcd->ld->dev, "%s: faied to get gamma\n", __func__);
+		dev_err(&lcd->ld->dev, "%s: failed to get gamma\n", __func__);
 		goto exit;
 	}
 
@@ -364,16 +356,15 @@ exit:
 	return;
 }
 
-static void dsim_panel_aid_ctrl_for_hmt(struct dsim_device *dsim, u8 force)
+static void dsim_panel_aid_ctrl_for_hmt(struct lcd_info *lcd, u8 force)
 {
 	u8 *aid = NULL;
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 	union aor_info aor_value;
 
 	aid = lcd->aor_table_hmt[lcd->hmt_bl];
 	if (aid == NULL) {
-		dev_err(&lcd->ld->dev, "%s: faield to get aid value\n", __func__);
+		dev_err(&lcd->ld->dev, "%s: failed to get aid value\n", __func__);
 		goto exit;
 	}
 
@@ -388,17 +379,16 @@ exit:
 	return;
 }
 
-static int low_level_set_brightness_for_hmt(struct dsim_device *dsim, int force)
+static int low_level_set_brightness_for_hmt(struct lcd_info *lcd, int force)
 {
-	struct lcd_info *lcd = dsim->priv.par;
 	int ret = 0;
 
 	DSI_WRITE(SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
 	DSI_WRITE(SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC));
 
-	dsim_panel_gamma_ctrl_for_hmt(dsim, force);
+	dsim_panel_gamma_ctrl_for_hmt(lcd, force);
 
-	dsim_panel_aid_ctrl_for_hmt(dsim, force);
+	dsim_panel_aid_ctrl_for_hmt(lcd, force);
 
 	DSI_WRITE(SEQ_ELVSS_SET_HMT, ARRAY_SIZE(SEQ_ELVSS_SET_HMT));
 
@@ -420,22 +410,20 @@ static int get_backlight_level_from_brightness_for_hmt(int brightness)
 	return brightness_table_hmt[brightness];
 }
 
-static int dsim_panel_set_brightness_for_hmt(struct dsim_device *dsim, int force)
+static int dsim_panel_set_brightness_for_hmt(struct lcd_info *lcd, int force)
 {
-	struct panel_private *priv = &dsim->priv;
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 
-	mutex_lock(&priv->lock);
+	mutex_lock(&lcd->lock);
 
 	lcd->hmt_bl = get_backlight_level_from_brightness_for_hmt(lcd->hmt_brightness);
 
-	if (!force && priv->state != PANEL_STATE_RESUMED) {
+	if (!force && lcd->state != PANEL_STATE_RESUMED) {
 		dev_info(&lcd->ld->dev, "%s: panel is not active state..\n", __func__);
 		goto exit;
 	}
 
-	ret = low_level_set_brightness_for_hmt(dsim, force);
+	ret = low_level_set_brightness_for_hmt(lcd, force);
 	if (ret)
 		dev_err(&lcd->ld->dev, "%s failed to set brightness : %d\n", __func__, index_brightness_table_hmt[lcd->hmt_bl]);
 
@@ -443,40 +431,39 @@ static int dsim_panel_set_brightness_for_hmt(struct dsim_device *dsim, int force
 
 	dev_info(&lcd->ld->dev, "brightness: %d, bl: %d, nit: %d\n", lcd->hmt_brightness, lcd->hmt_bl, index_brightness_table_hmt[lcd->hmt_bl]);
 exit:
-	mutex_unlock(&priv->lock);
+	mutex_unlock(&lcd->lock);
 
 	return ret;
 }
 #endif
 
-static int dsim_panel_set_brightness(struct dsim_device *dsim, int force)
+static int dsim_panel_set_brightness(struct lcd_info *lcd, int force)
 {
-	struct panel_private *priv = &dsim->priv;
+	struct panel_private *priv = &lcd->dsim->priv;
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 
 #ifdef CONFIG_LCD_HMT
 	if (priv->hmt_on == HMT_ON) {
-		dsim_panel_set_brightness_for_hmt(dsim, 1);
+		dsim_panel_set_brightness_for_hmt(lcd, 1);
 		return ret;
 	}
 #endif
 
-	mutex_lock(&priv->lock);
+	mutex_lock(&lcd->lock);
 
 	lcd->brightness = lcd->bd->props.brightness;
 
-	lcd->bl = get_backlight_level_from_brightness(lcd->brightness);
+	lcd->bl = get_backlight_level_from_brightness(lcd->brightness, lcd->ldu_index);
 
 	if (LEVEL_IS_HBM_INTERPOLATION(lcd->auto_brightness, lcd->brightness))
 		lcd->bl = hbm_auto_brightness_table[lcd->auto_brightness];
 
-	if (!force && priv->state != PANEL_STATE_RESUMED) {
+	if (!force && lcd->state != PANEL_STATE_RESUMED) {
 		dev_info(&lcd->ld->dev, "%s: panel is not active state..\n", __func__);
 		goto exit;
 	}
 
-	ret = low_level_set_brightness(dsim, force);
+	ret = low_level_set_brightness(lcd, force);
 	if (ret)
 		dev_err(&lcd->ld->dev, "%s failed to set brightness : %d\n", __func__, index_brightness_table[lcd->bl]);
 
@@ -484,15 +471,15 @@ static int dsim_panel_set_brightness(struct dsim_device *dsim, int force)
 
 	dev_info(&lcd->ld->dev, "brightness: %d, bl: %d, nit: %d\n", lcd->brightness, lcd->bl, index_brightness_table[lcd->bl]);
 exit:
-	mutex_unlock(&priv->lock);
+	mutex_unlock(&lcd->lock);
 
 	return ret;
 }
 
 static int panel_get_brightness(struct backlight_device *bd)
 {
-	struct panel_private *priv = bl_get_data(bd);
-	struct lcd_info *lcd = priv->par;
+	struct lcd_info *lcd = bl_get_data(bd);
+	struct panel_private *priv = &lcd->dsim->priv;
 
 #ifdef CONFIG_LCD_HMT
 	if (priv->hmt_on == HMT_ON)
@@ -508,11 +495,7 @@ static int panel_set_brightness(struct backlight_device *bd)
 {
 	int ret = 0;
 	int brightness = bd->props.brightness;
-	struct panel_private *priv = bl_get_data(bd);
-	struct lcd_info *lcd = priv->par;
-	struct dsim_device *dsim;
-
-	dsim = container_of(priv, struct dsim_device, priv);
+	struct lcd_info *lcd = bl_get_data(bd);
 
 	if (brightness < UI_MIN_BRIGHTNESS || brightness > UI_MAX_BRIGHTNESS) {
 		pr_alert("Brightness should be in the range of 0 ~ 255\n");
@@ -520,10 +503,10 @@ static int panel_set_brightness(struct backlight_device *bd)
 		goto exit;
 	}
 
-	if (priv->state == PANEL_STATE_RESUMED) {
-		ret = dsim_panel_set_brightness(dsim, 0);
+	if (lcd->state == PANEL_STATE_RESUMED) {
+		ret = dsim_panel_set_brightness(lcd, 0);
 		if (ret) {
-			dev_err(&lcd->ld->dev, "%s: fail to set brightness\n", __func__);
+			dev_err(&lcd->ld->dev, "%s: failed to set brightness\n", __func__);
 			goto exit;
 		}
 	}
@@ -536,949 +519,6 @@ static const struct backlight_ops panel_backlight_ops = {
 	.get_brightness = panel_get_brightness,
 	.update_status = panel_set_brightness,
 };
-
-static int dsim_backlight_probe(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	lcd->bd = backlight_device_register("panel", dsim->dev, &dsim->priv,
-					&panel_backlight_ops, NULL);
-	if (IS_ERR(lcd->bd)) {
-		dsim_err("%s: failed register backlight\n", __func__);
-		ret = PTR_ERR(lcd->bd);
-	}
-
-	lcd->bd->props.max_brightness = UI_MAX_BRIGHTNESS;
-	lcd->bd->props.brightness = UI_DEFAULT_BRIGHTNESS;
-
-	return ret;
-}
-
-
-
-static ssize_t lcd_type_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-
-	sprintf(buf, "SDC_%02X%02X%02X\n", priv->id[0], priv->id[1], priv->id[2]);
-
-	return strlen(buf);
-}
-
-static ssize_t window_type_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-
-	sprintf(buf, "%x %x %x\n", priv->id[0], priv->id[1], priv->id[2]);
-
-	return strlen(buf);
-}
-
-static ssize_t brightness_table_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	int i, bl;
-	char *pos = buf;
-
-	for (i = 0; i <= UI_MAX_BRIGHTNESS; i++) {
-		bl = get_backlight_level_from_brightness(i);
-		pos += sprintf(pos, "%3d %3d\n", i, index_brightness_table[bl]);
-	}
-
-	return pos - buf;
-}
-
-static ssize_t auto_brightness_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-	struct lcd_info *lcd = priv->par;
-
-	sprintf(buf, "%u\n", lcd->auto_brightness);
-
-	return strlen(buf);
-}
-
-static ssize_t auto_brightness_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-	int value;
-	int rc;
-	struct lcd_info *lcd = priv->par;
-
-	dsim = container_of(priv, struct dsim_device, priv);
-
-	rc = kstrtoul(buf, (unsigned int)0, (unsigned long *)&value);
-	if (rc < 0)
-		return rc;
-	else {
-		if (lcd->auto_brightness != value) {
-			dev_info(&lcd->ld->dev, "%s: %d, %d\n", __func__, lcd->auto_brightness, value);
-			mutex_lock(&priv->lock);
-			lcd->auto_brightness = value;
-			mutex_unlock(&priv->lock);
-			if (priv->state == PANEL_STATE_RESUMED)
-				dsim_panel_set_brightness(dsim, 0);
-		}
-	}
-	return size;
-}
-
-static ssize_t siop_enable_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-	struct lcd_info *lcd = priv->par;
-
-	sprintf(buf, "%u\n", lcd->siop_enable);
-
-	return strlen(buf);
-}
-
-static ssize_t siop_enable_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-	int value;
-	int rc;
-	struct lcd_info *lcd = priv->par;
-
-	dsim = container_of(priv, struct dsim_device, priv);
-
-	rc = kstrtoul(buf, (unsigned int)0, (unsigned long *)&value);
-	if (rc < 0)
-		return rc;
-	else {
-		if (lcd->siop_enable != value) {
-			dev_info(dev, "%s: %d, %d\n", __func__, lcd->siop_enable, value);
-			mutex_lock(&priv->lock);
-			lcd->siop_enable = value;
-			mutex_unlock(&priv->lock);
-			if (priv->state == PANEL_STATE_RESUMED)
-				dsim_panel_set_brightness(dsim, 1);
-		}
-	}
-	return size;
-}
-
-static ssize_t power_reduce_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-	struct lcd_info *lcd = priv->par;
-
-	sprintf(buf, "%u\n", lcd->acl_enable);
-
-	return strlen(buf);
-}
-
-static ssize_t power_reduce_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-	int value;
-	int rc;
-	struct lcd_info *lcd = priv->par;
-
-	dsim = container_of(priv, struct dsim_device, priv);
-	rc = kstrtoul(buf, (unsigned int)0, (unsigned long *)&value);
-
-	if (rc < 0)
-		return rc;
-	else {
-		if (lcd->acl_enable != value) {
-			dev_info(dev, "%s: %d, %d\n", __func__, lcd->acl_enable, value);
-			mutex_lock(&priv->lock);
-			lcd->acl_enable = value;
-			mutex_unlock(&priv->lock);
-			if (priv->state == PANEL_STATE_RESUMED)
-				dsim_panel_set_brightness(dsim, 1);
-		}
-	}
-	return size;
-}
-
-static ssize_t temperature_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	char temp[] = "-20, -19, 0, 1\n";
-
-	strcat(buf, temp);
-	return strlen(buf);
-}
-
-static ssize_t temperature_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-	int value, rc, temperature_index = 0;
-	struct lcd_info *lcd = priv->par;
-
-	dsim = container_of(priv, struct dsim_device, priv);
-
-	rc = kstrtoint(buf, 10, &value);
-
-	if (rc < 0)
-		return rc;
-	else {
-		switch (value) {
-		case 1:
-			temperature_index = TEMP_ABOVE_MINUS_00_DEGREE;
-			break;
-		case 0:
-		case -19:
-			temperature_index = TEMP_ABOVE_MINUS_20_DEGREE;
-			break;
-		case -20:
-			temperature_index = TEMP_BELOW_MINUS_20_DEGREE;
-			break;
-		}
-
-		mutex_lock(&priv->lock);
-		lcd->temperature = value;
-		lcd->temperature_index = temperature_index;
-		mutex_unlock(&priv->lock);
-
-		if (priv->state == PANEL_STATE_RESUMED)
-			dsim_panel_set_brightness(dsim, 1);
-
-		dev_info(dev, "%s: %d, %d, %d\n", __func__, value, lcd->temperature, lcd->temperature_index);
-	}
-
-	return size;
-}
-
-static ssize_t color_coordinate_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-	struct lcd_info *lcd = priv->par;
-
-	sprintf(buf, "%u, %u\n", lcd->coordinate[0], lcd->coordinate[1]);
-
-	return strlen(buf);
-}
-
-static ssize_t manufacture_date_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-	struct lcd_info *lcd = priv->par;
-	u16 year;
-	u8 month, day, hour, min, sec;
-	u16 ms;
-
-	year = ((lcd->date[0] & 0xF0) >> 4) + 2011;
-	month = lcd->date[0] & 0xF;
-	day = lcd->date[1] & 0x1F;
-	hour = lcd->date[2] & 0x1F;
-	min = lcd->date[3] & 0x3F;
-	sec = lcd->date[4];
-	ms = (lcd->date[5] << 8) | lcd->date[6];
-
-	sprintf(buf, "%04d, %02d, %02d, %02d:%02d:%02d.%04d\n", year, month, day, hour, min, sec, ms);
-
-	return strlen(buf);
-}
-
-static ssize_t manufacture_code_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-	struct lcd_info *lcd = priv->par;
-
-	sprintf(buf, "%02X%02X%02X%02X%02X\n",
-		lcd->code[0], lcd->code[1], lcd->code[2], lcd->code[3], lcd->code[4]);
-
-	return strlen(buf);
-}
-
-static ssize_t cell_id_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-	struct lcd_info *lcd = priv->par;
-
-	sprintf(buf, "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
-		lcd->date[0], lcd->date[1], lcd->date[2], lcd->date[3], lcd->date[4],
-		lcd->date[5], lcd->date[6], (lcd->coordinate[0] & 0xFF00) >> 8, lcd->coordinate[0] & 0x00FF,
-		(lcd->coordinate[1] & 0xFF00) >> 8, lcd->coordinate[1] & 0x00FF);
-
-	return strlen(buf);
-}
-
-#ifdef CONFIG_PANEL_AID_DIMMING
-static void show_aid_log(struct dsim_device *dsim)
-{
-	struct lcd_info *lcd = dsim->priv.par;
-	u8 temp[256];
-	int i, j, k;
-	int *mtp;
-
-	mtp = lcd->daid.mtp;
-	for (i = 0, j = 0; i < IV_MAX; i++, j += CI_MAX) {
-		if (i == 0)
-			dev_info(&lcd->ld->dev, "MTP Offset VT   : %4d %4d %4d\n",
-				mtp[j + CI_RED], mtp[j + CI_GREEN], mtp[j + CI_BLUE]);
-		else
-			dev_info(&lcd->ld->dev, "MTP Offset V%3d : %4d %4d %4d\n",
-				lcd->daid.iv_tbl[i], mtp[j + CI_RED], mtp[j + CI_GREEN], mtp[j + CI_BLUE]);
-	}
-
-	for (i = 0; i < IBRIGHTNESS_MAX; i++) {
-		memset(temp, 0, sizeof(temp));
-		for (j = 1; j < GAMMA_CMD_CNT; j++) {
-			if (j == 1 || j == 3 || j == 5)
-				k = lcd->gamma_table[i][j++] * 256;
-			else
-				k = 0;
-			snprintf(temp + strnlen(temp, 256), 256, " %3d", lcd->gamma_table[i][j] + k);
-		}
-
-		dev_info(&lcd->ld->dev, "nit : %3d  %s\n", lcd->daid.ibr_tbl[i], temp);
-	}
-
-	mtp = lcd->hitp.hbm;
-	for (i = 0, j = 0; i < IV_MAX; i++, j += CI_MAX) {
-		if (i == 0)
-			dev_info(&lcd->ld->dev, "HBM Gamma VT   : %4d %4d %4d\n",
-				mtp[j + CI_RED], mtp[j + CI_GREEN], mtp[j + CI_BLUE]);
-		else
-			dev_info(&lcd->ld->dev, "HBM Gamma V%3d : %4d %4d %4d\n",
-				lcd->daid.iv_tbl[i], mtp[j + CI_RED], mtp[j + CI_GREEN], mtp[j + CI_BLUE]);
-	}
-
-	for (i = IBRIGHTNESS_MAX; i < IBRIGHTNESS_HBM_MAX; i++) {
-		memset(temp, 0, sizeof(temp));
-		for (j = 1; j < GAMMA_CMD_CNT; j++) {
-			if (j == 1 || j == 3 || j == 5)
-				k = lcd->gamma_table[i][j++] * 256;
-			else
-				k = 0;
-			snprintf(temp + strnlen(temp, 256), 256, " %3d", lcd->gamma_table[i][j] + k);
-		}
-
-		dev_info(&lcd->ld->dev, "nit : %3d  %s\n", lcd->daid.ibr_tbl[i], temp);
-	}
-
-#ifdef CONFIG_LCD_HMT
-	mtp = lcd->hmt_daid.mtp;
-	for (i = 0, j = 0; i < IV_MAX; i++, j += CI_MAX) {
-		if (i == 0)
-			dev_info(&lcd->ld->dev, "HMT Offset VT   : %4d %4d %4d\n",
-				mtp[j + CI_RED], mtp[j + CI_GREEN], mtp[j + CI_BLUE]);
-		else
-			dev_info(&lcd->ld->dev, "HMT Offset V%3d : %4d %4d %4d\n",
-				lcd->hmt_daid.iv_tbl[i], mtp[j + CI_RED], mtp[j + CI_GREEN], mtp[j + CI_BLUE]);
-	}
-
-	for (i = 0; i < IBRIGHTNESS_HMT_MAX; i++) {
-		memset(temp, 0, sizeof(temp));
-		for (j = 1; j < GAMMA_CMD_CNT; j++) {
-			if (j == 1 || j == 3 || j == 5)
-				k = lcd->gamma_table_hmt[i][j++] * 256;
-			else
-				k = 0;
-			snprintf(temp + strnlen(temp, 256), 256, " %3d", lcd->gamma_table_hmt[i][j] + k);
-		}
-
-		dev_info(&lcd->ld->dev, "nit : %3d  %s\n", lcd->hmt_daid.ibr_tbl[i], temp);
-	}
-#endif
-	dev_info(&lcd->ld->dev, "%s\n", __func__);
-}
-
-static ssize_t aid_log_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-
-	dsim = container_of(priv, struct dsim_device, priv);
-
-	show_aid_log(dsim);
-
-	return strlen(buf);
-}
-#endif
-
-#ifdef CONFIG_LCD_HMT
-static ssize_t hmt_brightness_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-	struct lcd_info *lcd = priv->par;
-
-	sprintf(buf, "index : %d, brightenss : %d\n", lcd->hmt_bl, lcd->hmt_brightness);
-
-	return strlen(buf);
-}
-
-static ssize_t hmt_brightness_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-	struct lcd_info *lcd = priv->par;
-	int value;
-	int rc;
-
-	dsim = container_of(priv, struct dsim_device, priv);
-
-	rc = kstrtouint(buf, (unsigned int)0, &value);
-	if (rc < 0)
-		return rc;
-#if 0
-	if (priv->state != PANEL_STATE_RESUMED) {
-		dev_info(dev, "%s: panel is off\n", __func__);
-		return -EINVAL;
-	}
-#endif
-	if (priv->hmt_on == HMT_OFF) {
-		dev_info(dev, "%s: hmt is not on\n", __func__);
-		return -EINVAL;
-	}
-	if (lcd->hmt_brightness != value) {
-		mutex_lock(&priv->lock);
-		lcd->hmt_brightness = value;
-		mutex_unlock(&priv->lock);
-		if (priv->state == PANEL_STATE_RESUMED)
-			dsim_panel_set_brightness(dsim, 0);
-	}
-
-	dev_info(&lcd->ld->dev, "%s: %d\n", __func__, value);
-
-	return size;
-}
-
-static int hmt_set_mode(struct dsim_device *dsim, bool wakeup)
-{
-	struct panel_private *priv = &(dsim->priv);
-	struct lcd_info *lcd = dsim->priv.par;
-	int ret = 0;
-
-	mutex_lock(&priv->lock);
-
-	dev_info(&lcd->ld->dev, "++%s: %d\n", __func__, priv->hmt_on);
-
-	DSI_WRITE(SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
-	DSI_WRITE(SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC));
-
-	if (priv->hmt_on == HMT_ON) {
-		// on set
-		DSI_WRITE(SEQ_HMT_ON1, ARRAY_SIZE(SEQ_HMT_ON1));
-		DSI_WRITE(SEQ_HMT_REVERSE_PORCH, ARRAY_SIZE(SEQ_HMT_REVERSE_PORCH));
-		DSI_WRITE(SEQ_HMT_AID_REVERSE1, ARRAY_SIZE(SEQ_HMT_AID_REVERSE1));
-	} else if (priv->hmt_on == HMT_OFF) {
-		// off set
-		DSI_WRITE(SEQ_HMT_OFF1, ARRAY_SIZE(SEQ_HMT_OFF1));
-		DSI_WRITE(SEQ_HMT_FORWARD_PORCH, ARRAY_SIZE(SEQ_HMT_FORWARD_PORCH));
-		DSI_WRITE(SEQ_HMT_AID_FORWARD1, ARRAY_SIZE(SEQ_HMT_AID_FORWARD1));
-	} else
-		dev_info(&lcd->ld->dev, "hmt state is invalid %d!\n", priv->hmt_on);
-
-	DSI_WRITE(SEQ_GAMMA_UPDATE, ARRAY_SIZE(SEQ_GAMMA_UPDATE));
-
-	DSI_WRITE(SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
-	DSI_WRITE(SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC));
-
-exit:
-	mutex_unlock(&priv->lock);
-
-	dsim_panel_set_brightness(dsim, 1);
-
-	dev_info(&lcd->ld->dev, "--%s: %d\n", __func__, priv->hmt_on);
-
-	return 0;
-}
-
-static ssize_t hmt_on_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-
-	sprintf(buf, "%u\n", priv->hmt_on);
-
-	return strlen(buf);
-}
-
-static ssize_t hmt_on_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-	struct lcd_info *lcd = priv->par;
-	int value;
-	int rc;
-	dsim = container_of(priv, struct dsim_device, priv);
-
-	rc = kstrtoint(buf, 0, &value);
-	if (rc < 0)
-		return rc;
-
-	if (priv->hmt_on != value) {
-		mutex_lock(&priv->lock);
-		priv->hmt_on = value;
-		mutex_unlock(&priv->lock);
-		if (priv->state == PANEL_STATE_RESUMED)
-			hmt_set_mode(dsim, false);
-	} else
-		dev_info(&lcd->ld->dev, "%s: hmt already %s\n", __func__, value ? "on" : "off");
-
-	return size;
-}
-
-static DEVICE_ATTR(hmt_bright, 0664, hmt_brightness_show, hmt_brightness_store);
-static DEVICE_ATTR(hmt_on, 0664, hmt_on_show, hmt_on_store);
-#endif
-
-static int dsim_read_hl_data_offset(struct dsim_device *dsim, u8 addr, u32 size, u8 *buf, u32 offset)
-{
-	int ret;
-	unsigned char wbuf[] = {0xB0, 0};
-	struct lcd_info *lcd = dsim->priv.par;
-
-	wbuf[1] = offset;
-
-	DSI_WRITE(wbuf, ARRAY_SIZE(wbuf));
-
-	ret = dsim_read_hl_data(dsim, addr, size, buf);
-
-	if (ret < 1)
-		dev_err(&lcd->ld->dev, "%s failed\n", __func__);
-
-exit:
-	return ret;
-}
-
-static ssize_t dump_register_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-	struct lcd_info *lcd = priv->par;
-	char *pos = buf;
-	u8 reg, len, offset;
-	int ret, i;
-	u8 *dump = NULL;
-
-	dsim = container_of(priv, struct dsim_device, priv);
-
-	reg = lcd->dump_info[0];
-	len = lcd->dump_info[1];
-	offset = lcd->dump_info[2];
-
-	if (!reg || !len || reg > 0xff || len > 255 || offset > 255)
-		goto exit;
-
-	dump = kzalloc(len * sizeof(u8), GFP_KERNEL);
-
-	if (priv->state == PANEL_STATE_RESUMED) {
-		DSI_WRITE(SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
-		DSI_WRITE(SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC));
-
-		if (offset)
-			ret = dsim_read_hl_data_offset(dsim, reg, len, dump, offset);
-		else
-			ret = dsim_read_hl_data(dsim, reg, len, dump);
-
-		DSI_WRITE(SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
-		DSI_WRITE(SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC));
-	}
-
-	pos += sprintf(pos, "+ [%02X]\n", reg);
-	for (i = 0; i < len; i++)
-		pos += sprintf(pos, "%2d: %02x\n", i + offset + 1, dump[i]);
-	pos += sprintf(pos, "- [%02X]\n", reg);
-
-	dev_info(&lcd->ld->dev, "+ [%02X]\n", reg);
-	for (i = 0; i < len; i++)
-		dev_info(&lcd->ld->dev, "%2d: %02x\n", i + offset + 1, dump[i]);
-	dev_info(&lcd->ld->dev, "- [%02X]\n", reg);
-
-	kfree(dump);
-exit:
-	return pos - buf;
-}
-
-static ssize_t dump_register_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-	unsigned int reg, len, offset;
-	int ret;
-	struct lcd_info *lcd = priv->par;
-
-	ret = sscanf(buf, "%x %d %d", &reg, &len, &offset);
-
-	if (ret == 2)
-		offset = 0;
-
-	dev_info(dev, "%s: %x %d %d\n", __func__, reg, len, offset);
-
-	if (ret < 0)
-		return ret;
-	else {
-		if (!reg || !len || reg > 0xff || len > 255 || offset > 255)
-			return -EINVAL;
-
-		lcd->dump_info[0] = reg;
-		lcd->dump_info[1] = len;
-		lcd->dump_info[2] = offset;
-	}
-
-	return size;
-}
-
-static ssize_t weakness_hbm_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-	struct lcd_info *lcd = priv->par;
-
-	sprintf(buf, "%d\n", lcd->weakness_hbm_comp);
-
-	return strlen(buf);
-}
-
-static ssize_t weakness_hbm_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	int rc, value;
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-	struct lcd_info *lcd = priv->par;
-
-	dsim = container_of(priv, struct dsim_device, priv);
-
-	rc = kstrtouint(buf, (unsigned int)0, &value);
-
-	if (rc < 0)
-		return rc;
-	else {
-		if (lcd->weakness_hbm_comp != value) {
-			if ((lcd->weakness_hbm_comp == 1) && (value == 2)) {
-				dev_info(&lcd->ld->dev, "%s: don't support hbm interpolation\n", __func__);
-				return size;
-			}
-			if ((lcd->weakness_hbm_comp == 2) || (value == 2)) {
-				lcd->weakness_hbm_comp = value;
-				if (priv->state == PANEL_STATE_RESUMED)
-					dsim_panel_set_brightness(dsim, 1);
-				dev_info(&lcd->ld->dev, "%s: %d, %d\n", __func__, lcd->weakness_hbm_comp, value);
-			}
-		}
-	}
-	return size;
-}
-
-static ssize_t auto_brightness_level_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-	struct lcd_info *lcd = priv->par;
-
-	sprintf(buf, "%u\n", lcd->auto_brightness_level);
-
-	return strlen(buf);
-}
-
-static DEVICE_ATTR(lcd_type, 0444, lcd_type_show, NULL);
-static DEVICE_ATTR(window_type, 0444, window_type_show, NULL);
-static DEVICE_ATTR(manufacture_code, 0444, manufacture_code_show, NULL);
-static DEVICE_ATTR(cell_id, 0444, cell_id_show, NULL);
-static DEVICE_ATTR(brightness_table, 0444, brightness_table_show, NULL);
-static DEVICE_ATTR(auto_brightness, 0644, auto_brightness_show, auto_brightness_store);
-static DEVICE_ATTR(siop_enable, 0664, siop_enable_show, siop_enable_store);
-static DEVICE_ATTR(power_reduce, 0664, power_reduce_show, power_reduce_store);
-static DEVICE_ATTR(temperature, 0664, temperature_show, temperature_store);
-static DEVICE_ATTR(color_coordinate, 0444, color_coordinate_show, NULL);
-static DEVICE_ATTR(manufacture_date, 0444, manufacture_date_show, NULL);
-static DEVICE_ATTR(aid_log, 0444, aid_log_show, NULL);
-static DEVICE_ATTR(dump_register, 0644, dump_register_show, dump_register_store);
-static DEVICE_ATTR(weakness_hbm_comp, 0664, weakness_hbm_show, weakness_hbm_store);
-static DEVICE_ATTR(auto_brightness_level, 0444, auto_brightness_level_show, NULL);
-
-static struct attribute *lcd_sysfs_attributes[] = {
-	&dev_attr_lcd_type.attr,
-	&dev_attr_window_type.attr,
-	&dev_attr_manufacture_code.attr,
-	&dev_attr_cell_id.attr,
-	&dev_attr_siop_enable.attr,
-	&dev_attr_power_reduce.attr,
-	&dev_attr_temperature.attr,
-	&dev_attr_color_coordinate.attr,
-	&dev_attr_manufacture_date.attr,
-	&dev_attr_aid_log.attr,
-	&dev_attr_dump_register.attr,
-	NULL,
-};
-
-static struct attribute *backlight_sysfs_attributes[] = {
-	&dev_attr_brightness_table.attr,
-	&dev_attr_auto_brightness.attr,
-	&dev_attr_weakness_hbm_comp.attr,
-	&dev_attr_auto_brightness_level.attr,
-	NULL,
-};
-
-static const struct attribute_group lcd_sysfs_attr_group = {
-	.attrs = lcd_sysfs_attributes,
-};
-
-static const struct attribute_group backlight_sysfs_attr_group = {
-	.attrs = backlight_sysfs_attributes,
-};
-
-static void lcd_init_sysfs(struct dsim_device *dsim)
-{
-	struct lcd_info *lcd = dsim->priv.par;
-	int ret = 0;
-
-	ret = sysfs_create_group(&lcd->ld->dev.kobj, &lcd_sysfs_attr_group);
-	if (ret < 0)
-		dev_err(&lcd->ld->dev, "failed to add lcd sysfs\n");
-
-	ret = sysfs_create_group(&lcd->bd->dev.kobj, &backlight_sysfs_attr_group);
-	if (ret < 0)
-		dev_err(&lcd->bd->dev, "failed to add backlight sysfs\n");
-
-#ifdef CONFIG_LCD_HMT
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_hmt_bright);
-	if (ret < 0)
-		dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_hmt_on);
-	if (ret < 0)
-		dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-#endif
-}
-
-
-#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
-static int mdnie_lite_write_set(struct dsim_device *dsim, struct lcd_seq_info *seq, u32 num)
-{
-	int ret = 0, i;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	for (i = 0; i < num; i++) {
-		if (seq[i].cmd) {
-			ret = dsim_write_hl_data(dsim, seq[i].cmd, seq[i].len);
-			if (ret != 0) {
-				dev_info(&lcd->ld->dev, "%s failed.\n", __func__);
-				return ret;
-			}
-		}
-		if (seq[i].sleep)
-			usleep_range(seq[i].sleep * 1000, seq[i].sleep * 1000);
-	}
-	return ret;
-}
-
-int mdnie_lite_send_seq(struct dsim_device *dsim, struct lcd_seq_info *seq, u32 num)
-{
-	int ret = 0;
-	struct panel_private *priv = &dsim->priv;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	mutex_lock(&priv->lock);
-
-	if (priv->state != PANEL_STATE_RESUMED) {
-		dev_info(&lcd->ld->dev, "%s: panel is not active\n", __func__);
-		ret = -EIO;
-		goto exit;
-	}
-
-	ret = mdnie_lite_write_set(dsim, seq, num);
-
-exit:
-	mutex_unlock(&priv->lock);
-
-	return ret;
-}
-
-int mdnie_lite_read(struct dsim_device *dsim, u8 addr, u8 *buf, u32 size)
-{
-	int ret = 0;
-	struct panel_private *priv = &dsim->priv;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	mutex_lock(&priv->lock);
-
-	if (priv->state != PANEL_STATE_RESUMED) {
-		dev_info(&lcd->ld->dev, "%s: panel is not active\n", __func__);
-		ret = -EIO;
-		goto exit;
-	}
-
-	ret = dsim_read_hl_data(dsim, addr, size, buf);
-
-exit:
-	mutex_unlock(&priv->lock);
-
-	return ret;
-}
-#endif
-
-static int dsim_panel_early_probe(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct panel_private *priv = &dsim->priv;
-
-	priv->ops = dsim_panel_get_priv_ops(dsim);
-
-	if (priv->ops->early_probe)
-		ret = priv->ops->early_probe(dsim);
-
-	return ret;
-}
-
-static int dsim_panel_probe(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct panel_private *priv = &dsim->priv;
-	struct lcd_info *lcd = dsim->priv.par;
-#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
-	u16 coordinate[2] = {0, };
-#endif
-	priv->par = lcd = kzalloc(sizeof(struct lcd_info), GFP_KERNEL);
-	if (!lcd) {
-		pr_err("failed to allocate for lcd\n");
-		ret = -ENOMEM;
-		goto probe_err;
-	}
-
-	dsim->lcd = lcd->ld = lcd_device_register("panel", dsim->dev, &dsim->priv, NULL);
-	if (IS_ERR(lcd->ld)) {
-		dsim_err("%s: faield to register lcd device\n", __func__);
-		ret = PTR_ERR(lcd->ld);
-		goto probe_err;
-	}
-
-	ret = dsim_backlight_probe(dsim);
-	if (ret) {
-		dsim_err("%s: failed to prbe backlight driver\n", __func__);
-		goto probe_err;
-	}
-
-	priv->lcdConnected = PANEL_CONNECTED;
-	priv->state = PANEL_STATE_RESUMED;
-
-	mutex_init(&priv->lock);
-
-	if (priv->ops->probe) {
-		ret = priv->ops->probe(dsim);
-		if (ret) {
-			dev_err(&lcd->ld->dev, "%s: failed to probe panel\n", __func__);
-			goto probe_err;
-		}
-	}
-
-#if defined(CONFIG_EXYNOS_DECON_LCD_SYSFS)
-	lcd_init_sysfs(dsim);
-#endif
-
-#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
-	coordinate[0] = (u16)lcd->coordinate[0];
-	coordinate[1] = (u16)lcd->coordinate[1];
-	mdnie_register(&lcd->ld->dev, dsim, (mdnie_w)mdnie_lite_send_seq, (mdnie_r)mdnie_lite_read, coordinate, &tune_info);
-#endif
-
-	dev_info(&lcd->ld->dev, "%s probe done\n", __FILE__);
-probe_err:
-	return ret;
-}
-
-static int dsim_panel_displayon(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct panel_private *priv = &dsim->priv;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	dev_info(&lcd->ld->dev, "+%s\n", __func__);
-
-	if (priv->state == PANEL_STATE_SUSPENED) {
-		if (priv->ops->init) {
-			ret = priv->ops->init(dsim);
-			if (ret) {
-				dsim_err("%s: failed to panel init\n", __func__);
-				goto displayon_err;
-			}
-		}
-	}
-#ifdef CONFIG_LCD_HMT
-	if (priv->hmt_on == HMT_ON)
-		hmt_set_mode(dsim, false);
-#endif
-
-	if (priv->ops->displayon) {
-		ret = priv->ops->displayon(dsim);
-		if (ret) {
-			dsim_err("%s: failed to panel display on\n", __func__);
-			goto displayon_err;
-		}
-	}
-
-displayon_err:
-	mutex_lock(&priv->lock);
-	priv->state = PANEL_STATE_RESUMED;
-	mutex_unlock(&priv->lock);
-
-	dev_info(&lcd->ld->dev, "-%s: %d\n", __func__, priv->lcdConnected);
-
-	pinctrl_enable(lcd, 1);
-
-	return ret;
-}
-
-static int dsim_panel_suspend(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct panel_private *priv = &dsim->priv;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	dev_info(&lcd->ld->dev, "+%s\n", __func__);
-
-	if (priv->state == PANEL_STATE_SUSPENED)
-		goto suspend_err;
-
-	priv->state = PANEL_STATE_SUSPENDING;
-
-	if (priv->ops->exit) {
-		ret = priv->ops->exit(dsim);
-		if (ret) {
-			dsim_err("%s: failed to panel exit\n", __func__);
-			goto suspend_err;
-		}
-	}
-
-suspend_err:
-	mutex_lock(&priv->lock);
-	priv->state = PANEL_STATE_SUSPENED;
-	mutex_unlock(&priv->lock);
-
-	pinctrl_enable(lcd, 0);
-
-	dev_info(&lcd->ld->dev, "-%s: %d\n", __func__, priv->lcdConnected);
-
-	return ret;
-}
-
-struct mipi_dsim_lcd_driver s6e3fa3_mipi_lcd_driver = {
-	.early_probe = dsim_panel_early_probe,
-	.probe		= dsim_panel_probe,
-	.displayon	= dsim_panel_displayon,
-	.suspend	= dsim_panel_suspend,
-};
-
 
 
 #ifdef CONFIG_PANEL_AID_DIMMING
@@ -1494,24 +534,18 @@ static void init_dynamic_aid(struct lcd_info *lcd)
 
 	lcd->daid.ibr_tbl = index_brightness_table;
 	lcd->daid.ibr_max = IBRIGHTNESS_MAX;
-	lcd->daid.gc_tbls = gamma_curve_tables;
-	lcd->daid.gc_lut = gamma_curve_lut;
 
-	lcd->daid.br_base = brightness_base_table;
-	lcd->daid.offset_gra = offset_gradation;
 	lcd->daid.offset_color = (const struct rgb_t(*)[])offset_color;
 	lcd->daid.iv_ref = index_voltage_reference;
-	lcd->daid.m_gray_limit = m_gray_limit;
+	lcd->daid.m_gray = m_gray;
 
 #ifdef CONFIG_LCD_HMT
 	lcd->hmt_daid = lcd->daid;
 	lcd->hmt_daid.ibr_tbl = index_brightness_table_hmt;
 	lcd->hmt_daid.ibr_max = IBRIGHTNESS_HMT_MAX;
-	lcd->hmt_daid.gc_tbls = gamma_curve_tables_hmt;
 
-	lcd->hmt_daid.br_base = brightness_base_table_hmt;
-	lcd->hmt_daid.offset_gra = offset_gradation_hmt;
 	lcd->hmt_daid.offset_color = (const struct rgb_t(*)[])offset_color_hmt;
+	lcd->hmt_daid.m_gray = m_gray_hmt;
 #endif
 }
 
@@ -1560,7 +594,7 @@ static void reorder_reg2gamma(u8 *reg, int *gamma)
 }
 
 /* VT ~ V255(msb is not seperated) -> V255(msb is seperated) ~ VT */
-/* array idx 0 (zero) is reserved for gamma command address (0xCA) */
+/* array idx zero (reg[0]) is reserved for gamma command address (0xCA) */
 static void reorder_gamma2reg(int *gamma, u8 *reg)
 {
 	int j, c, v;
@@ -1621,7 +655,7 @@ static int init_hmt_gamma(struct lcd_info *lcd, u8 *mtp_data)
 	int **gamma;
 
 	/* allocate memory for local gamma table */
-	gamma = kzalloc(IBRIGHTNESS_HMT_MAX * sizeof(int *), GFP_KERNEL);
+	gamma = kcalloc(IBRIGHTNESS_HMT_MAX, sizeof(int *), GFP_KERNEL);
 	if (!gamma) {
 		pr_err("failed to allocate gamma table\n");
 		ret = -ENOMEM;
@@ -1733,12 +767,11 @@ err_alloc_gamma_table:
 }
 #endif
 
-static int s6e3fa3_read_info(struct dsim_device *dsim, u8 reg, u32 len, u8 *buf)
+static int s6e3fa3_read_info(struct lcd_info *lcd, u8 reg, u32 len, u8 *buf)
 {
 	int ret = 0, i;
-	struct lcd_info *lcd = dsim->priv.par;
 
-	ret = dsim_read_hl_data(dsim, reg, len, buf);
+	ret = dsim_read_hl_data(lcd->dsim, reg, len, buf);
 
 	if (ret != len) {
 		dev_err(&lcd->ld->dev, "%s: fail: %02xh\n", __func__, reg);
@@ -1754,13 +787,12 @@ exit:
 	return ret;
 }
 
-static int s6e3fa3_read_id(struct dsim_device *dsim)
+static int s6e3fa3_read_id(struct lcd_info *lcd)
 {
+	struct panel_private *priv = &lcd->dsim->priv;
 	int ret = 0;
-	struct panel_private *priv = &dsim->priv;
-	struct lcd_info *lcd = dsim->priv.par;
 
-	ret = s6e3fa3_read_info(dsim, LDI_REG_ID, LDI_LEN_ID, priv->id);
+	ret = s6e3fa3_read_info(lcd, LDI_REG_ID, LDI_LEN_ID, lcd->id);
 	if (ret < 0) {
 		priv->lcdConnected = PANEL_DISCONNEDTED;
 		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
@@ -1771,13 +803,12 @@ exit:
 	return ret;
 }
 
-static int s6e3fa3_read_mtp(struct dsim_device *dsim, unsigned char *mtp)
+static int s6e3fa3_read_mtp(struct lcd_info *lcd, unsigned char *mtp)
 {
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 	unsigned char buf[LDI_GPARA_DATE + LDI_LEN_DATE] = {0, };
 
-	ret = s6e3fa3_read_info(dsim, LDI_REG_MTP, ARRAY_SIZE(buf), buf);
+	ret = s6e3fa3_read_info(lcd, LDI_REG_MTP, ARRAY_SIZE(buf), buf);
 	if (ret < 0) {
 		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
 		goto exit;
@@ -1790,13 +821,12 @@ exit:
 	return ret;
 }
 
-static int s6e3fa3_read_coordinate(struct dsim_device *dsim)
+static int s6e3fa3_read_coordinate(struct lcd_info *lcd)
 {
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 	unsigned char buf[LDI_LEN_COORDINATE] = {0,};
 
-	ret = s6e3fa3_read_info(dsim, LDI_REG_COORDINATE, LDI_LEN_COORDINATE, buf);
+	ret = s6e3fa3_read_info(lcd, LDI_REG_COORDINATE, LDI_LEN_COORDINATE, buf);
 	if (ret < 0) {
 		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
 		goto exit;
@@ -1809,12 +839,11 @@ exit:
 	return ret;
 }
 
-static int s6e3fa3_read_chip_id(struct dsim_device *dsim)
+static int s6e3fa3_read_chip_id(struct lcd_info *lcd)
 {
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 
-	ret = s6e3fa3_read_info(dsim, LDI_REG_CHIP_ID, LDI_LEN_CHIP_ID, lcd->code);
+	ret = s6e3fa3_read_info(lcd, LDI_REG_CHIP_ID, LDI_LEN_CHIP_ID, lcd->code);
 	if (ret < 0) {
 		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
 		goto exit;
@@ -1824,12 +853,11 @@ exit:
 	return ret;
 }
 
-static int s6e3fa3_read_elvss(struct dsim_device *dsim, unsigned char *buf)
+static int s6e3fa3_read_elvss(struct lcd_info *lcd, unsigned char *buf)
 {
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 
-	ret = s6e3fa3_read_info(dsim, LDI_REG_ELVSS, LDI_LEN_ELVSS, buf);
+	ret = s6e3fa3_read_info(lcd, LDI_REG_ELVSS, LDI_LEN_ELVSS, buf);
 	if (ret < 0) {
 		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
 		goto exit;
@@ -1839,10 +867,9 @@ exit:
 	return ret;
 }
 
-static int s6e3fa3_init_elvss(struct dsim_device *dsim, u8 *elvss_data)
+static int s6e3fa3_init_elvss(struct lcd_info *lcd, u8 *elvss_data)
 {
 	int i, temp, ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 
 	for (i = 0; i < IBRIGHTNESS_MAX; i++) {
 		for (temp = 0; temp < TEMP_MAX; temp++) {
@@ -1861,12 +888,11 @@ static int s6e3fa3_init_elvss(struct dsim_device *dsim, u8 *elvss_data)
 	return ret;
 }
 
-static int s6e3fa3_read_hbm(struct dsim_device *dsim, unsigned char *buf)
+static int s6e3fa3_read_hbm(struct lcd_info *lcd, unsigned char *buf)
 {
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 
-	ret = s6e3fa3_read_info(dsim, LDI_REG_HBM, LDI_LEN_HBM, buf);
+	ret = s6e3fa3_read_info(lcd, LDI_REG_HBM, LDI_LEN_HBM, buf);
 	if (ret < 0) {
 		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
 		goto exit;
@@ -1877,28 +903,27 @@ exit:
 }
 
 #if 0
-static int s6e3fa3_read_status(struct dsim_device *dsim)
+static int s6e3fa3_read_status(struct lcd_info *lcd)
 {
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 	unsigned char rddpm[LDI_LEN_RDDPM] = {0,};
 	unsigned char rddsm[LDI_LEN_RDDSM] = {0,};
 	unsigned char esderr[LDI_LEN_ESDERR] = {0,};
 
 	DSI_WRITE(SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
 
-	ret = s6e3fa3_read_info(dsim, LDI_REG_RDDPM, LDI_LEN_RDDPM, rddpm);
+	ret = s6e3fa3_read_info(lcd, LDI_REG_RDDPM, LDI_LEN_RDDPM, rddpm);
 	if (ret < 0) {
 		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
 		goto exit;
 	}
 
-	ret = s6e3fa3_read_info(dsim, LDI_REG_RDDSM, LDI_LEN_RDDSM, rddsm);
+	ret = s6e3fa3_read_info(lcd, LDI_REG_RDDSM, LDI_LEN_RDDSM, rddsm);
 	if (ret < 0) {
 		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
 		goto exit;
 	}
-	ret = s6e3fa3_read_info(dsim, LDI_REG_ESDERR, LDI_LEN_ESDERR, esderr);
+	ret = s6e3fa3_read_info(lcd, LDI_REG_ESDERR, LDI_LEN_ESDERR, esderr);
 	if (ret < 0) {
 		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
 		goto exit;
@@ -1913,10 +938,9 @@ exit:
 }
 #endif
 
-static int s6e3fa3_init_hbm_elvss(struct dsim_device *dsim, u8 *elvss_data)
+static int s6e3fa3_init_hbm_elvss(struct lcd_info *lcd, u8 *elvss_data)
 {
 	int i, temp, ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 
 	for (i = IBRIGHTNESS_MAX; i < IBRIGHTNESS_HBM_MAX; i++) {
 		for (temp = 0; temp < TEMP_MAX; temp++) {
@@ -2037,13 +1061,12 @@ static int init_hbm_gamma(struct lcd_info *lcd)
 	return ret;
 }
 
-static int s6e3fa3_init_hbm_interpolation(struct dsim_device *dsim)
+static int s6e3fa3_init_hbm_interpolation(struct lcd_info *lcd)
 {
-	struct lcd_info *lcd = dsim->priv.par;
 	unsigned char hbm_data[LDI_LEN_HBM] = {0,};
 	int ret = 0;
 
-	ret |= s6e3fa3_read_hbm(dsim, hbm_data);
+	ret |= s6e3fa3_read_hbm(lcd, hbm_data);
 
 	init_hbm_interpolation(lcd);
 	init_hbm_data(lcd, hbm_data);
@@ -2052,10 +1075,9 @@ static int s6e3fa3_init_hbm_interpolation(struct dsim_device *dsim)
 	return ret;
 }
 
-static int s6e3fa3_exit(struct dsim_device *dsim)
+static int s6e3fa3_exit(struct lcd_info *lcd)
 {
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 
 	dev_info(&lcd->ld->dev, "%s\n", __func__);
 
@@ -2075,10 +1097,9 @@ exit:
 	return ret;
 }
 
-static int s6e3fa3_displayon(struct dsim_device *dsim)
+static int s6e3fa3_displayon(struct lcd_info *lcd)
 {
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 
 	dev_info(&lcd->ld->dev, "%s\n", __func__);
 
@@ -2089,10 +1110,9 @@ exit:
 	return ret;
 }
 
-static int s6e3fa3_init(struct dsim_device *dsim)
+static int s6e3fa3_init(struct lcd_info *lcd)
 {
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 
 	dev_info(&lcd->ld->dev, "%s\n", __func__);
 
@@ -2103,7 +1123,7 @@ static int s6e3fa3_init(struct dsim_device *dsim)
 	msleep(20);
 
 	/* 9. ID READ */
-	s6e3fa3_read_id(dsim);
+	s6e3fa3_read_id(lcd);
 
 	/* Test Key Enable */
 	DSI_WRITE(SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
@@ -2118,7 +1138,7 @@ static int s6e3fa3_init(struct dsim_device *dsim)
 	DSI_WRITE(SEQ_AVC_SETTING_1, ARRAY_SIZE(SEQ_AVC_SETTING_1));
 	DSI_WRITE(SEQ_AVC_SETTING_2, ARRAY_SIZE(SEQ_AVC_SETTING_2));
 
-	dsim_panel_set_brightness(dsim, 1);
+	dsim_panel_set_brightness(lcd, 1);
 
 	/* Test Key Disable */
 	DSI_WRITE(SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
@@ -2134,23 +1154,22 @@ exit:
 	return ret;
 }
 
-static int s6e3fa3_read_init_info(struct dsim_device *dsim, unsigned char *mtp)
+static int s6e3fa3_read_init_info(struct lcd_info *lcd, unsigned char *mtp)
 {
 	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
 	unsigned char elvss_data[LDI_LEN_ELVSS] = {0,};
 
 	DSI_WRITE(SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
 
-	ret |= s6e3fa3_read_id(dsim);
-	ret |= s6e3fa3_read_mtp(dsim, mtp);
-	ret |= s6e3fa3_read_coordinate(dsim);
-	ret |= s6e3fa3_read_chip_id(dsim);
-	ret |= s6e3fa3_read_elvss(dsim, elvss_data);
+	ret |= s6e3fa3_read_id(lcd);
+	ret |= s6e3fa3_read_mtp(lcd, mtp);
+	ret |= s6e3fa3_read_coordinate(lcd);
+	ret |= s6e3fa3_read_chip_id(lcd);
+	ret |= s6e3fa3_read_elvss(lcd, elvss_data);
 
-	ret |= s6e3fa3_init_elvss(dsim, elvss_data);
-	ret |= s6e3fa3_init_hbm_elvss(dsim, elvss_data);
-	ret |= s6e3fa3_init_hbm_interpolation(dsim);
+	ret |= s6e3fa3_init_elvss(lcd, elvss_data);
+	ret |= s6e3fa3_init_hbm_elvss(lcd, elvss_data);
+	ret |= s6e3fa3_init_hbm_interpolation(lcd);
 
 	DSI_WRITE(SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
 
@@ -2162,16 +1181,20 @@ static int s6e3fa3_probe(struct dsim_device *dsim)
 {
 	int ret = 0;
 	struct panel_private *priv = &dsim->priv;
-	unsigned char mtp[LDI_LEN_MTP] = {0, };
 	struct lcd_info *lcd = dsim->priv.par;
+	unsigned char mtp[LDI_LEN_MTP] = {0, };
 	struct device_node *np;
 	struct platform_device *pdev;
 
-	pr_info("%s: was called\n", __func__);
+	dev_info(&lcd->ld->dev, "%s: was called\n", __func__);
 
-	priv->dim_data = (void *)NULL;
 	priv->lcdConnected = PANEL_CONNECTED;
 
+	lcd->bd->props.max_brightness = UI_MAX_BRIGHTNESS;
+	lcd->bd->props.brightness = UI_DEFAULT_BRIGHTNESS;
+
+	lcd->dsim = dsim;
+	lcd->state = PANEL_STATE_RESUMED;
 	lcd->temperature = NORMAL_TEMPERATURE;
 	lcd->acl_enable = 0;
 	lcd->current_acl = 0;
@@ -2184,12 +1207,13 @@ static int s6e3fa3_probe(struct dsim_device *dsim)
 	lcd->opr_table = OPR_TABLE;
 	lcd->hbm_table = HBM_TABLE;
 	lcd->aor_table = AOR_TABLE;
+	lcd->aor_ldu_table = AOR_LDU_TABLE;
 	lcd->tset_param = SEQ_TSET_SETTING;
 #ifdef CONFIG_LCD_HMT
 	lcd->aor_table_hmt = AOR_TABLE_HMT;
 #endif
 
-	ret = s6e3fa3_read_init_info(dsim, mtp);
+	ret = s6e3fa3_read_init_info(lcd, mtp);
 	if (priv->lcdConnected == PANEL_DISCONNEDTED) {
 		pr_err("%s: lcd was not connected\n", __func__);
 		goto exit;
@@ -2203,7 +1227,7 @@ static int s6e3fa3_probe(struct dsim_device *dsim)
 #endif
 #endif
 
-	dsim_panel_set_brightness(dsim, 1);
+	dsim_panel_set_brightness(lcd, 1);
 
 	np = of_find_node_with_property(NULL, "lcd_info");
 	np = of_parse_phandle(np, "lcd_info", 0);
@@ -2222,14 +1246,888 @@ static int s6e3fa3_probe(struct dsim_device *dsim)
 		goto exit;
 	}
 
-	dsim_info("%s: done\n", __func__);
+	dev_info(&lcd->ld->dev, "%s: done\n", __func__);
 exit:
 	return ret;
 }
 
-struct dsim_panel_ops s6e3fa3_panel_ops = {
-	.probe		= s6e3fa3_probe,
-	.displayon	= s6e3fa3_displayon,
-	.exit		= s6e3fa3_exit,
-	.init		= s6e3fa3_init,
+
+static ssize_t lcd_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "SDC_%02X%02X%02X\n", lcd->id[0], lcd->id[1], lcd->id[2]);
+
+	return strlen(buf);
+}
+
+static ssize_t window_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%x %x %x\n", lcd->id[0], lcd->id[1], lcd->id[2]);
+
+	return strlen(buf);
+}
+
+static ssize_t brightness_table_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	int i, bl;
+	char *pos = buf;
+
+	for (i = 0; i <= UI_MAX_BRIGHTNESS; i++) {
+		bl = get_backlight_level_from_brightness(i, lcd->ldu_index);
+		pos += sprintf(pos, "%3d %3d\n", i, index_brightness_table[bl]);
+	}
+
+	return pos - buf;
+}
+
+static ssize_t auto_brightness_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%u\n", lcd->auto_brightness);
+
+	return strlen(buf);
+}
+
+static ssize_t auto_brightness_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	int value;
+	int rc;
+
+	rc = kstrtoul(buf, (unsigned int)0, (unsigned long *)&value);
+	if (rc < 0)
+		return rc;
+	else {
+		if (lcd->auto_brightness != value) {
+			dev_info(&lcd->ld->dev, "%s: %d, %d\n", __func__, lcd->auto_brightness, value);
+			mutex_lock(&lcd->lock);
+			lcd->auto_brightness = value;
+			mutex_unlock(&lcd->lock);
+			if (lcd->state == PANEL_STATE_RESUMED)
+				dsim_panel_set_brightness(lcd, 0);
+		}
+	}
+	return size;
+}
+
+static ssize_t siop_enable_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%u\n", lcd->siop_enable);
+
+	return strlen(buf);
+}
+
+static ssize_t siop_enable_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	int value;
+	int rc;
+
+	rc = kstrtoul(buf, (unsigned int)0, (unsigned long *)&value);
+	if (rc < 0)
+		return rc;
+	else {
+		if (lcd->siop_enable != value) {
+			dev_info(dev, "%s: %d, %d\n", __func__, lcd->siop_enable, value);
+			mutex_lock(&lcd->lock);
+			lcd->siop_enable = value;
+			mutex_unlock(&lcd->lock);
+			if (lcd->state == PANEL_STATE_RESUMED)
+				dsim_panel_set_brightness(lcd, 1);
+		}
+	}
+	return size;
+}
+
+static ssize_t power_reduce_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%u\n", lcd->acl_enable);
+
+	return strlen(buf);
+}
+
+static ssize_t power_reduce_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	int value;
+	int rc;
+
+	rc = kstrtoul(buf, (unsigned int)0, (unsigned long *)&value);
+
+	if (rc < 0)
+		return rc;
+	else {
+		if (lcd->acl_enable != value) {
+			dev_info(dev, "%s: %d, %d\n", __func__, lcd->acl_enable, value);
+			mutex_lock(&lcd->lock);
+			lcd->acl_enable = value;
+			mutex_unlock(&lcd->lock);
+			if (lcd->state == PANEL_STATE_RESUMED)
+				dsim_panel_set_brightness(lcd, 1);
+		}
+	}
+	return size;
+}
+
+static ssize_t temperature_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	char temp[] = "-20, -19, 0, 1\n";
+
+	strcat(buf, temp);
+	return strlen(buf);
+}
+
+static ssize_t temperature_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	int value, rc, temperature_index = 0;
+
+	rc = kstrtoint(buf, 10, &value);
+
+	if (rc < 0)
+		return rc;
+	else {
+		switch (value) {
+		case 1:
+			temperature_index = TEMP_ABOVE_MINUS_00_DEGREE;
+			break;
+		case 0:
+		case -19:
+			temperature_index = TEMP_ABOVE_MINUS_20_DEGREE;
+			break;
+		case -20:
+			temperature_index = TEMP_BELOW_MINUS_20_DEGREE;
+			break;
+		}
+
+		mutex_lock(&lcd->lock);
+		lcd->temperature = value;
+		lcd->temperature_index = temperature_index;
+		mutex_unlock(&lcd->lock);
+
+		if (lcd->state == PANEL_STATE_RESUMED)
+			dsim_panel_set_brightness(lcd, 1);
+
+		dev_info(dev, "%s: %d, %d, %d\n", __func__, value, lcd->temperature, lcd->temperature_index);
+	}
+
+	return size;
+}
+
+static ssize_t color_coordinate_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%u, %u\n", lcd->coordinate[0], lcd->coordinate[1]);
+
+	return strlen(buf);
+}
+
+static ssize_t manufacture_date_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	u16 year;
+	u8 month, day, hour, min, sec;
+	u16 ms;
+
+	year = ((lcd->date[0] & 0xF0) >> 4) + 2011;
+	month = lcd->date[0] & 0xF;
+	day = lcd->date[1] & 0x1F;
+	hour = lcd->date[2] & 0x1F;
+	min = lcd->date[3] & 0x3F;
+	sec = lcd->date[4];
+	ms = (lcd->date[5] << 8) | lcd->date[6];
+
+	sprintf(buf, "%04d, %02d, %02d, %02d:%02d:%02d.%04d\n", year, month, day, hour, min, sec, ms);
+
+	return strlen(buf);
+}
+
+static ssize_t manufacture_code_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%02X%02X%02X%02X%02X\n",
+		lcd->code[0], lcd->code[1], lcd->code[2], lcd->code[3], lcd->code[4]);
+
+	return strlen(buf);
+}
+
+static ssize_t cell_id_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
+		lcd->date[0], lcd->date[1], lcd->date[2], lcd->date[3], lcd->date[4],
+		lcd->date[5], lcd->date[6], (lcd->coordinate[0] & 0xFF00) >> 8, lcd->coordinate[0] & 0x00FF,
+		(lcd->coordinate[1] & 0xFF00) >> 8, lcd->coordinate[1] & 0x00FF);
+
+	return strlen(buf);
+}
+
+#ifdef CONFIG_PANEL_AID_DIMMING
+static void show_aid_log(struct lcd_info *lcd)
+{
+	u8 temp[256];
+	int i, j, k;
+	int *mtp;
+
+	mtp = lcd->daid.mtp;
+	for (i = 0, j = 0; i < IV_MAX; i++, j += CI_MAX) {
+		if (i == 0)
+			dev_info(&lcd->ld->dev, "MTP Offset VT   : %4d %4d %4d\n",
+				mtp[j + CI_RED], mtp[j + CI_GREEN], mtp[j + CI_BLUE]);
+		else
+			dev_info(&lcd->ld->dev, "MTP Offset V%3d : %4d %4d %4d\n",
+				lcd->daid.iv_tbl[i], mtp[j + CI_RED], mtp[j + CI_GREEN], mtp[j + CI_BLUE]);
+	}
+
+	for (i = 0; i < IBRIGHTNESS_MAX; i++) {
+		memset(temp, 0, sizeof(temp));
+		for (j = 1; j < GAMMA_CMD_CNT; j++) {
+			if (j == 1 || j == 3 || j == 5)
+				k = lcd->gamma_table[i][j++] * 256;
+			else
+				k = 0;
+			snprintf(temp + strnlen(temp, 256), 256, " %3d", lcd->gamma_table[i][j] + k);
+		}
+
+		dev_info(&lcd->ld->dev, "nit : %3d  %s\n", lcd->daid.ibr_tbl[i], temp);
+	}
+
+	mtp = lcd->hitp.hbm;
+	for (i = 0, j = 0; i < IV_MAX; i++, j += CI_MAX) {
+		if (i == 0)
+			dev_info(&lcd->ld->dev, "HBM Gamma VT   : %4d %4d %4d\n",
+				mtp[j + CI_RED], mtp[j + CI_GREEN], mtp[j + CI_BLUE]);
+		else
+			dev_info(&lcd->ld->dev, "HBM Gamma V%3d : %4d %4d %4d\n",
+				lcd->daid.iv_tbl[i], mtp[j + CI_RED], mtp[j + CI_GREEN], mtp[j + CI_BLUE]);
+	}
+
+	for (i = IBRIGHTNESS_MAX; i < IBRIGHTNESS_HBM_MAX; i++) {
+		memset(temp, 0, sizeof(temp));
+		for (j = 1; j < GAMMA_CMD_CNT; j++) {
+			if (j == 1 || j == 3 || j == 5)
+				k = lcd->gamma_table[i][j++] * 256;
+			else
+				k = 0;
+			snprintf(temp + strnlen(temp, 256), 256, " %3d", lcd->gamma_table[i][j] + k);
+		}
+
+		dev_info(&lcd->ld->dev, "nit : %3d  %s\n", lcd->daid.ibr_tbl[i], temp);
+	}
+
+#ifdef CONFIG_LCD_HMT
+	mtp = lcd->hmt_daid.mtp;
+	for (i = 0, j = 0; i < IV_MAX; i++, j += CI_MAX) {
+		if (i == 0)
+			dev_info(&lcd->ld->dev, "HMT Offset VT   : %4d %4d %4d\n",
+				mtp[j + CI_RED], mtp[j + CI_GREEN], mtp[j + CI_BLUE]);
+		else
+			dev_info(&lcd->ld->dev, "HMT Offset V%3d : %4d %4d %4d\n",
+				lcd->hmt_daid.iv_tbl[i], mtp[j + CI_RED], mtp[j + CI_GREEN], mtp[j + CI_BLUE]);
+	}
+
+	for (i = 0; i < IBRIGHTNESS_HMT_MAX; i++) {
+		memset(temp, 0, sizeof(temp));
+		for (j = 1; j < GAMMA_CMD_CNT; j++) {
+			if (j == 1 || j == 3 || j == 5)
+				k = lcd->gamma_table_hmt[i][j++] * 256;
+			else
+				k = 0;
+			snprintf(temp + strnlen(temp, 256), 256, " %3d", lcd->gamma_table_hmt[i][j] + k);
+		}
+
+		dev_info(&lcd->ld->dev, "nit : %3d  %s\n", lcd->hmt_daid.ibr_tbl[i], temp);
+	}
+#endif
+	dev_info(&lcd->ld->dev, "%s\n", __func__);
+}
+
+static ssize_t aid_log_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	show_aid_log(lcd);
+
+	return strlen(buf);
+}
+#endif
+
+#ifdef CONFIG_LCD_HMT
+static ssize_t hmt_brightness_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "index : %d, brightenss : %d\n", lcd->hmt_bl, lcd->hmt_brightness);
+
+	return strlen(buf);
+}
+
+static ssize_t hmt_brightness_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	struct panel_private *priv = &lcd->dsim->priv;
+	int value;
+	int rc;
+
+	rc = kstrtouint(buf, (unsigned int)0, &value);
+	if (rc < 0)
+		return rc;
+
+	if (priv->hmt_on == HMT_OFF) {
+		dev_info(dev, "%s: hmt is not on\n", __func__);
+		return -EINVAL;
+	}
+	if (lcd->hmt_brightness != value) {
+		mutex_lock(&lcd->lock);
+		lcd->hmt_brightness = value;
+		mutex_unlock(&lcd->lock);
+		if (lcd->state == PANEL_STATE_RESUMED)
+			dsim_panel_set_brightness(lcd, 0);
+	}
+
+	dev_info(&lcd->ld->dev, "%s: %d\n", __func__, value);
+
+	return size;
+}
+
+static int hmt_set_mode(struct lcd_info *lcd, bool wakeup)
+{
+	struct panel_private *priv = &lcd->dsim->priv;
+	int ret = 0;
+
+	mutex_lock(&lcd->lock);
+
+	dev_info(&lcd->ld->dev, "++%s: %d\n", __func__, priv->hmt_on);
+
+	DSI_WRITE(SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
+	DSI_WRITE(SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC));
+
+	if (priv->hmt_on == HMT_ON) {
+		// on set
+		DSI_WRITE(SEQ_HMT_ON1, ARRAY_SIZE(SEQ_HMT_ON1));
+		DSI_WRITE(SEQ_HMT_REVERSE_PORCH, ARRAY_SIZE(SEQ_HMT_REVERSE_PORCH));
+		DSI_WRITE(SEQ_HMT_AID_REVERSE1, ARRAY_SIZE(SEQ_HMT_AID_REVERSE1));
+	} else if (priv->hmt_on == HMT_OFF) {
+		// off set
+		DSI_WRITE(SEQ_HMT_OFF1, ARRAY_SIZE(SEQ_HMT_OFF1));
+		DSI_WRITE(SEQ_HMT_FORWARD_PORCH, ARRAY_SIZE(SEQ_HMT_FORWARD_PORCH));
+		DSI_WRITE(SEQ_HMT_AID_FORWARD1, ARRAY_SIZE(SEQ_HMT_AID_FORWARD1));
+	} else
+		dev_info(&lcd->ld->dev, "hmt state is invalid %d!\n", priv->hmt_on);
+
+	DSI_WRITE(SEQ_GAMMA_UPDATE, ARRAY_SIZE(SEQ_GAMMA_UPDATE));
+
+	DSI_WRITE(SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
+	DSI_WRITE(SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC));
+
+exit:
+	mutex_unlock(&lcd->lock);
+
+	dsim_panel_set_brightness(lcd, 1);
+
+	dev_info(&lcd->ld->dev, "--%s: %d\n", __func__, priv->hmt_on);
+
+	return 0;
+}
+
+static ssize_t hmt_on_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	struct panel_private *priv = &lcd->dsim->priv;
+
+	sprintf(buf, "%u\n", priv->hmt_on);
+
+	return strlen(buf);
+}
+
+static ssize_t hmt_on_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	struct panel_private *priv = &lcd->dsim->priv;
+	int value;
+	int rc;
+
+	rc = kstrtoint(buf, 0, &value);
+	if (rc < 0)
+		return rc;
+
+	if (priv->hmt_on != value) {
+		mutex_lock(&lcd->lock);
+		priv->hmt_on = value;
+		mutex_unlock(&lcd->lock);
+		if (lcd->state == PANEL_STATE_RESUMED)
+			hmt_set_mode(lcd, false);
+	} else
+		dev_info(&lcd->ld->dev, "%s: hmt already %s\n", __func__, value ? "on" : "off");
+
+	return size;
+}
+
+static DEVICE_ATTR(hmt_bright, 0664, hmt_brightness_show, hmt_brightness_store);
+static DEVICE_ATTR(hmt_on, 0664, hmt_on_show, hmt_on_store);
+#endif
+
+static int dsim_read_hl_data_offset(struct lcd_info *lcd, u8 addr, u32 size, u8 *buf, u32 offset)
+{
+	unsigned char wbuf[] = {0xB0, 0};
+	int ret;
+
+	wbuf[1] = offset;
+
+	DSI_WRITE(wbuf, ARRAY_SIZE(wbuf));
+
+	ret = dsim_read_hl_data(lcd->dsim, addr, size, buf);
+
+	if (ret < 1)
+		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
+
+exit:
+	return ret;
+}
+
+static ssize_t dump_register_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	char *pos = buf;
+	u8 reg, len, offset;
+	int ret, i;
+	u8 *dump = NULL;
+
+	reg = lcd->dump_info[0];
+	len = lcd->dump_info[1];
+	offset = lcd->dump_info[2];
+
+	if (!reg || !len || reg > 0xff || len > 255 || offset > 255)
+		goto exit;
+
+	dump = kcalloc(len, sizeof(u8), GFP_KERNEL);
+
+	if (lcd->state == PANEL_STATE_RESUMED) {
+		DSI_WRITE(SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
+		DSI_WRITE(SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC));
+
+		if (offset)
+			ret = dsim_read_hl_data_offset(lcd, reg, len, dump, offset);
+		else
+			ret = dsim_read_hl_data(lcd->dsim, reg, len, dump);
+
+		DSI_WRITE(SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
+		DSI_WRITE(SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC));
+	}
+
+	pos += sprintf(pos, "+ [%02X]\n", reg);
+	for (i = 0; i < len; i++)
+		pos += sprintf(pos, "%2d: %02x\n", i + offset + 1, dump[i]);
+	pos += sprintf(pos, "- [%02X]\n", reg);
+
+	dev_info(&lcd->ld->dev, "+ [%02X]\n", reg);
+	for (i = 0; i < len; i++)
+		dev_info(&lcd->ld->dev, "%2d: %02x\n", i + offset + 1, dump[i]);
+	dev_info(&lcd->ld->dev, "- [%02X]\n", reg);
+
+	kfree(dump);
+exit:
+	return pos - buf;
+}
+
+static ssize_t dump_register_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	unsigned int reg, len, offset;
+	int ret;
+
+	ret = sscanf(buf, "%x %d %d", &reg, &len, &offset);
+
+	if (ret == 2)
+		offset = 0;
+
+	dev_info(dev, "%s: %x %d %d\n", __func__, reg, len, offset);
+
+	if (ret < 0)
+		return ret;
+	else {
+		if (!reg || !len || reg > 0xff || len > 255 || offset > 255)
+			return -EINVAL;
+
+		lcd->dump_info[0] = reg;
+		lcd->dump_info[1] = len;
+		lcd->dump_info[2] = offset;
+	}
+
+	return size;
+}
+
+static ssize_t weakness_hbm_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%d\n", lcd->weakness_hbm_comp);
+
+	return strlen(buf);
+}
+
+static ssize_t weakness_hbm_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int rc, value;
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	rc = kstrtouint(buf, (unsigned int)0, &value);
+
+	if (rc < 0)
+		return rc;
+	else {
+		if (lcd->weakness_hbm_comp != value) {
+			if ((lcd->weakness_hbm_comp == 1) && (value == 2)) {
+				dev_info(&lcd->ld->dev, "%s: don't support hbm interpolation\n", __func__);
+				return size;
+			}
+			if ((lcd->weakness_hbm_comp == 2) || (value == 2)) {
+				lcd->weakness_hbm_comp = value;
+				if (lcd->state == PANEL_STATE_RESUMED)
+					dsim_panel_set_brightness(lcd, 1);
+				dev_info(&lcd->ld->dev, "%s: %d, %d\n", __func__, lcd->weakness_hbm_comp, value);
+			}
+		}
+	}
+	return size;
+}
+
+static ssize_t auto_brightness_level_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%u\n", lcd->auto_brightness_level);
+
+	return strlen(buf);
+}
+
+static ssize_t ldu_correction_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%u\n", lcd->ldu_index);
+
+	return strlen(buf);
+}
+
+static ssize_t ldu_correction_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	int value;
+	int rc;
+
+	rc = kstrtoul(buf, (unsigned int)0, (unsigned long *)&value);
+
+	if (rc < 0)
+		return rc;
+	else {
+		if (value > 7)
+			return -EINVAL;
+
+		if (lcd->ldu_index != value) {
+			dev_info(dev, "%s: %d, %d\n", __func__, lcd->ldu_index, value);
+			mutex_lock(&lcd->lock);
+			lcd->ldu_index = value;
+			mutex_unlock(&lcd->lock);
+			if (lcd->state == PANEL_STATE_RESUMED)
+				dsim_panel_set_brightness(lcd, 1);
+		}
+	}
+	return size;
+}
+
+static DEVICE_ATTR(lcd_type, 0444, lcd_type_show, NULL);
+static DEVICE_ATTR(window_type, 0444, window_type_show, NULL);
+static DEVICE_ATTR(manufacture_code, 0444, manufacture_code_show, NULL);
+static DEVICE_ATTR(cell_id, 0444, cell_id_show, NULL);
+static DEVICE_ATTR(brightness_table, 0444, brightness_table_show, NULL);
+static DEVICE_ATTR(auto_brightness, 0644, auto_brightness_show, auto_brightness_store);
+static DEVICE_ATTR(siop_enable, 0664, siop_enable_show, siop_enable_store);
+static DEVICE_ATTR(power_reduce, 0664, power_reduce_show, power_reduce_store);
+static DEVICE_ATTR(temperature, 0664, temperature_show, temperature_store);
+static DEVICE_ATTR(color_coordinate, 0444, color_coordinate_show, NULL);
+static DEVICE_ATTR(manufacture_date, 0444, manufacture_date_show, NULL);
+static DEVICE_ATTR(aid_log, 0444, aid_log_show, NULL);
+static DEVICE_ATTR(dump_register, 0644, dump_register_show, dump_register_store);
+static DEVICE_ATTR(weakness_hbm_comp, 0664, weakness_hbm_show, weakness_hbm_store);
+static DEVICE_ATTR(auto_brightness_level, 0444, auto_brightness_level_show, NULL);
+static DEVICE_ATTR(ldu_correction, 0664, ldu_correction_show, ldu_correction_store);
+
+static struct attribute *lcd_sysfs_attributes[] = {
+	&dev_attr_lcd_type.attr,
+	&dev_attr_window_type.attr,
+	&dev_attr_manufacture_code.attr,
+	&dev_attr_cell_id.attr,
+	&dev_attr_siop_enable.attr,
+	&dev_attr_power_reduce.attr,
+	&dev_attr_temperature.attr,
+	&dev_attr_color_coordinate.attr,
+	&dev_attr_manufacture_date.attr,
+	&dev_attr_aid_log.attr,
+	&dev_attr_dump_register.attr,
+	&dev_attr_ldu_correction.attr,
+	&dev_attr_brightness_table.attr,
+	NULL,
 };
+
+static struct attribute *backlight_sysfs_attributes[] = {
+	&dev_attr_auto_brightness.attr,
+	&dev_attr_weakness_hbm_comp.attr,
+	&dev_attr_auto_brightness_level.attr,
+	NULL,
+};
+
+static const struct attribute_group lcd_sysfs_attr_group = {
+	.attrs = lcd_sysfs_attributes,
+};
+
+static const struct attribute_group backlight_sysfs_attr_group = {
+	.attrs = backlight_sysfs_attributes,
+};
+
+static void lcd_init_sysfs(struct lcd_info *lcd)
+{
+	int ret = 0;
+
+	ret = sysfs_create_group(&lcd->ld->dev.kobj, &lcd_sysfs_attr_group);
+	if (ret < 0)
+		dev_err(&lcd->ld->dev, "failed to add lcd sysfs\n");
+
+	ret = sysfs_create_group(&lcd->bd->dev.kobj, &backlight_sysfs_attr_group);
+	if (ret < 0)
+		dev_err(&lcd->ld->dev, "failed to add backlight sysfs\n");
+
+#ifdef CONFIG_LCD_HMT
+	ret = device_create_file(&lcd->ld->dev, &dev_attr_hmt_bright);
+	if (ret < 0)
+		dev_err(&lcd->ld->dev, "failed to add sysfs entries, %d\n", __LINE__);
+
+	ret = device_create_file(&lcd->ld->dev, &dev_attr_hmt_on);
+	if (ret < 0)
+		dev_err(&lcd->ld->dev, "failed to add sysfs entries, %d\n", __LINE__);
+#endif
+}
+
+
+#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
+static int mdnie_lite_write_set(struct lcd_info *lcd, struct lcd_seq_info *seq, u32 num)
+{
+	int ret = 0, i;
+
+	for (i = 0; i < num; i++) {
+		if (seq[i].cmd) {
+			ret = dsim_write_hl_data(lcd->dsim, seq[i].cmd, seq[i].len);
+			if (ret != 0) {
+				dev_info(&lcd->ld->dev, "%s: %dth fail\n", __func__, i);
+				return ret;
+			}
+		}
+		if (seq[i].sleep)
+			usleep_range(seq[i].sleep * 1000, seq[i].sleep * 1000);
+	}
+	return ret;
+}
+
+int mdnie_lite_send_seq(struct lcd_info *lcd, struct lcd_seq_info *seq, u32 num)
+{
+	int ret = 0;
+
+	mutex_lock(&lcd->lock);
+
+	if (lcd->state != PANEL_STATE_RESUMED) {
+		dev_info(&lcd->ld->dev, "%s: panel is not active\n", __func__);
+		ret = -EIO;
+		goto exit;
+	}
+
+	ret = mdnie_lite_write_set(lcd, seq, num);
+
+exit:
+	mutex_unlock(&lcd->lock);
+
+	return ret;
+}
+
+int mdnie_lite_read(struct lcd_info *lcd, u8 addr, u8 *buf, u32 size)
+{
+	int ret = 0;
+
+	mutex_lock(&lcd->lock);
+
+	if (lcd->state != PANEL_STATE_RESUMED) {
+		dev_info(&lcd->ld->dev, "%s: panel is not active\n", __func__);
+		ret = -EIO;
+		goto exit;
+	}
+
+	ret = dsim_read_hl_data(lcd->dsim, addr, size, buf);
+
+exit:
+	mutex_unlock(&lcd->lock);
+
+	return ret;
+}
+#endif
+
+
+static int dsim_panel_probe(struct dsim_device *dsim)
+{
+	int ret = 0;
+	struct lcd_info *lcd;
+
+	dsim->priv.par = lcd = kzalloc(sizeof(struct lcd_info), GFP_KERNEL);
+	if (!lcd) {
+		pr_err("%s: failed to allocate for lcd\n", __func__);
+		ret = -ENOMEM;
+		goto probe_err;
+	}
+
+	dsim->lcd = lcd->ld = lcd_device_register("panel", dsim->dev, lcd, NULL);
+	if (IS_ERR(lcd->ld)) {
+		pr_err("%s: failed to register lcd device\n", __func__);
+		ret = PTR_ERR(lcd->ld);
+		goto probe_err;
+	}
+
+	lcd->bd = backlight_device_register("panel", dsim->dev, lcd, &panel_backlight_ops, NULL);
+	if (IS_ERR(lcd->bd)) {
+		pr_err("%s : failed to register backlight device\n", __func__);
+		ret = PTR_ERR(lcd->bd);
+		goto probe_err;
+	}
+
+	mutex_init(&lcd->lock);
+
+	ret = s6e3fa3_probe(dsim);
+	if (ret) {
+		dev_err(&lcd->ld->dev, "%s: failed to probe panel\n", __func__);
+		goto probe_err;
+	}
+
+#if defined(CONFIG_EXYNOS_DECON_LCD_SYSFS)
+	lcd_init_sysfs(lcd);
+#endif
+
+#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
+	mdnie_register(&lcd->ld->dev, lcd, (mdnie_w)mdnie_lite_send_seq, (mdnie_r)mdnie_lite_read, lcd->coordinate, &tune_info);
+#endif
+
+	dev_info(&lcd->ld->dev, "%s: %s: done\n", kbasename(__FILE__), __func__);
+probe_err:
+	return ret;
+}
+
+static int dsim_panel_displayon(struct dsim_device *dsim)
+{
+	struct panel_private *priv = &dsim->priv;
+	struct lcd_info *lcd = dsim->priv.par;
+	int ret = 0;
+
+	dev_info(&lcd->ld->dev, "+%s\n", __func__);
+
+	if (lcd->state == PANEL_STATE_SUSPENED) {
+		ret = s6e3fa3_init(lcd);
+		if (ret) {
+			dev_info(&lcd->ld->dev, "%s: failed to panel init\n", __func__);
+			goto displayon_err;
+		}
+	}
+#ifdef CONFIG_LCD_HMT
+	if (priv->hmt_on == HMT_ON)
+		hmt_set_mode(lcd, false);
+#endif
+
+	ret = s6e3fa3_displayon(lcd);
+	if (ret) {
+		dev_info(&lcd->ld->dev, "%s: failed to panel display on\n", __func__);
+		goto displayon_err;
+	}
+
+displayon_err:
+	mutex_lock(&lcd->lock);
+	lcd->state = PANEL_STATE_RESUMED;
+	mutex_unlock(&lcd->lock);
+
+	dev_info(&lcd->ld->dev, "-%s: %d\n", __func__, priv->lcdConnected);
+
+	pinctrl_enable(lcd, 1);
+
+	return ret;
+}
+
+static int dsim_panel_suspend(struct dsim_device *dsim)
+{
+	struct panel_private *priv = &dsim->priv;
+	struct lcd_info *lcd = dsim->priv.par;
+	int ret = 0;
+
+	dev_info(&lcd->ld->dev, "+%s\n", __func__);
+
+	if (lcd->state == PANEL_STATE_SUSPENED)
+		goto suspend_err;
+
+	lcd->state = PANEL_STATE_SUSPENDING;
+
+	ret = s6e3fa3_exit(lcd);
+	if (ret) {
+		dev_info(&lcd->ld->dev, "%s: failed to panel exit\n", __func__);
+		goto suspend_err;
+	}
+
+suspend_err:
+	mutex_lock(&lcd->lock);
+	lcd->state = PANEL_STATE_SUSPENED;
+	mutex_unlock(&lcd->lock);
+
+	pinctrl_enable(lcd, 0);
+
+	dev_info(&lcd->ld->dev, "-%s: %d\n", __func__, priv->lcdConnected);
+
+	return ret;
+}
+
+struct mipi_dsim_lcd_driver s6e3fa3_mipi_lcd_driver = {
+	.probe		= dsim_panel_probe,
+	.displayon	= dsim_panel_displayon,
+	.suspend	= dsim_panel_suspend,
+};
+

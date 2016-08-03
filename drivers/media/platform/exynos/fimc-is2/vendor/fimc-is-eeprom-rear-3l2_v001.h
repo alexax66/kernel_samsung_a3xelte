@@ -28,6 +28,7 @@
 #define EEP_CHECKSUM_AP_SHADING_ADDR       0x1FFC
 
 #if defined(CONFIG_CAMERA_EEPROM_SUPPORT_OIS)
+#define EEP_HEADER_OIS_START_ADDR          0x2000
 #define EEP_HEADER_OIS_CAL_START_ADDR      0x2000
 #define EEP_HEADER_OIS_CAL_END_ADDR        0x2004
 #define EEP_HEADER_OIS_SHIFT_START_ADDR    0x2008
@@ -48,6 +49,13 @@
 #define EEP_HEADER_OIS_CAL_TARGET_ADDR     0x2108
 #define EEP_HEADER_OIS_CAL_DATA_ADDR       0x2110
 #define EEP_HEADER_OIS_SHIFT_DATA_ADDR     0x21A0
+
+/* Checksum referenced section */
+#define EEP_CHECKSUM_OIS_HEADER_ADDR       0x20FC
+#define EEP_CHECKSUM_OIS_CAL_ADDR          0x219C
+#define EEP_CHECKSUM_OIS_SHIFT_ADDR        0x21FC
+#define EEP_CHECKSUM_OIS_FW_SET_ADDR       0x25FC
+#define EEP_CHECKSUM_OIS_FW_FACTORY_ADDR   0x37FC
 #endif
 
 /* etc section */
@@ -55,6 +63,11 @@
 #define FIMC_IS_MAX_CAL_SIZE               (16 * 1024)
 #define FIMC_IS_MAX_FW_SIZE                (16 * 1024)
 #define FIMC_IS_MAX_OIS_SIZE               (12 * 1024)
+#define OIS_HEADER_CRC32_LEN               (0x80)
+#define OIS_HEADER_CRC32_CAL_LEN           (0x60)
+#define OIS_HEADER_CRC32_SHIFT_LEN         (0x30)
+#define OIS_HEADER_CRC32_FW_SET_LEN        (0x3FC)
+#define OIS_HEADER_CRC32_FW_FACTORY_LEN    (0x11FC)
 #else
 #define FIMC_IS_MAX_CAL_SIZE               (8 * 1024)
 #define FIMC_IS_MAX_FW_SIZE                (8 * 1024)

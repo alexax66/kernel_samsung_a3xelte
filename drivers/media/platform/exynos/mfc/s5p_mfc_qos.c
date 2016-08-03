@@ -84,6 +84,12 @@ static void mfc_qos_operate(struct s5p_mfc_ctx *ctx, int opr_type, int idx)
 				PM_QOS_CLUSTER0_FREQ_MIN,
 				qos_table[idx].freq_kfc);
 #endif
+#ifdef CONFIG_ARM_EXYNOS_SMP_CPUFREQ
+		if (ctx->skype_scenario) {
+			pm_qos_update_request(&dev->qos_req_cluster1, 1200000);
+			pm_qos_update_request(&dev->qos_req_cluster0, 1200000);
+		}
+#endif
 		atomic_set(&dev->qos_req_cur, idx + 1);
 		mfc_info_ctx("QoS request: %d\n", idx + 1);
 		break;
@@ -130,6 +136,12 @@ static void mfc_qos_operate(struct s5p_mfc_ctx *ctx, int opr_type, int idx)
 		pm_qos_update_request(&dev->qos_req_cluster0,
 				qos_table[idx].freq_kfc);
 #endif
+#ifdef CONFIG_ARM_EXYNOS_SMP_CPUFREQ
+		if (ctx->skype_scenario) {
+			pm_qos_update_request(&dev->qos_req_cluster1, 1200000);
+			pm_qos_update_request(&dev->qos_req_cluster0, 1200000);
+		}
+#endif
 		atomic_set(&dev->qos_req_cur, idx + 1);
 		mfc_info_ctx("QoS update: %d\n", idx + 1);
 		break;
@@ -152,6 +164,12 @@ static void mfc_qos_operate(struct s5p_mfc_ctx *ctx, int opr_type, int idx)
 #ifdef CONFIG_ARM_EXYNOS_MP_CPUFREQ
 		pm_qos_remove_request(&dev->qos_req_cluster1);
 		pm_qos_remove_request(&dev->qos_req_cluster0);
+#endif
+#ifdef CONFIG_ARM_EXYNOS_SMP_CPUFREQ
+		if (ctx->skype_scenario) {
+			pm_qos_update_request(&dev->qos_req_cluster1, 0);
+			pm_qos_update_request(&dev->qos_req_cluster0, 0);
+		}
 #endif
 		atomic_set(&dev->qos_req_cur, 0);
 		mfc_info_ctx("QoS remove\n");

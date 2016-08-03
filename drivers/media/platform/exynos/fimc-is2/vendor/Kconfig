@@ -28,6 +28,12 @@ config CAMERA_ACTUATOR_AK7371
         default n
         help
           Use AK7371 camera actuator and eeprom.
+config CAMERA_ACTUATOR_ZC533
+        bool "Use ZC533 camera actuator and eeprom"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use ZC533 camera actuator and eeprom.
 config COMPANION_USE
         bool "Use companion"
         depends on VIDEO_EXYNOS_FIMC_IS
@@ -124,3 +130,9 @@ config CAMERA_A7X
         default n
         help
           This camera is a7x project.
+config CAMERA_J7X
+        bool "This camera is j7x project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is j7x project.

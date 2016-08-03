@@ -106,12 +106,7 @@
 #define MMS_CONFIG_DATE		{0x00, 0x00, 0x00, 0x00}
 
 //Chip info
-#if defined(CONFIG_TOUCHSCREEN_MELFAS_MMS438_MIP)
-#define CHIP_MMS438
-#define CHIP_NAME		"MMS438"
-#define FW_CHIP_CODE	"M4H0"
-#define FW_UPDATE_TYPE	"MMS438"
-#elif defined(CONFIG_TOUCHSCREEN_MELFAS_MMS438)
+#if defined(CONFIG_TOUCHSCREEN_MELFAS_MMS438)
 #define CHIP_MMS438
 #define CHIP_NAME		"MMS438"
 #define CHIP_FW_CODE	"M4H0"
@@ -169,11 +164,7 @@
 
 //Firmware update
 #define INTERNAL_FW_PATH		"tsp_melfas/mms449_carmen2.fw"
-#if defined(CONFIG_TOUCHSCREEN_MELFAS_MMS438_MIP)
-#define EXTERNAL_FW_PATH		"/sdcard/melfas.bin"
-#else
 #define EXTERNAL_FW_PATH		"/sdcard/melfas.mfsb"
-#endif
 #define FFU_FW_PATH	"ffu_tsp.bin"
 #define MMS_USE_AUTO_FW_UPDATE	1
 #define MMS_FW_MAX_SECT_NUM		4
@@ -377,8 +368,6 @@ void mms_config_input(struct mms_ts_info *info);
 //fw_update
 int mms_flash_fw(struct mms_ts_info *info, const u8 *fw_data, size_t fw_size,
 			bool force, bool section);
-int mip_bin_fw_version(struct mms_ts_info *info, const u8 *fw_data, size_t fw_size, u8 *ver_buf);
-
 
 //test
 #if MMS_USE_DEV_MODE

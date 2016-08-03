@@ -585,10 +585,7 @@ int exynos7_devfreq_int_tmu_notifier(struct notifier_block *nb, unsigned long ev
 		} else {
 			data->volt_offset = 0;
 			set_volt = get_limit_voltage(data->old_volt - COLD_VOLT_OFFSET, data->volt_offset);
-			//data->old_volt = set_volt;
 		}
-
-		//regulator_set_voltage(data->vdd_int, set_volt, REGULATOR_MAX_MICROVOLT);
 		exynos7_devfreq_int_set_volt(data, set_volt, REGULATOR_MAX_MICROVOLT);
 out:
 		mutex_unlock(&data->lock);
@@ -1233,10 +1230,8 @@ int exynos7_devfreq_isp_tmu_notifier(struct notifier_block *nb, unsigned long ev
 		} else {
 			data->volt_offset = 0;
 			set_volt = get_limit_voltage(data->old_volt - COLD_VOLT_OFFSET, data->volt_offset);
-			//data->old_volt = set_volt;
 		}
 
-		//regulator_set_voltage(data->vdd_isp_cam0, set_volt, REGULATOR_MAX_MICROVOLT);
 		exynos7_devfreq_isp_set_volt(data, set_volt, REGULATOR_MAX_MICROVOLT);
 out:
 		mutex_unlock(&data->lock);
@@ -1935,7 +1930,17 @@ int exynos7_devfreq_mif_init_parameter(struct devfreq_data_mif *data)
 	__raw_writel(0x9001400, data->base_drex + 0x10);
 	bank = (__raw_readl(data->base_drex + 0x4) >> 27) & 0x1;
 
-	if (vendor == 0x6) { /* bank 0 : all bank 1 : perbank */
+	/*
+	 * Vendor 0xff : Micron 0x6 : Hynix, 0x3 : Elpida, 0x1 : Samsung
+	 * Bank 0 : All bank, 1 : Per bank
+	 * Density : 0x6 : 4gb, 0x7 : 8gb, 0xE : 6gb
+	 */
+	if (vendor == 0xff) {
+		if (density == 0x7)
+			dfs_drex_mif_table = dfs_drex_mif_table_hnon_samsung[bank];
+		else
+			panic("Wrong MCP density : %x\n", density);
+	}else if (vendor == 0x6) {
 		dfs_drex_mif_table = dfs_drex_mif_table_hnon_samsung[bank];
 	} else if (vendor == 0x3) {
 		dfs_drex_mif_table = dfs_drex_mif_table_mnon_samsung[bank];
@@ -2427,10 +2432,8 @@ int exynos7_devfreq_mif_tmu_notifier(struct notifier_block *nb, unsigned long ev
 		} else {
 			data->volt_offset = 0;
 			set_volt = get_limit_voltage(data->old_volt - COLD_VOLT_OFFSET, data->volt_offset);
-			//data->old_volt = set_volt;
 		}
 
-		//regulator_set_voltage(data->vdd_mif, set_volt, REGULATOR_MAX_MICROVOLT);
 		exynos7_devfreq_mif_set_volt(data, set_volt, REGULATOR_MAX_MICROVOLT);
 out:
 		mutex_unlock(&data->lock);

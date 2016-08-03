@@ -33,10 +33,15 @@ config MALI_R5P0_T72X
 	depends on MALI_T72X
 	bool "r5p0 driver"
 
+config MALI_R7P0_T72X
+	depends on MALI_T72X
+	bool "r7p0 driver"
+endchoice
+
 if MALI_R5P0_T72X
 source "drivers/gpu/arm/t72x/r5p0/Kconfig"
 endif
 
-endchoice
-
-
+if MALI_R7P0_T72X
+source "drivers/gpu/arm/t72x/r7p0/Kconfig"
+endif

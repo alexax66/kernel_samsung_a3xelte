@@ -31,10 +31,6 @@ extern void cpuidle_profile_start(int cpu, int state);
 extern void cpuidle_profile_finish(int cpuid, int early_wakeup);
 extern void cpuidle_profile_state_init(struct cpuidle_driver *drv);
 
-#ifdef CONFIG_EXYNOS7580_QUAD
-#define NUM_CLUSTER	1
-#else
 #define NUM_CLUSTER	2
-#endif
 
 #endif /* CPUIDLE_PROFILE_H */

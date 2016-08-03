@@ -17,6 +17,7 @@ obj-$(CONFIG_MUIC_S2MM001)		+= s2mm001.o
 obj-$(CONFIG_MUIC_SM5703)		+= sm5703-muic.o
 obj-$(CONFIG_MUIC_SM5705)		+= sm5703-muic.o
 obj-$(CONFIG_MUIC_SM5705_AFC)		+= sm5703-muic-afc.o
+obj-$(CONFIG_MUIC_S2MU005)		+= s2mu005-muic.o
 
 # MUIC_UNIVERSAL
 obj-$(CONFIG_MUIC_UNIVERSAL)		+= universal/muic_task.o

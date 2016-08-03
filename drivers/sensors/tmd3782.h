@@ -110,17 +110,16 @@ struct taos_platform_data {
 	int intr_filter;
 	int prox_pulsecnt;
 	int als_gain;
-	int dgf;
-	int cct_coef;
-	int cct_offset;
-	int coef_r;
-	int coef_g;
+	int coef_atime;
+	int ga;
+	int coef_a;
 	int coef_b;
+	int coef_c;
+	int coef_d;
 	int min_max;
 	int prox_rawdata_trim;
 	int crosstalk_max_offset;
 	int thresholed_max_offset;
-	int lux_multiple;
 };
 #endif /*__KERNEL__*/
 #endif

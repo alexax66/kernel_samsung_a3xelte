@@ -51,6 +51,10 @@
 #include "decon.h"
 #include "dsim.h"
 #include "decon_helper.h"
+#include "dpu_common.h"
+#include "regs-dpu.h"
+#include "panels/dsim_panel.h"
+
 #include "../../../staging/android/sw_sync.h"
 
 #define MIN(x, y) (x < y ? x : y)
@@ -73,6 +77,7 @@ static int decon_runtime_resume(struct device *dev);
 static int decon_runtime_suspend(struct device *dev);
 static void decon_set_protected_content(struct decon_device *decon,
 			bool enable);
+
 #ifdef CONFIG_USE_VSYNC_SKIP
 static atomic_t extra_vsync_wait;
 #endif /* CCONFIG_USE_VSYNC_SKIP */
@@ -960,6 +965,11 @@ int decon_enable(struct decon_device *decon)
 	decon_reg_init(DECON_INT, decon->pdata->dsi_mode, &p);
 	decon_enable_eclk_idle_gate(DECON_INT, DECON_ECLK_IDLE_GATE_ENABLE);
 
+#if defined(CONFIG_EXYNOS_DECON_DPU)
+	dpu_reg_start(decon->lcd_info->xres, decon->lcd_info->yres);
+	dpu_reg_restore();
+#endif
+
 	decon_to_psr_info(decon, &psr);
 	if (decon->state != DECON_STATE_LPD_EXIT_REQ) {
 	/* In case of resume*/
@@ -1017,6 +1027,8 @@ int decon_disable(struct decon_device *decon)
 
 	exynos_ss_printk("disable decon-%s, state(%d) cnt %d\n", "int",
 				decon->state, pm_runtime_active(decon->dev));
+	if (decon->out_type == DECON_OUT_TUI)
+		decon_tui_protection(decon, false);
 
 	if (decon->state != DECON_STATE_LPD_ENT_REQ) {
 		decon_esd_disable_interrupt(decon);
@@ -1051,12 +1063,29 @@ int decon_disable(struct decon_device *decon)
 		}
 	}
 
+	if (decon->out_type == DECON_OUT_DSI && decon->pdata->psr_mode == DECON_VIDEO_MODE) {
+		/* stop output device (mipi-dsi) */
+		ret = v4l2_subdev_call(decon->output_sd, video, s_stream, 0);
+		if (ret)
+			decon_err("stopping stream failed for %s\n", decon->output_sd->name);
+	}
+
+#if defined(CONFIG_EXYNOS_DECON_DPU)
+	decon_reg_enable_apb_clk(DECON_INT, 1);
+	dpu_reg_save();
+#endif
+
 	decon_to_psr_info(decon, &psr);
 	decon_reg_stop(DECON_INT, decon->pdata->dsi_mode, &psr);
 	decon_reg_clear_int(DECON_INT);
 	decon_set_protected_content(decon, false);
 	decon_enable_eclk_idle_gate(DECON_INT, DECON_ECLK_IDLE_GATE_DISABLE);
 	iovmm_deactivate(decon->dev);
+
+#if defined(CONFIG_EXYNOS_DECON_DPU)
+	decon_reg_enable_apb_clk(DECON_INT, 1);
+	dpu_reg_stop();
+#endif
 
 	/* Synchronize the decon->state with irq_handler */
 	spin_lock_irqsave(&decon->slock, irq_flags);
@@ -1079,12 +1108,14 @@ int decon_disable(struct decon_device *decon)
 		}
 		decon->state = DECON_STATE_LPD;
 	} else if (decon->out_type == DECON_OUT_DSI) {
-		/* stop output device (mipi-dsi) */
-		ret = v4l2_subdev_call(decon->output_sd, video, s_stream, 0);
-		if (ret) {
-			decon_err("stopping stream failed for %s\n",
-					decon->output_sd->name);
-			goto err;
+		if (decon->pdata->psr_mode != DECON_VIDEO_MODE) {
+			/* stop output device (mipi-dsi) */
+			ret = v4l2_subdev_call(decon->output_sd, video, s_stream, 0);
+			if (ret) {
+				decon_err("stopping stream failed for %s\n",
+						decon->output_sd->name);
+				goto err;
+			}
 		}
 
 		pm_relax(decon->dev);
@@ -1731,6 +1762,22 @@ static void decon_calibrate_win_update_size(struct decon_device *decon,
 	if (update_config->state != DECON_WIN_STATE_UPDATE)
 		return;
 
+	if ((update_config->dst.x < 0) ||
+			(update_config->dst.y < 0)) {
+		update_config->state = DECON_WIN_STATE_DISABLED;
+		return;
+	}
+
+	if ((decon->update_win.w == 0) ||
+			(decon->update_win.h == 0)) {
+		update_config->state = DECON_WIN_STATE_DISABLED;
+		return;
+	}
+
+	decon_win_update_dbg("[WIN_UPDATE]get_config: [%d %d %d %d]\n",
+			update_config->dst.x, update_config->dst.y,
+			update_config->dst.w, update_config->dst.h);
+
 	if (update_config->dst.x & 0x7) {
 		update_config->dst.w += update_config->dst.x & 0x7;
 		update_config->dst.x = update_config->dst.x & (~0x7);
@@ -2168,7 +2215,8 @@ static int decon_set_win_config(struct decon_device *decon,
 
 	mutex_lock(&decon->output_lock);
 
-	if ((decon->state == DECON_STATE_OFF) || (decon->ignore_vsync == true)) {
+	if ((decon->state == DECON_STATE_OFF) || (decon->ignore_vsync == true)
+		|| (decon->out_type == DECON_OUT_TUI)) {
 		decon->timeline_max++;
 		pt = sw_sync_pt_create(decon->timeline, decon->timeline_max);
 		fence = sync_fence_create("display", pt);
@@ -2309,6 +2357,12 @@ err:
 	return ret;
 }
 
+static ssize_t decon_fb_read(struct fb_info *info, char __user *buf,
+		size_t count, loff_t *ppos)
+{
+	return 0;
+}
+
 static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 			unsigned long arg)
 {
@@ -2447,6 +2501,7 @@ static struct fb_ops decon_fb_ops = {
 	.fb_imageblit   = cfb_imageblit,
 	.fb_ioctl	= decon_ioctl,
 	.fb_compat_ioctl = decon_compat_ioctl,
+	.fb_read	= decon_fb_read,
 	.fb_pan_display	= decon_pan_display,
 	.fb_mmap	= decon_mmap,
 	.fb_release	= decon_release,
@@ -2955,6 +3010,818 @@ static struct file_operations decon_event_fops = {
 	.release = seq_release,
 };
 
+#if defined(CONFIG_EXYNOS_DECON_DPU)
+static int decon_dpu_scr_set(struct seq_file *s, void *unused)
+{
+	struct dpu *dpu = &decon_int_drvdata->dpu_save;
+
+	seq_printf(s, "scr_onoff: %x\n", dpu->scr_onoff);
+	seq_printf(s, "scr_red: %x\n", dpu->scr_red);
+	seq_printf(s, "scr_green: %x\n", dpu->scr_green);
+	seq_printf(s, "scr_blue: %x\n", dpu->scr_blue);
+	seq_printf(s, "scr_cyan: %x\n", dpu->scr_cyan);
+	seq_printf(s, "scr_magenta: %x\n", dpu->scr_magenta);
+	seq_printf(s, "scr_yellow: %x\n", dpu->scr_yellow);
+	seq_printf(s, "scr_white: %x\n", dpu->scr_white);
+	seq_printf(s, "scr_black: %x\n", dpu->scr_black);
+
+	return 0;
+}
+
+static int decon_dpu_gamma_set(struct seq_file *s, void *unused)
+{
+	struct dpu *dpu = &decon_int_drvdata->dpu_save;
+
+	seq_printf(s, "gamma_onoff: %d\n", dpu->gamma_onoff);
+	seq_printf(s, "gamma_set: %x\n", dpu->gamma_set);
+
+	return 0;
+}
+
+static int decon_dpu_gamma_chunk_set(struct seq_file *s, void *unused)
+{
+	/* TODO : Need to define what shell We do? */
+	return 0;
+}
+
+static int decon_dpu_sat_set(struct seq_file *s, void *unused)
+{
+	struct dpu *dpu = &decon_int_drvdata->dpu_save;
+
+	seq_printf(s, "saturation_onoff: %d\n", dpu->saturation_onoff);
+	seq_printf(s, "saturation_red: %d\n", dpu->saturation_red);
+	seq_printf(s, "saturation_green: %d\n", dpu->saturation_green);
+	seq_printf(s, "saturation_blue: %d\n", dpu->saturation_blue);
+	seq_printf(s, "saturation_magenta: %d\n", dpu->saturation_magenta);
+	seq_printf(s, "saturation_yellow: %d\n", dpu->saturation_yellow);
+	seq_printf(s, "saturation_shift: %d\n", dpu->saturation_shift);
+	seq_printf(s, "saturation_scale: %d\n", dpu->saturation_scale);
+	seq_printf(s, "saturation_total: %d\n", dpu->saturation_total);
+
+	return 0;
+}
+
+static int decon_dpu_hue_set(struct seq_file *s, void *unused)
+{
+	struct dpu *dpu = &decon_int_drvdata->dpu_save;
+
+	seq_printf(s, "hue_onoff: %d\n", dpu->hue_onoff);
+	seq_printf(s, "hue_red: %d\n", dpu->hue_red);
+	seq_printf(s, "hue_green: %d\n", dpu->hue_green);
+	seq_printf(s, "hue_blue: %d\n", dpu->hue_blue);
+	seq_printf(s, "hue_cyan: %d\n", dpu->hue_cyan);
+	seq_printf(s, "hue_magenta: %d\n", dpu->hue_magenta);
+	seq_printf(s, "hue_yellow: %d\n", dpu->hue_yellow);
+
+	return 0;
+}
+
+static int decon_dpu_preset_set(struct seq_file *s, void *unused)
+{
+	return 0;
+}
+
+static ssize_t decon_dpu_scr_write(struct file *file, const char __user *buffer,
+			size_t count, loff_t *ppos)
+{
+	int val, ret = 0;
+	u32 mask, length = 0;
+	const char *str_fomat = NULL;
+	const char *str_num = NULL;
+
+	if (count > 32 || count == 0)
+		return -1;
+
+	if (decon_int_drvdata) {
+		decon_lpd_block_exit(decon_int_drvdata);
+		if (decon_int_drvdata->state != DECON_STATE_ON) {
+			printk(KERN_ERR " decon is not enabled!\n");
+			ret = -1;
+			goto scr_err;
+		}
+	} else {
+		printk(KERN_ERR " decon_int_drvdata is NULL!\n");
+		ret = -1;
+		goto scr_err;
+	}
+
+	if (buffer) {
+		str_fomat = buffer;
+		str_num = buffer + 2;
+		length = count - 2;
+
+		switch (str_fomat[0]) {
+		case 'R':
+			mask = DPU_SCR_MASK;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto scr_err;
+			}
+			dpu_reg_set_scr_r(mask, DPU_SCR_RED(val));
+			decon_int_drvdata->dpu_save.scr_red = val;
+			break;
+		case 'G':
+			mask = DPU_SCR_MASK;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto scr_err;
+			}
+			dpu_reg_set_scr_g(mask, DPU_SCR_GREEN(val));
+			decon_int_drvdata->dpu_save.scr_green = val;
+			break;
+		case 'B':
+			mask = DPU_SCR_MASK;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto scr_err;
+			}
+			dpu_reg_set_scr_b(mask, DPU_SCR_BLUE(val));
+			decon_int_drvdata->dpu_save.scr_blue = val;
+			break;
+		case 'C':
+			mask = DPU_SCR_MASK;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto scr_err;
+			}
+			dpu_reg_set_scr_c(mask, DPU_SCR_CYAN(val));
+			decon_int_drvdata->dpu_save.scr_cyan = val;
+			break;
+		case 'M':
+			mask = DPU_SCR_MASK;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto scr_err;
+			}
+			dpu_reg_set_scr_m(mask, DPU_SCR_MAGENTA(val));
+			decon_int_drvdata->dpu_save.scr_magenta = val;
+			break;
+		case 'Y':
+			mask = DPU_SCR_MASK;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto scr_err;
+			}
+			dpu_reg_set_scr_y(mask, DPU_SCR_YELLOW(val));
+			decon_int_drvdata->dpu_save.scr_yellow = val;
+			break;
+		case 'W':
+			mask = DPU_SCR_MASK;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto scr_err;
+			}
+			dpu_reg_set_scr_w(mask, DPU_SCR_WHITE(val));
+			decon_int_drvdata->dpu_save.scr_white = val;
+			break;
+		case 'K':
+			mask = DPU_SCR_MASK;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto scr_err;
+			}
+			dpu_reg_set_scr_k(mask, DPU_SCR_BLACK(val));
+			decon_int_drvdata->dpu_save.scr_black = val;
+			break;
+		case 'O':
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto scr_err;
+			}
+			dpu_reg_set_scr_onoff(val);
+			decon_int_drvdata->dpu_save.scr_onoff = val;
+			break;
+		default:
+			ret = -1;
+			goto scr_err;
+		}
+	} else {
+		ret = -1;
+		goto scr_err;
+	}
+
+	if (decon_int_drvdata)
+		decon_lpd_unblock(decon_int_drvdata);
+
+	return count;
+scr_err:
+
+	if (decon_int_drvdata)
+		decon_lpd_unblock(decon_int_drvdata);
+
+	return ret;
+}
+
+static int gamma_lut_reg_set(u32 (*gamma_lut)[65])
+{
+	int i, j;
+	u32 mask = 0, offset_in = 0, offset_ex = 0, gamma = 0;
+
+	for (j = 0; j < 3; j++) {
+		for (i = 0; i < 65; i++) {
+			if ((i % 2) == 0) {
+				if (i >= 2)
+					offset_in += 4;
+				mask = DPU_GAMMA_LUT_Y_MASK;
+				gamma = DPU_GAMMA_LUT_Y(gamma_lut[j][i]);
+			} else {
+				mask = DPU_GAMMA_LUT_X_MASK;
+				gamma = DPU_GAMMA_LUT_X(gamma_lut[j][i]);
+			}
+			dpu_reg_set_gamma(offset_in + offset_ex, mask, gamma);
+			mask = 0;
+			gamma = 0;
+			if (i == 64)
+				offset_in = 0;
+		}
+		offset_ex += DPU_GAMMA_OFFSET;
+	}
+	return 0;
+}
+
+static ssize_t decon_dpu_gamma_chunk_write(struct file *file, const char __user *buffer,
+		size_t count, loff_t *ppos)
+{
+	int ret = 0;
+	u32 gamma_lut[3][65];
+
+	if (count <= 0) {
+		printk(KERN_ERR "gamma chunk write count error\n");
+		ret = -1;
+		goto gamma_err;
+	}
+
+	if (decon_int_drvdata) {
+		decon_lpd_block_exit(decon_int_drvdata);
+		if (decon_int_drvdata->state != DECON_STATE_ON) {
+			printk(KERN_ERR " decon is not enabled!\n");
+			ret = -1;
+			goto gamma_err;
+		}
+	} else {
+		printk(KERN_ERR " decon_int_drvdata is NULL!\n");
+		ret = -1;
+		goto gamma_err;
+	}
+
+	if (copy_from_user(gamma_lut, buffer, sizeof(gamma_lut))) {
+		printk(KERN_ERR "copy_from_user(gamma_lut) failed\n");
+		ret = -EFAULT;
+		goto gamma_err;
+	}
+
+	gamma_lut_reg_set(gamma_lut);
+
+	if (decon_int_drvdata)
+		decon_lpd_unblock(decon_int_drvdata);
+	return count;
+
+gamma_err:
+	if (decon_int_drvdata)
+		decon_lpd_unblock(decon_int_drvdata);
+	return ret;
+}
+
+static ssize_t decon_dpu_gamma_write(struct file *file, const char __user *buffer,
+			size_t count, loff_t *ppos)
+{
+	int i, j, val, ret = 0;
+	u32 offset_in = 0, offset_ex = 0, gamma = 0, mask = 0, length = 0;
+	const char *str_fomat = NULL;
+	const char *str_num = NULL;
+
+	if (count > 32 || count == 0)
+		return -1;
+
+	if (decon_int_drvdata) {
+		decon_lpd_block_exit(decon_int_drvdata);
+		if (decon_int_drvdata->state != DECON_STATE_ON) {
+			printk(KERN_ERR " decon is not enabled!\n");
+			ret = -1;
+			goto gamma_err;
+		}
+	} else {
+		printk(KERN_ERR " decon_int_drvdata is NULL!\n");
+		ret = -1;
+		goto gamma_err;
+	}
+
+	if (buffer) {
+		str_fomat = buffer;
+		str_num = buffer + 2;
+		length = count - 2;
+
+		switch (str_fomat[0]) {
+		case 'O':
+			mask = TSC_ON;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				return -EFAULT;
+			}
+			dpu_reg_set_gamma_onoff(val);
+			decon_int_drvdata->dpu_save.gamma_onoff = val;
+			ret = count;
+			goto gamma_done;
+		default:
+			break;
+		}
+	} else {
+		ret = -1;
+		goto gamma_err;
+	}
+
+	if (kstrtoint_from_user(buffer, count, 16, &val)) {
+		printk(KERN_ERR " copy_from_user() failed!\n");
+		ret = -EFAULT;
+		goto gamma_err;
+	}
+
+	switch (val) {
+	case 0:
+		for (j = 0; j < 3; j++) {
+			for (i = 0; i < 65; i++) {
+				if ((i % 2) == 0) {
+					if (i >= 2)
+						offset_in += 4;
+					mask = DPU_GAMMA_LUT_Y_MASK;
+					gamma = DPU_GAMMA_LUT_Y(gamma_table1[j][i]);
+				} else {
+					mask = DPU_GAMMA_LUT_X_MASK;
+					gamma = DPU_GAMMA_LUT_X(gamma_table1[j][i]);
+				}
+				dpu_reg_set_gamma(offset_in + offset_ex, mask, gamma);
+				mask = 0;
+				gamma = 0;
+				if (i == 64)
+					offset_in = 0;
+			}
+			offset_ex += DPU_GAMMA_OFFSET;
+		}
+		break;
+	case 1:
+		for (j = 0; j < 3; j++) {
+			for (i = 0; i < 65; i++) {
+				if ((i % 2) == 0) {
+					if (i >= 2)
+						offset_in += 4;
+					mask = DPU_GAMMA_LUT_Y_MASK;
+					gamma = DPU_GAMMA_LUT_Y(gamma_table2[j][i]);
+				} else {
+					mask = DPU_GAMMA_LUT_X_MASK;
+					gamma = DPU_GAMMA_LUT_X(gamma_table2[j][i]);
+				}
+				dpu_reg_set_gamma(offset_in + offset_ex, mask, gamma);
+				mask = 0;
+				gamma = 0;
+				if (i == 64)
+					offset_in = 0;
+			}
+			offset_ex += DPU_GAMMA_OFFSET;
+		}
+		break;
+	case 2:
+		for (j = 0; j < 3; j++) {
+			for (i = 0; i < 65; i++) {
+				if ((i % 2) == 0) {
+					if (i >= 2)
+						offset_in += 4;
+					mask = DPU_GAMMA_LUT_Y_MASK;
+					gamma = DPU_GAMMA_LUT_Y(gamma_table3[j][i]);
+				} else {
+					mask = DPU_GAMMA_LUT_X_MASK;
+					gamma = DPU_GAMMA_LUT_X(gamma_table3[j][i]);
+				}
+				dpu_reg_set_gamma(offset_in + offset_ex, mask, gamma);
+				mask = 0;
+				gamma = 0;
+				if (i == 64)
+					offset_in = 0;
+			}
+			offset_ex += DPU_GAMMA_OFFSET;
+		}
+		break;
+	default:
+		ret = -1;
+		goto gamma_err;
+		break;
+	}
+	decon_int_drvdata->dpu_save.gamma_set = val;
+
+gamma_done:
+	if (decon_int_drvdata)
+		decon_lpd_unblock(decon_int_drvdata);
+
+	return count;
+
+gamma_err:
+
+	if (decon_int_drvdata)
+		decon_lpd_unblock(decon_int_drvdata);
+
+	return ret;
+}
+
+static ssize_t decon_dpu_sat_write(struct file *file, const char __user *buffer,
+			size_t count, loff_t *ppos)
+{
+	int val, ret = 0;
+	u32 mask, length = 0;
+	const char *str_fomat = NULL;
+	const char *str_num = NULL;
+
+
+	if (count > 32 || count == 0)
+		return -1;
+
+	if (decon_int_drvdata) {
+		decon_lpd_block_exit(decon_int_drvdata);
+		if (decon_int_drvdata->state != DECON_STATE_ON) {
+			printk(KERN_ERR " decon is not enabled!\n");
+			ret = -1;
+			goto sat_err;
+		}
+	} else {
+		printk(KERN_ERR " decon_int_drvdata is NULL!\n");
+		ret = -1;
+		goto sat_err;
+	}
+
+	if (buffer) {
+		str_fomat = buffer;
+		str_num = buffer+2;
+		length = count - 2;
+
+		switch (str_fomat[0]) {
+		case 'R':
+			mask = PAIM_GAIN0;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto sat_err;
+			}
+			dpu_reg_set_saturation_rgb(mask, DPU_TSC_RED(val));
+			decon_int_drvdata->dpu_save.saturation_red = val;
+			break;
+		case 'G':
+			mask = PAIM_GAIN1;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto sat_err;
+			}
+			dpu_reg_set_saturation_rgb(mask, DPU_TSC_GREEN(val));
+			decon_int_drvdata->dpu_save.saturation_green = val;
+			break;
+		case 'B':
+			mask = PAIM_GAIN2;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto sat_err;
+			}
+			dpu_reg_set_saturation_rgb(mask, DPU_TSC_BLUE(val));
+			decon_int_drvdata->dpu_save.saturation_blue = val;
+			break;
+		case 'C':
+			mask = PAIM_GAIN3;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto sat_err;
+			}
+			dpu_reg_set_saturation_cmy(mask, DPU_TSC_CYAN(val));
+			decon_int_drvdata->dpu_save.saturation_magenta = val;
+			break;
+
+		case 'M':
+			mask = PAIM_GAIN3;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto sat_err;
+			}
+			dpu_reg_set_saturation_cmy(mask, DPU_TSC_MAGENTA(val));
+			decon_int_drvdata->dpu_save.saturation_magenta = val;
+			break;
+		case 'Y':
+			mask = PAIM_GAIN4;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto sat_err;
+			}
+			dpu_reg_set_saturation_cmy(mask, DPU_TSC_YELLOW(val));
+			decon_int_drvdata->dpu_save.saturation_yellow = val;
+			break;
+		case 'O':
+			mask = TSC_ON;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto sat_err;
+			}
+			dpu_reg_set_saturation_onoff(val);
+			decon_int_drvdata->dpu_save.saturation_onoff = val;
+			break;
+		case 'T':
+			mask = TSC_GAIN;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto sat_err;
+			}
+			dpu_reg_set_saturation_tscgain(DPU_TSC_GAIN(val));
+			decon_int_drvdata->dpu_save.saturation_total = val;
+			break;
+		case 'S':
+			mask = PAIM_SHIFT;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto sat_err;
+			}
+			dpu_reg_set_saturation_shift(mask, DPU_TSC_SHIFT(val));
+			decon_int_drvdata->dpu_save.saturation_shift = val;
+			break;
+		case 'A':
+			mask = PAIM_SCALE;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto sat_err;
+			}
+			dpu_reg_set_saturation_shift(mask, DPU_TSC_SCALE(val));
+			decon_int_drvdata->dpu_save.saturation_scale = val;
+			break;
+		default:
+			ret = -1;
+			goto sat_err;
+		}
+	} else {
+		ret = -1;
+		goto sat_err;
+	}
+
+	if (decon_int_drvdata)
+		decon_lpd_unblock(decon_int_drvdata);
+
+	return count;
+sat_err:
+
+	if (decon_int_drvdata)
+		decon_lpd_unblock(decon_int_drvdata);
+
+	return ret;
+}
+
+static ssize_t decon_dpu_hue_write(struct file *file, const char __user *buffer,
+			size_t count, loff_t *ppos)
+{
+	int val, ret = 0;
+	u32 mask, length = 0;
+	const char *str_fomat = NULL;
+	const char *str_num = NULL;
+
+	if (count > 32 || count == 0)
+		return -1;
+
+	if (decon_int_drvdata) {
+		decon_lpd_block_exit(decon_int_drvdata);
+		if (decon_int_drvdata->state != DECON_STATE_ON) {
+			printk(KERN_ERR " decon is not enabled!\n");
+			ret = -1;
+			goto hue_err;
+		}
+	} else {
+		printk(KERN_ERR " decon_int_drvdata is NULL!\n");
+		ret = -1;
+		goto hue_err;
+	}
+
+	if (buffer) {
+		str_fomat = buffer;
+		str_num = buffer+2;
+		length = count - 2;
+
+		switch (str_fomat[0]) {
+		case 'R':
+			mask = DPU_PPHC_GAIN0_MASK;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto hue_err;
+			}
+			dpu_reg_set_hue_rgb(mask, DPU_HUE_RED(val));
+			decon_int_drvdata->dpu_save.hue_red = val;
+			break;
+		case 'G':
+			mask = DPU_PPHC_GAIN1_MASK;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto hue_err;
+			}
+			dpu_reg_set_hue_rgb(mask, DPU_HUE_GREEN(val));
+			decon_int_drvdata->dpu_save.hue_green = val;
+			break;
+		case 'B':
+			mask = DPU_PPHC_GAIN2_MASK;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto hue_err;
+			}
+			dpu_reg_set_hue_rgb(mask, DPU_HUE_BLUE(val));
+			decon_int_drvdata->dpu_save.hue_blue = val;
+			break;
+		case 'C':
+			mask = DPU_PPHC_GAIN3_MASK;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto hue_err;
+			}
+			dpu_reg_set_hue_cmy(mask, DPU_HUE_CYAN(val));
+			decon_int_drvdata->dpu_save.hue_cyan = val;
+			break;
+		case 'M':
+			mask = DPU_PPHC_GAIN4_MASK;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto hue_err;
+			}
+			dpu_reg_set_hue_cmy(mask, DPU_HUE_MAGENTA(val));
+			decon_int_drvdata->dpu_save.hue_magenta = val;
+			break;
+		case 'Y':
+			mask = DPU_PPHC_GAIN5_MASK;
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto hue_err;
+			}
+			dpu_reg_set_hue_cmy(mask, DPU_HUE_YELLOW(val));
+			decon_int_drvdata->dpu_save.hue_yellow = val;
+			break;
+		case 'O':
+			if (kstrtoint_from_user(str_num, length, 16, &val)) {
+				printk(KERN_ERR " copy_from_user() failed!\n");
+				ret = -EFAULT;
+				goto hue_err;
+			}
+			dpu_reg_set_hue_onoff(val);
+			decon_int_drvdata->dpu_save.hue_onoff = val;
+			break;
+		default:
+			ret = -1;
+			goto hue_err;
+		}
+	} else {
+		ret = -1;
+		goto hue_err;
+	}
+
+	if (decon_int_drvdata)
+		decon_lpd_unblock(decon_int_drvdata);
+
+	return count;
+hue_err:
+
+	if (decon_int_drvdata)
+		decon_lpd_unblock(decon_int_drvdata);
+
+	return ret;
+}
+
+static ssize_t decon_dpu_preset_write(struct file *file, const char __user *buffer,
+			size_t count, loff_t *ppos)
+{
+	int val, ret = 0;
+
+	if (count > 32 || count == 0)
+		return -1;
+
+	if (decon_int_drvdata) {
+		decon_lpd_block_exit(decon_int_drvdata);
+		if (decon_int_drvdata->state != DECON_STATE_ON) {
+			printk(KERN_ERR " decon is not enabled!\n");
+			ret = -1;
+			goto preset_err;
+		}
+	} else {
+		printk(KERN_ERR " decon_int_drvdata is NULL!\n");
+		ret = -1;
+		goto preset_err;
+	}
+
+	if (kstrtoint_from_user(buffer, count, 16, &val)) {
+		printk(KERN_ERR " copy_from_user() failed!\n");
+		ret = -EFAULT;
+		goto preset_err;
+	}
+
+	if (decon_int_drvdata)
+		decon_lpd_unblock(decon_int_drvdata);
+
+	return count;
+preset_err:
+
+	if (decon_int_drvdata)
+		decon_lpd_unblock(decon_int_drvdata);
+
+	return ret;
+}
+
+static int decon_dpu_scr_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, decon_dpu_scr_set, inode->i_private);
+}
+
+static int decon_dpu_gamma_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, decon_dpu_gamma_set, inode->i_private);
+}
+
+static int decon_dpu_gamma_chunk_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, decon_dpu_gamma_chunk_set, inode->i_private);
+}
+
+static int decon_dpu_sat_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, decon_dpu_sat_set, inode->i_private);
+}
+
+static int decon_dpu_hue_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, decon_dpu_hue_set, inode->i_private);
+}
+
+static int decon_dpu_preset_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, decon_dpu_preset_set, inode->i_private);
+}
+
+static struct file_operations decon_dpu_scr_ops = {
+	.open = decon_dpu_scr_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release,
+	.write   = decon_dpu_scr_write,
+};
+
+static struct file_operations decon_dpu_gamma_chunk_ops = {
+	.open = decon_dpu_gamma_chunk_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release,
+	.write   = decon_dpu_gamma_chunk_write,
+};
+
+static struct file_operations decon_dpu_gamma_ops = {
+	.open = decon_dpu_gamma_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release,
+	.write   = decon_dpu_gamma_write,
+};
+
+static struct file_operations decon_dpu_sat_ops = {
+	.open = decon_dpu_sat_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release,
+	.write   = decon_dpu_sat_write,
+};
+
+static struct file_operations decon_dpu_hue_ops = {
+	.open = decon_dpu_hue_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release,
+	.write   = decon_dpu_hue_write,
+};
+
+static struct file_operations decon_dpu_preset_ops = {
+	.open = decon_dpu_preset_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release,
+	.write   = decon_dpu_preset_write,
+};
+
+#endif
+
 static int decon_debug_event_open_sync(struct inode *inode, struct file *file)
 {
 	struct seq_file *p = NULL;
@@ -3413,7 +4280,7 @@ static int decon_register_esd_funcion(struct decon_device *decon)
 	if (esd->err_irq) {
 		if (devm_request_irq(dev, esd->err_irq, decon_esd_err_handler,
 				err_irqf_type, "err-irq", decon)) {
-			dsim_err("%s : faield to request irq for err_fg\n", __func__);
+			dsim_err("%s : failed to request irq for err_fg\n", __func__);
 			esd->err_irq = 0;
 			ret--;
 		}
@@ -3422,7 +4289,7 @@ static int decon_register_esd_funcion(struct decon_device *decon)
 	if (esd->disp_det_irq) {
 		if (devm_request_irq(dev, esd->disp_det_irq, decon_disp_det_handler,
 				det_irqf_type, "display-det", decon)) {
-			dsim_err("%s : faied to request irq for display det\n", __func__);
+			dsim_err("%s : failed to request irq for display det\n", __func__);
 			esd->disp_det_irq = 0;
 			ret--;
 		}
@@ -3437,6 +4304,75 @@ register_exit:
 
 }
 
+/* ---------- TUI INTERFACE ----------- */
+int decon_tui_protection(struct decon_device *decon, bool tui_en)
+{
+	int ret = 0;
+	int i;
+	struct decon_psr_info psr;
+
+	decon_warn("%s:state %d: out_type %d:+\n", __func__,
+		tui_en, decon->out_type);
+	mutex_lock(&decon->output_lock);
+	if (decon->state == DECON_STATE_OFF) {
+		decon_warn("%s: decon is already disabled(tui=%d)\n", __func__, tui_en);
+		decon->out_type = DECON_OUT_DSI;
+		mutex_unlock(&decon->output_lock);
+		/* UnBlocking LPD */
+		decon_lpd_unblock(decon);
+		return -EBUSY;
+	}
+
+	mutex_unlock(&decon->output_lock);
+
+	if (tui_en) {
+		/* Blocking LPD */
+		decon_lpd_block_exit(decon);
+		mutex_lock(&decon->output_lock);
+		flush_kthread_worker(&decon->update_regs_worker);
+
+		decon_wait_for_vsync(decon, VSYNC_TIMEOUT_MSEC);
+		/* disable all the windows */
+		for (i = 0; i < decon->pdata->max_win; i++)
+			decon_write(DECON_INT, WINCON(i), 0);
+		#ifdef CONFIG_FB_WINDOW_UPDATE
+		/* Restore window_partial_update */
+		if (decon->need_update) {
+			decon->update_win.x = 0;
+			decon->update_win.y = 0;
+			decon->update_win.w = decon->lcd_info->xres;
+			decon->update_win.h = decon->lcd_info->yres;
+			decon_reg_ddi_partial_cmd(decon, &decon->update_win);
+			decon_win_update_disp_config(decon, &decon->update_win);
+			decon->need_update = false;
+			}
+		#endif
+		decon_to_psr_info(decon, &psr);
+		if (decon->pdata->trig_mode == DECON_HW_TRIG)
+			decon_reg_set_trigger(DECON_INT, decon->pdata->dsi_mode,
+				decon->pdata->trig_mode, DECON_TRIG_DISABLE);
+		decon_reg_per_frame_off(DECON_INT);
+		decon_reg_update_standalone(DECON_INT);
+		decon->out_type = DECON_OUT_TUI;
+		decon->prev_bw = 0;
+		/* set bandwidth to default (3 full frame) */
+		decon_set_qos(decon, NULL, false, false);
+		mutex_unlock(&decon->output_lock);
+	}else {
+		mutex_lock(&decon->output_lock);
+		decon->out_type = DECON_OUT_DSI;
+		mutex_unlock(&decon->output_lock);
+		/* UnBlocking LPD */
+		decon_lpd_unblock(decon);
+	}
+
+	decon_warn("%s:state %d: out_type %d:-\n", __func__,
+		tui_en, decon->out_type);
+
+	return ret;
+}
+
+
 /* --------- DRIVER INITIALIZATION ---------- */
 static int decon_probe(struct platform_device *pdev)
 {
@@ -3450,7 +4386,7 @@ static int decon_probe(struct platform_device *pdev)
 	struct decon_init_param p;
 	struct decon_regs_data win_regs;
 	struct dsim_device *dsim = NULL;
-	struct panel_private *panel = NULL;
+	struct panel_private *priv = NULL;
 	struct exynos_md *md;
 	struct device_node *cam_stat;
 	int win_idx = 0;
@@ -3547,8 +4483,41 @@ static int decon_probe(struct platform_device *pdev)
 	decon->disp_ss_log_unmask = EVT_TYPE_INT | EVT_TYPE_IOCTL |
 		EVT_TYPE_ASYNC_EVT | EVT_TYPE_PM;
 
-	decon->mask = debugfs_create_u32("unmask", 0774, decon->debug_root,
+	decon->mask = debugfs_create_u32("unmask", 0644, decon->debug_root,
 			(u32 *)&decon->disp_ss_log_unmask);
+#endif
+
+#if defined(CONFIG_EXYNOS_DECON_DPU)
+	snprintf(debug_name, MAX_NAME_SIZE, "scr");
+	decon->dpu_set = debugfs_create_file(debug_name, 0644,
+						decon->debug_root,
+						decon, &decon_dpu_scr_ops);
+
+
+	snprintf(debug_name, MAX_NAME_SIZE, "gamma");
+	decon->dpu_set = debugfs_create_file(debug_name, 0644,
+						decon->debug_root,
+						decon, &decon_dpu_gamma_ops);
+
+	snprintf(debug_name, MAX_NAME_SIZE, "gamma_chunk");
+	decon->dpu_set = debugfs_create_file(debug_name, 0444,
+						decon->debug_root,
+						decon, &decon_dpu_gamma_chunk_ops);
+
+	snprintf(debug_name, MAX_NAME_SIZE, "saturation");
+	decon->dpu_set = debugfs_create_file(debug_name, 0644,
+						decon->debug_root,
+						decon, &decon_dpu_sat_ops);
+
+	snprintf(debug_name, MAX_NAME_SIZE, "hue");
+	decon->dpu_set = debugfs_create_file(debug_name, 0644,
+						decon->debug_root,
+						decon, &decon_dpu_hue_ops);
+
+	snprintf(debug_name, MAX_NAME_SIZE, "preset_normal");
+	decon->dpu_set = debugfs_create_file(debug_name, 0444,
+						decon->debug_root,
+						decon, &decon_dpu_preset_ops);
 #endif
 
 	/* register internal and external DECON as entity */
@@ -3746,12 +4715,12 @@ decon_init_done:
 		dsim = container_of(decon->output_sd, struct dsim_device, sd);
 
 	if (dsim) {
-		panel = &dsim->priv;
-		if ((panel) && (!panel->lcdConnected)) {
-			dsim_info("decon does not found panel\n");
+		priv = &dsim->priv;
+		if ((priv) && (!priv->lcdConnected)) {
+			decon_info("decon does not found panel\n");
 			decon->ignore_vsync = true;
 		}
-		dsim_info("panel id : %x : %x : %x\n", panel->id[0], panel->id[1], panel->id[2]);
+		decon_info("panel id : %x\n", lcdtype);
 	}
 
 #ifdef CONFIG_DECON_MIPI_DSI_PKTGO
@@ -3776,6 +4745,11 @@ decon_init_done:
 #ifdef CONFIG_CPU_IDLE
 	decon->lpc_nb = exynos_decon_lpc_nb;
 	exynos_pm_register_notifier(&decon->lpc_nb);
+#endif
+
+#if defined(CONFIG_EXYNOS_DECON_DPU)
+	dpu_reg_start(decon->lcd_info->xres, decon->lcd_info->yres);
+	dpu_reg_gamma_init();
 #endif
 	decon_esd_enable_interrupt(decon);
 

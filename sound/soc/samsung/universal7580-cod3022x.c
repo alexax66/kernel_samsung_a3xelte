@@ -839,6 +839,7 @@ static int universal7580_enable_codec_bclk(struct snd_soc_card *card)
 {
 	struct device *dev = card->dev;
 	struct cod3022x_machine_priv *priv = snd_soc_card_get_drvdata(card);
+	struct snd_soc_dai *cpu_dai = card->rtd[0].cpu_dai;
 	int ret;
 
 	priv->bclk_codec = clk_get(dev, "codec_bclk");
@@ -851,6 +852,17 @@ static int universal7580_enable_codec_bclk(struct snd_soc_card *card)
 	if (ret < 0) {
 		dev_err(dev, "clk enable failed for codec bclk\n");
 		clk_put(priv->bclk_codec);
+		return ret;
+	}
+
+	pm_runtime_get_sync(cpu_dai->dev);
+	/* setting as interface 2, to ensure PSR is set */
+	ret = universal7580_configure_cpu_dai(card, cpu_dai,
+				COD3022X_RFS_48KHZ, COD3022X_BFS_48KHZ, 2);
+	pm_runtime_put_sync(cpu_dai->dev);
+
+	if (ret) {
+		dev_err(dev, "Failed to configure cpu dai for codec clk\n");
 		return ret;
 	}
 

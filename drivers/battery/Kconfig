@@ -15,16 +15,23 @@ config BATTERY_SMART
 	 To see battery-related functions,
 	 refer to sec_charging_common.h
 
-config BATTERY_SWELLING
-	bool "prevent battery swellin "
+config CHARGING_VZWCONCEPT
+	tristate "VZW concept about the charging"
+	default n
+	depends on BATTERY_SAMSUNG
 	help
-	  Say Y to include support for prevent battery swelling
+	 Say Y to include support for the VZW concepts.
+
+config BATTERY_SWELLING
+	bool "prevent battery swelling"
+	help
+	 Say Y to include support for prevent battery swelling
 
 config BATTERY_SWELLING_SELF_DISCHARGING
 	bool "prevent battery swelling with self discharging"
 	depends on BATTERY_SWELLING
 	help
-	  Say Y to include support for prevent battery swelling with self discharging
+	 Say Y to include support for prevent battery swelling with self discharging
 
 config SW_SELF_DISCHARGING
 	bool "enable sw_self_discharging"
@@ -34,8 +41,24 @@ config SW_SELF_DISCHARGING
 
 config INBATTERY
 	bool "is inbattery or not"
+	default n
+	depends on BATTERY_SAMSUNG
 	help
-	  Say Y to include support for inbattery
+	 Say Y to include support for inbattery
+
+config CALC_TIME_TO_FULL
+	tristate "calculate time to full"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to use calc time to full function.
+
+config BATTERY_AGE_FORECAST
+	tristate "battery age forecast"
+	default n
+	depends on BATTERY_SWELLING
+	help
+	 Say Y to use calc time to full function.
 
 # Fuel Gauge
 
@@ -175,12 +198,30 @@ config FUELGAUGE_MAX77823_COULOMB_COUNTING
 	 like tablet.
 
 config FUELGAUGE_S2MU003
-        tristate "S2MU003 fuel gauge driver"
-        default n
-        depends on BATTERY_SAMSUNG
-        help
-         Say Y to include support
-         for S.LSI S2MU003 fuel gauge driver.
+	tristate "S2MU003 fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for S.LSI S2MU003 fuel gauge driver.
+
+config FUELGAUGE_S2MU005
+	tristate "S2MU005 fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for S.LSI S2MU005 fuel gauge driver.
+
+config FUELGAUGE_MAX77849
+	tristate "MAX77849 fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 It is based on the MAX17050 fuel gauge driver.
+	 This fuel-gauge can be used in voltage-tracking mode
+	 or coulomb-counting mode.
 
 config FUELGAUGE_SM5703
 	 tristate "SM5703 fuel gauge driver"
@@ -190,22 +231,29 @@ config FUELGAUGE_SM5703
 	  Say Y to include support SM5703 FUELGAUGE.
 	  Using coulomb counting.
 
+config STMP_SUPPORT_FG_ALERT
+	tristate "SM5703 fuel gauge driver"
+	default n
+	depends on FUELGAUGE_SM5703
+	help
+	 Say Y to include support SM5703 FUELGAUGE alert to STMPE1801
+
 config FUELGAUGE_SM5705
 	tristate "Siliconmitus SM5705 Fuel Gauge"
 	default n
 	depends on BATTERY_SAMSUNG
 	help
-	  SM5705 is fuel-gauge systems for lithium-ion (Li+) batteries
-	  in handheld and portable equipment. The SM5705 is configured
-	  to operate with a single lithium cell
+	 SM5705 is fuel-gauge systems for lithium-ion (Li+) batteries
+	 in handheld and portable equipment. The SM5705 is configured
+	 to operate with a single lithium cell
 
 config SMART_FUELGAUGE
-	 tristate "smart fuel gauge driver"
-	 default n
-	 depends on BATTERY_SMART
-	 help
-	  Say Y to include support SMART FUELGAUGE.
-	  Using coulomb counting.
+	tristate "smart fuel gauge driver"
+	default n
+	depends on BATTERY_SMART
+	help
+	 Say Y to include support SMART FUELGAUGE.
+	 Using coulomb counting.
 
 config PREVENT_SOC_JUMP
         tristate "prevent soc jump at full-charged"
@@ -213,6 +261,26 @@ config PREVENT_SOC_JUMP
         depends on BATTERY_SAMSUNG
         help
          Say Y to prevent soc jump
+
+config FUELGAUGE_MAX77849_VOLTAGE_TRACKING
+	tristate "use MAX77849 fuel gauge only as voltage tracking"
+	default n
+	depends on FUELGAUGE_MAX77849
+	help
+	 Say Y to use MAX77849 fuel gauge
+	 only as voltage tracking.
+	 This mode is for target that consumes low current
+	 like smart-phone.
+
+config FUELGAUGE_MAX77849_COULOMB_COUNTING
+	tristate "use MAX77849 fuel gauge as coulomb counting (including voltage tracking)"
+	default n
+	depends on FUELGAUGE_MAX77849
+	help
+	 Say Y to use MAX77849 fuel gauge
+	 as coulomb counting (including voltage tracking).
+	 This mode is for target that consumes high current
+	 like tablet.
 
 # Charger
 

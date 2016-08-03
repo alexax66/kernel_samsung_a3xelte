@@ -1,7 +1,7 @@
 /*
  * Customer HW 4 dependant file
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -159,6 +159,9 @@
 /* GAN LITE NAT KEEPALIVE FILTER */
 #define GAN_LITE_NAT_KEEPALIVE_FILTER
 #endif /* CONFIG_WLAN_REGION_CODE == 101 */
+#if (CONFIG_WLAN_REGION_CODE == 150) /* EUR FD(DualSIM) */
+#define SUPPORT_MULTIPLE_BOARD_REV_FROM_HW
+#endif /* CONFIG_WLAN_REGION_CODE == 150 */
 #endif /* CONFIG_WLAN_REGION_CODE >= 100 && CONFIG_WLAN_REGION_CODE < 200 */
 
 #if defined(CONFIG_V1A) || defined(CONFIG_V2A) || defined(CONFIG_MACH_VIENNAEUR)
@@ -198,7 +201,6 @@
 
 #if (CONFIG_WLAN_REGION_CODE == 202) /* KTT */
 #define VLAN_MODE_OFF
-#define CUSTOM_KEEP_ALIVE_SETTING	30000
 #define FULL_ROAMING_SCAN_PERIOD_60_SEC
 
 #ifdef CONFIG_MACH_UNIVERSAL5410

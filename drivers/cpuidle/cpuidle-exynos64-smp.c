@@ -39,10 +39,6 @@ static enum {
 
 DEFINE_SPINLOCK(enable_mask_lock);
 
-#ifdef CONFIG_BCM43455
-extern int wl_check_wifi_scanning(void);
-#endif
-
 static int set_enable_mask(const char *val, const struct kernel_param *kp)
 {
 	int rv = param_set_uint(val, kp);
@@ -132,11 +128,6 @@ static int exynos_enter_c2(struct cpuidle_device *dev,
 {
 	int cpu = dev->cpu, ret, target_index;
 	unsigned int target_residency = drv->states[index].target_residency;
-
-#ifdef CONFIG_BCM43455
-	if (wl_check_wifi_scanning())
-		return exynos_enter_idle(dev, drv, 0);
-#endif
 
 #ifdef CONFIG_SEC_PM_DEBUG
 	if (unlikely(log_en & ENABLE_C2))

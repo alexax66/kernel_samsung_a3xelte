@@ -29,7 +29,10 @@
 #define MINVAL(a, b) ((a <= b) ? a : b)
 #define MAXVAL(a, b) ((a > b) ? a : b)
 
+#define LIMIT_N_CURR_MIXFACTOR -2000
 #define FG_ABNORMAL_RESET -1
+#define IGNORE_N_I_OFFSET 1
+#define ABSOLUTE_ERROR_OCV_MATCH 1 
 //#define SM5705_FG_FULL_DEBUG 1
 
 enum battery_table_type {
@@ -548,7 +551,7 @@ int sm5705_calculate_iocv(struct i2c_client *client)
 	int lb_i_buffer[6] = {0, 0, 0, 0, 0, 0};
 	int cb_v_buffer[6] = {0, 0, 0, 0, 0, 0};
 	int cb_i_buffer[6] = {0, 0, 0, 0, 0, 0};
-	int i_offset_margin = 0x1f, i_vset_margin = 0x67;
+	int i_offset_margin = 0x14, i_vset_margin = 0x67;
 	int v_max=0, v_min=0, v_sum=0, lb_v_avg=0, cb_v_avg=0, lb_v_minmax_offset=0, lb_v_set=0, lb_i_set=0, i_offset=0;
 	int i_max=0, i_min=0, i_sum=0, lb_i_avg=0, cb_i_avg=0, lb_i_minmax_offset=0, cb_v_set=0, cb_i_set=0;
 	int lb_i_p_v_min=0, lb_i_n_v_max=0, cb_i_p_v_min=0, cb_i_n_v_max=0;
@@ -711,7 +714,11 @@ int sm5705_calculate_iocv(struct i2c_client *client)
 	if(i_offset <= 0)
 	{
 		sign_i_offset = 1;
+#if IGNORE_N_I_OFFSET
+		i_offset = 0;
+#else
 		i_offset = -i_offset;
+#endif
 	}
 
 	i_offset = i_offset>>1;
@@ -877,7 +884,11 @@ int sm5705_calculate_iocv(struct i2c_client *client)
 				if(i_offset <= 0)
 				{
 					sign_i_offset = 1;
+#if IGNORE_N_I_OFFSET
+					i_offset = 0;
+#else
 					i_offset = -i_offset;
+#endif
 				}
 
 				i_offset = i_offset>>1;
@@ -1073,24 +1084,6 @@ static bool sm5705_fg_init(struct i2c_client *client, bool is_surge)
 		pr_info("fail to do i2c read(%d)\n", ret);
 	}
 
-	// curr_off save and restore
-	if(fuelgauge->info.en_auto_curr_offset)
-	{
-		ret = sm5705_fg_i2c_read_word(client, SM5705_REG_CURR_OFF);
-		if((ret & 0x007F) == 0)
-		{
-			sm5705_fg_i2c_write_word(client, SM5705_REG_CURR_OFF, fuelgauge->info.curr_offset);
-		}
-		else
-		{
-			fuelgauge->info.curr_offset = ret;
-		}
-	}
-	else
-	{
-		sm5705_fg_i2c_write_word(client, SM5705_REG_CURR_OFF, fuelgauge->info.curr_offset);
-	}
-
 	if(fuelgauge->info.batt_ocv == 0)
 	{
 		sm5705_get_ocv(client);
@@ -1107,6 +1100,17 @@ static bool sm5705_fg_init(struct i2c_client *client, bool is_surge)
 	if(sm5705_fg_check_reg_init_need(client))
 	{
 		sm5705_fg_reg_init(client, is_surge);
+	}
+
+	// curr_off save and restore
+	if(fuelgauge->info.en_auto_curr_offset)
+	{
+		ret = sm5705_fg_i2c_read_word(client, SM5705_REG_CURR_OFF);
+		fuelgauge->info.curr_offset = ret;
+	}
+	else
+	{
+		sm5705_fg_i2c_write_word(client, SM5705_REG_CURR_OFF, fuelgauge->info.curr_offset);
 	}
 
 	// set lcal
@@ -1184,9 +1188,16 @@ void sm5705_vbatocv_check(struct i2c_client *client)
 	struct sec_fuelgauge_info *fuelgauge = i2c_get_clientdata(client);
 
 	// iocv error case cover start
+#ifdef ABSOLUTE_ERROR_OCV_MATCH
 	if((abs(fuelgauge->info.batt_current)<40) ||
 		((fuelgauge->is_charging) && (fuelgauge->info.batt_current<(fuelgauge->info.top_off)) &&
 		(fuelgauge->info.batt_current>(fuelgauge->info.top_off/3))))
+#else
+	if(((!fuelgauge->ta_exist) && (fuelgauge->info.batt_current<0) && (fuelgauge->info.batt_current>-40)) ||
+		((fuelgauge->ta_exist) && (fuelgauge->info.batt_current>0) && (fuelgauge->info.batt_current<40)) ||
+		((fuelgauge->is_charging) && (fuelgauge->info.batt_current<(fuelgauge->info.top_off)) &&
+		(fuelgauge->info.batt_current>(fuelgauge->info.top_off/3))))
+#endif
 	{
 		if(abs(fuelgauge->info.batt_ocv-fuelgauge->info.batt_voltage)>30) // 30mV over
 		{
@@ -1322,7 +1333,7 @@ static int sm5705_cal_carc (struct i2c_client *client)
 
 	sm5705_vbatocv_check(client);
 
-	if(fuelgauge->is_charging)
+	if(fuelgauge->is_charging || (fuelgauge->info.batt_current < LIMIT_N_CURR_MIXFACTOR))
 	{
 		mix_factor = fuelgauge->info.rs_value[1];
 	}
@@ -1476,11 +1487,11 @@ static int sm5705_get_all_value(struct i2c_client *client)
 
 	sm5705_fg_test_read(client);
 
-	pr_info("is_chg=%d, ta_exist=%d, vbat=%d, vbat_avg=%d, curr=%d, curr_avg=%d, ocv=%d, "
-		"temp=%d, cycle=%d, soc=%d, state=0x%x, I_EST=0x%x\n, Q_EST=0x%x\n",
+	pr_info("is_chg=%d, ta_exist=%d, v=%d, v_avg=%d, i=%d, i_avg=%d, ocv=%d, "
+		"fg_t=%d, b_t=%d, cycle=%d, soc=%d, state=0x%x, I_EST=0x%x, Q_EST=0x%x\n",
 		fuelgauge->is_charging, fuelgauge->ta_exist, fuelgauge->info.batt_voltage,
 		fuelgauge->info.batt_avgvoltage, fuelgauge->info.batt_current, fuelgauge->info.batt_avgcurrent,
-		fuelgauge->info.batt_ocv, fuelgauge->info.temp_fg, fuelgauge->info.batt_soc_cycle,
+		fuelgauge->info.batt_ocv, fuelgauge->info.temp_fg, fuelgauge->info.temperature, fuelgauge->info.batt_soc_cycle,
 		fuelgauge->info.batt_soc, sm5705_fg_i2c_read_word(client, SM5705_REG_OCV_STATE),
 		sm5705_fg_i2c_read_word(client, SM5705_REG_CURRENT_EST), sm5705_fg_i2c_read_word(client, SM5705_REG_Q_EST));
 
@@ -2579,6 +2590,10 @@ static int sm5705_fuelgauge_suspend(struct device *dev)
 
 static int sm5705_fuelgauge_resume(struct device *dev)
 {
+	struct sec_fuelgauge_info *fuelgauge = dev_get_drvdata(dev);
+
+	fuelgauge->initial_update_of_soc = true;
+
 	return 0;
 }
 

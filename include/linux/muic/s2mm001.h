@@ -237,6 +237,7 @@ struct s2mm001_muic_data {
 	bool	is_otg_test;
 	bool	sdp_skip;
 	bool	attach_skip;
+	bool	undefined_range;
 #if !defined(CONFIG_MUIC_S2MM001_ENABLE_AUTOSW)
 	bool	is_jig_on;
 #endif

@@ -1078,7 +1078,8 @@ static ssize_t mms_sys_cmd(struct device *dev, struct device_attribute *devattr,
 
 	if (!info) {
 		pr_err("%s [ERROR] mms_ts_info not found\n", __func__);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto ERROR;
 	}
 
 	tsp_debug_dbg(true, &info->client->dev, "%s [START]\n", __func__);

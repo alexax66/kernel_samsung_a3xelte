@@ -1,7 +1,7 @@
 /*
  * Broadcom Dongle Host Driver (DHD), common DHD core.
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_common.c 587573 2015-09-21 13:26:14Z $
+ * $Id: dhd_common.c 609714 2016-01-05 07:50:25Z $
  */
 #include <typedefs.h>
 #include <osl.h>
@@ -113,6 +113,9 @@ const char dhd_version[] = "Dongle Host Driver, version " EPI_VERSION_STR
 #else
 const char dhd_version[] = "\nDongle Host Driver, version " EPI_VERSION_STR "\nCompiled from ";
 #endif 
+#ifdef DHD_LOG_DUMP
+char fw_version[FW_VER_STR_LEN] = "\0";
+#endif /* DHD_LOG_DUMP */
 
 void dhd_set_timer(void *bus, uint wdtick);
 
@@ -289,7 +292,18 @@ dhd_wl_ioctl(dhd_pub_t *dhd_pub, int ifindex, wl_ioctl_t *ioc, void *buf, int le
 
 	if (dhd_os_proto_block(dhd_pub))
 	{
+#ifdef DHD_LOG_DUMP
+		int slen, i, val, rem;
+		long int lval;
+		char *pval, *pos, *msg;
+		char tmp[64];
 
+		/* WLC_GET_VAR */
+		if (ioc->cmd == WLC_GET_VAR) {
+			memset(tmp, 0, sizeof(tmp));
+			bcopy(ioc->buf, tmp, strlen(ioc->buf) + 1);
+		}
+#endif /* DHD_LOG_DUMP */
 		ret = dhd_prot_ioctl(dhd_pub, ifindex, ioc, buf, len);
 #if defined(CUSTOMER_HW4)
 		if ((ret || ret == -ETIMEDOUT) && (dhd_pub->up))
@@ -307,6 +321,44 @@ dhd_wl_ioctl(dhd_pub_t *dhd_pub, int ifindex, wl_ioctl_t *ioc, void *buf, int le
 		}
 
 		dhd_os_proto_unblock(dhd_pub);
+
+#ifdef DHD_LOG_DUMP
+		if (ioc->cmd == WLC_GET_VAR || ioc->cmd == WLC_SET_VAR) {
+			lval = 0;
+			slen = strlen(ioc->buf) + 1;
+			msg = (char*)ioc->buf;
+			if (ioc->cmd == WLC_GET_VAR) {
+				bcopy(msg, &lval, sizeof(long int));
+				msg = tmp;
+			} else {
+				bcopy((msg + slen), &lval, sizeof(long int));
+			}
+			DHD_ERROR_EX(("%s: cmd: %d, msg: %s, val: 0x%lx, len: %d, set: %d\n",
+				ioc->cmd == WLC_GET_VAR ? "WLC_GET_VAR" : "WLC_SET_VAR",
+				ioc->cmd, msg, lval, ioc->len, ioc->set));
+		} else {
+			slen = ioc->len;
+			if (ioc->buf != NULL) {
+				val = *(int*)ioc->buf;
+				pval = (char*)ioc->buf;
+				pos = tmp;
+				rem = sizeof(tmp);
+				memset(tmp, 0, sizeof(tmp));
+				for (i = 0; i < slen; i++) {
+					pos += snprintf(pos, rem, "%02x ", pval[i]);
+					rem = sizeof(tmp) - (int)(pos - tmp);
+					if (rem <= 0) {
+						break;
+					}
+				}
+				DHD_ERROR_EX(("WLC_IOCTL: cmd: %d, val: %d (%s), len: %d, "
+					"set: %d\n", ioc->cmd, val, tmp, ioc->len, ioc->set));
+			} else {
+				DHD_ERROR_EX(("WLC_IOCTL: cmd: %d, buf is NULL\n", ioc->cmd));
+			}
+		}
+#endif /* DHD_LOG_DUMP */
+
 
 #if defined(CUSTOMER_HW4)
 		if (ret < 0) {
@@ -1221,11 +1273,16 @@ wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, size_t pktlen,
 		return (BCME_ERROR);
 	}
 
-	/* BRCM event pkt may be unaligned - use xxx_ua to load user_subtype. */
-	if (ntoh16_ua((void *)&pvt_data->bcm_hdr.usr_subtype) != BCMILCP_BCM_SUBTYPE_EVENT) {
-		DHD_ERROR(("%s: mismatched subtype, bailing\n", __FUNCTION__));
+	if (ntoh16_ua((void *)&pvt_data->bcm_hdr.subtype) != BCMILCP_SUBTYPE_VENDOR_LONG ||
+		(bcmp(BRCM_OUI, &pvt_data->bcm_hdr.oui[0], DOT11_OUI_LEN)) ||
+		ntoh16_ua((void *)&pvt_data->bcm_hdr.usr_subtype) != BCMILCP_BCM_SUBTYPE_EVENT)
+	{
+		DHD_ERROR(("%s: mismatched bcm_event_t info, bailing out\n", __FUNCTION__));
 		return (BCME_ERROR);
 	}
+
+	if (pktlen < sizeof(bcm_event_t))
+		return (BCME_ERROR);
 
 	*data_ptr = &pvt_data[1];
 	event_data = *data_ptr;
@@ -2158,7 +2215,7 @@ fail:
 /*
  * returns = TRUE if associated, FALSE if not associated
  */
-bool dhd_is_associated(dhd_pub_t *dhd, void *bss_buf, int *retval)
+bool dhd_is_associated(dhd_pub_t *dhd, uint8 ifidx, int *retval)
 {
 	char bssid[6], zbuf[6];
 	int ret = -1;
@@ -2166,7 +2223,8 @@ bool dhd_is_associated(dhd_pub_t *dhd, void *bss_buf, int *retval)
 	bzero(bssid, 6);
 	bzero(zbuf, 6);
 
-	ret  = dhd_wl_ioctl_cmd(dhd, WLC_GET_BSSID, (char *)&bssid, ETHER_ADDR_LEN, FALSE, 0);
+	ret  = dhd_wl_ioctl_cmd(dhd, WLC_GET_BSSID, (char *)&bssid,
+		ETHER_ADDR_LEN, FALSE, ifidx);
 	DHD_TRACE((" %s WLC_GET_BSSID ioctl res = %d\n", __FUNCTION__, ret));
 
 	if (ret == BCME_NOTASSOCIATED) {
@@ -2179,18 +2237,11 @@ bool dhd_is_associated(dhd_pub_t *dhd, void *bss_buf, int *retval)
 	if (ret < 0)
 		return FALSE;
 
-	if ((memcmp(bssid, zbuf, ETHER_ADDR_LEN) != 0)) {
-		/*  STA is assocoated BSSID is non zero */
-
-		if (bss_buf) {
-			/* return bss if caller provided buf */
-			memcpy(bss_buf, bssid, ETHER_ADDR_LEN);
-		}
-		return TRUE;
-	} else {
+	if ((memcmp(bssid, zbuf, ETHER_ADDR_LEN) == 0)) {
 		DHD_TRACE(("%s: WLC_GET_BSSID ioctl returned zero bssid\n", __FUNCTION__));
 		return FALSE;
 	}
+	return TRUE;
 }
 
 
@@ -2202,9 +2253,11 @@ dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd)
 	int ret = -1;
 	int dtim_period = 0;
 	int ap_beacon = 0;
+#ifndef ENABLE_MAX_DTIM_IN_SUSPEND
 	int allowed_skip_dtim_cnt = 0;
+#endif /* !ENABLE_MAX_DTIM_IN_SUSPEND */
 	/* Check if associated */
-	if (dhd_is_associated(dhd, NULL, NULL) == FALSE) {
+	if (dhd_is_associated(dhd, 0, NULL) == FALSE) {
 		DHD_TRACE(("%s NOT assoc ret %d\n", __FUNCTION__, ret));
 		goto exit;
 	}
@@ -2228,6 +2281,12 @@ dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd)
 		goto exit;
 	}
 
+#ifdef ENABLE_MAX_DTIM_IN_SUSPEND
+	bcn_li_dtim = (int) (MAX_DTIM_ALLOWED_INTERVAL / (ap_beacon * dtim_period));
+	if (bcn_li_dtim == 0) {
+		bcn_li_dtim = 1;
+	}
+#else /* ENABLE_MAX_DTIM_IN_SUSPEND */
 	/* attemp to use platform defined dtim skip interval */
 	bcn_li_dtim = dhd->suspend_bcn_li_dtim;
 
@@ -2250,6 +2309,7 @@ dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd)
 		bcn_li_dtim = (int)(CUSTOM_LISTEN_INTERVAL / dtim_period);
 		DHD_TRACE(("%s agjust dtim_skip as %d\n", __FUNCTION__, bcn_li_dtim));
 	}
+#endif /* ENABLE_MAX_DTIM_IN_SUSPEND */
 
 	DHD_ERROR(("%s beacon=%d bcn_li_dtim=%d DTIM=%d Listen=%d\n",
 		__FUNCTION__, ap_beacon, bcn_li_dtim, dtim_period, CUSTOM_LISTEN_INTERVAL));

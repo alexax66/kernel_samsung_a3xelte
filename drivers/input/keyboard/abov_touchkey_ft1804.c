@@ -699,17 +699,17 @@ static ssize_t touchkey_sar_enable(struct device *dev,
 		if(info->sar_enable)
 			data = 1;
 		else
-		return count;
+			return count;
 	}
 
 	if(info->sar_enable_off){
-	if(data == 1)
-		info->sar_enable = true;
+		if(data == 1)
+			info->sar_enable = true;
 		else
-		info->sar_enable = false;
+			info->sar_enable = false;
 		tk_debug_info(true, &info->client->dev, "%s skip, Power back off _ force off mode (%d)\n", __func__, info->sar_enable);
-	return count;
-}
+		return count;
+	}
 
 	if(data == 1)
 		cmd = 0x20;

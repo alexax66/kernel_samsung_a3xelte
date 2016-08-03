@@ -64,6 +64,10 @@
 #include <linux/input/input_booster.h>
 #endif
 
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI
+#include <linux/trustedui.h>
+#endif
+
 #ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX
 #define SUPPORTED_PALM_TOUCH
 #endif
@@ -670,6 +674,7 @@ struct bt532_ts_info {
 	bool	flip_enable;
 	bool	flip_state;
 	bool spay_enable;
+	bool sleep_mode;
 	unsigned int scrub_id;
 	unsigned int scrub_x;
 	unsigned int scrub_y;
@@ -690,12 +695,25 @@ u32 BUTTON_MAPPING_KEY[MAX_SUPPORTED_BUTTON_NUM] = {
 	/*KEY_DUMMY_HOME2,*/ KEY_BACK, KEY_DUMMY_BACK};
 #endif
 
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI
+struct bt532_ts_info *tui_tsp_info;
+#endif
+
 /* define i2c sub functions*/
 static inline s32 read_data(struct i2c_client *client,
 	u16 reg, u8 *values, u16 length)
 {
 	s32 ret;
 	int count = 0;
+
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI	
+	if (TRUSTEDUI_MODE_INPUT_SECURED & trustedui_get_current_mode()) {
+		tsp_debug_err(true, &client->dev,
+				"%s TSP no accessible from Linux, TUI is enabled!\n", __func__);
+		return -EIO;	
+	}
+#endif
+
 retry:
 	/* select register*/
 	ret = i2c_master_send(client , (u8 *)&reg , 2);
@@ -723,6 +741,14 @@ static inline s32 write_data(struct i2c_client *client,
 	s32 ret;
 	int count = 0;
 	u8 pkt[10]; /* max packet */
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI	
+		if (TRUSTEDUI_MODE_INPUT_SECURED & trustedui_get_current_mode()) {
+			tsp_debug_err(true, &client->dev,
+					"%s TSP no accessible from Linux, TUI is enabled!\n", __func__);
+			return -EIO;	
+		}
+#endif
+
 	pkt[0] = (reg) & 0xff; /* reg addr */
 	pkt[1] = (reg >> 8)&0xff;
 	memcpy((u8 *)&pkt[2], values, length);
@@ -755,6 +781,14 @@ static inline s32 write_cmd(struct i2c_client *client, u16 reg)
 	s32 ret;
 	int count = 0;
 
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI	
+		if (TRUSTEDUI_MODE_INPUT_SECURED & trustedui_get_current_mode()) {
+			tsp_debug_err(true, &client->dev,
+					"%s TSP no accessible from Linux, TUI is enabled!\n", __func__);
+			return -EIO;	
+		}
+#endif
+
 retry:
 	ret = i2c_master_send(client , (u8 *)&reg , 2);
 	if (ret < 0) {
@@ -775,6 +809,14 @@ static inline s32 read_raw_data(struct i2c_client *client,
 {
 	s32 ret;
 	int count = 0;
+
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI	
+		if (TRUSTEDUI_MODE_INPUT_SECURED & trustedui_get_current_mode()) {
+			tsp_debug_err(true, &client->dev,
+					"%s TSP no accessible from Linux, TUI is enabled!\n", __func__);
+			return -EIO;	
+		}
+#endif
 
 retry:
 	/* select register */
@@ -803,8 +845,16 @@ static inline s32 read_firmware_data(struct i2c_client *client,
 	u16 addr, u8 *values, u16 length)
 {
 	s32 ret;
-	/* select register*/
 
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI
+	if (TRUSTEDUI_MODE_INPUT_SECURED & trustedui_get_current_mode()) {
+		tsp_debug_err(true, &client->dev,
+				"%s TSP no accessible from Linux, TUI is enabled!\n", __func__);
+		return -EIO;	
+	}
+#endif
+
+	/* select register*/
 	ret = i2c_master_send(client , (u8 *)&addr , 2);
 	if (ret < 0)
 		return ret;
@@ -897,7 +947,7 @@ static void zt7538_set_cover_type(struct bt532_ts_info *info, bool enable)
 		zinitix_bit_clr(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_SVIEW_DETECT_BIT);
 	info->flip_state = enable;
 
-	dev_info(&info->client->dev, "%s: %d\n", __func__, info->cover_type);
+	dev_info(&info->client->dev, "%s: type %d enable %d\n", __func__, info->cover_type, enable);
 }
 
 static void bt532_set_optional_mode(struct bt532_ts_info *info, bool force)
@@ -1087,6 +1137,17 @@ static void esd_timeout_handler(unsigned long data)
 {
 	struct bt532_ts_info *info = (struct bt532_ts_info *)data;
 
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI
+	struct i2c_client *client = info->client;
+	if (TRUSTEDUI_MODE_INPUT_SECURED & trustedui_get_current_mode()) {
+		tsp_debug_err(true, &client->dev,
+				"%s TSP no accessible from Linux, TUI is enabled!\n", __func__);
+		//esd_timer_start(CHECK_ESD_TIMER, info);
+		esd_timer_stop(info);
+		return;
+	}
+#endif
+	
 	info->p_esd_timeout_tmr = NULL;
 	queue_work(esd_tmr_workqueue, &info->tmr_work);
 }
@@ -1863,6 +1924,7 @@ fail_init:
 static bool mini_init_touch(struct bt532_ts_info *info)
 {
 	struct i2c_client *client = info->client;
+	struct bt532_ts_platform_data *pdata = info->pdata;
 	int i;
 
 	if (write_cmd(client, BT532_SWRESET_CMD) != I2C_SUCCESS) {
@@ -1908,6 +1970,14 @@ static bool mini_init_touch(struct bt532_ts_info *info)
 	tsp_debug_info(true, &client->dev, "Started esd timer\n");
 #endif
 #endif
+
+	if((pdata->support_spay)&&(info->spay_enable)){
+		if(info->sleep_mode){
+			esd_timer_stop(info);
+			write_cmd(info->client, BT532_SLEEP_CMD);
+			tsp_debug_info(true, &misc_info->client->dev, "%s, sleep mode\n", __func__);
+		}
+	}
 
 	tsp_debug_info(true, &client->dev, "Successfully mini initialized\r\n");
 	return true;
@@ -1984,6 +2054,27 @@ static void clear_report_data(struct bt532_ts_info *info)
 #define	PALM_REPORT_WIDTH	200
 #define	PALM_REJECT_WIDTH	255
 
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI
+void trustedui_mode_on(void){
+	//tsp_debug_info(true, &tui_tsp_info->client->dev, "%s, release all finger..", __func__);
+	//clear_report_data(tui_tsp_info);
+	tsp_debug_info(true, &tui_tsp_info->client->dev, "%s : esd timer disable", __func__);
+#if ESD_TIMER_INTERVAL
+	esd_timer_stop(tui_tsp_info);
+	write_reg(tui_tsp_info->client, BT532_PERIODICAL_INTERRUPT_INTERVAL, 0);
+#endif
+}
+
+void trustedui_mode_off(void){
+	tsp_debug_info(true, &tui_tsp_info->client->dev, "%s : esd timer enable", __func__);
+#if ESD_TIMER_INTERVAL
+	write_reg(tui_tsp_info->client, BT532_PERIODICAL_INTERRUPT_INTERVAL,
+		SCAN_RATE_HZ * ESD_TIMER_INTERVAL);
+	esd_timer_start(CHECK_ESD_TIMER, tui_tsp_info);
+#endif
+}
+#endif
+
 
 static irqreturn_t bt532_touch_work(int irq, void *data)
 {
@@ -2005,6 +2096,10 @@ static irqreturn_t bt532_touch_work(int irq, void *data)
 #ifdef CONFIG_INPUT_BOOSTER
 	bool booster_enable = false;
 #endif
+
+	if((pdata->support_spay)&&(info->spay_enable)){
+		pm_wakeup_event(info->input_dev->dev.parent, 2000);
+	}
 
 	if (gpio_get_value(info->pdata->gpio_int)) {
 		tsp_debug_err(true, &client->dev, "Invalid interrupt\n");
@@ -2280,15 +2375,15 @@ static int  bt532_ts_open(struct input_dev *dev)
 	struct bt532_ts_info *info = misc_info;
 	struct bt532_ts_platform_data *pdata = info->pdata;
 
-	tsp_debug_dbg(true, &misc_info->client->dev, "%s, %d \n", __func__, __LINE__);
+	tsp_debug_info(true, &misc_info->client->dev, "%s, %d \n", __func__, __LINE__);
 
 	if (info == NULL)
 		return 0;
 
-	if((pdata->support_spay)&&(info->spay_enable)){
-		tsp_debug_dbg(true, &misc_info->client->dev, "%s, wake up\n", __func__);
-
+	if((pdata->support_spay)&&(info->spay_enable)&&(info->sleep_mode)){
+		tsp_debug_info(true, &misc_info->client->dev, "%s, wake up\n", __func__);
 		write_cmd(info->client, BT532_WAKEUP_CMD);
+		info->sleep_mode = 0;
 
 		if (device_may_wakeup(&info->client->dev))
 			disable_irq_wake(info->irq);
@@ -2334,7 +2429,7 @@ static void bt532_ts_close(struct input_dev *dev)
 	struct bt532_ts_info *info = misc_info;
 	struct bt532_ts_platform_data *pdata = info->pdata;
 
-	tsp_debug_dbg(true, &misc_info->client->dev, "%s, %d \n", __func__, __LINE__);
+	tsp_debug_info(true, &misc_info->client->dev, "%s, %d \n", __func__, __LINE__);
 
 	if (info == NULL)
 		return;
@@ -2346,13 +2441,14 @@ static void bt532_ts_close(struct input_dev *dev)
 
 	if((pdata->support_spay)&&(info->spay_enable)){
 		down(&info->work_lock);
-		tsp_debug_dbg(true, &misc_info->client->dev, "%s, sleep mode\n", __func__);
+		tsp_debug_info(true, &misc_info->client->dev, "%s, sleep mode\n", __func__);
 
 		clear_report_data(info);
 #if ESD_TIMER_INTERVAL
 		esd_timer_stop(info);
 #endif
 		write_cmd(info->client, BT532_SLEEP_CMD);
+		info->sleep_mode = 1;
 
 		enable_irq(info->irq);
 
@@ -4336,6 +4432,11 @@ static void spay_enable(void *device_data)
 			"spay_enable %s", val ? "enable" : "disable");
 	set_cmd_result(info, finfo->cmd_buff,
 			(int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+
+	mutex_lock(&finfo->cmd_lock);
+	finfo->cmd_is_running = false;
+	mutex_unlock(&finfo->cmd_lock);
+
 	finfo->cmd_state = OK;
 
 	tsp_debug_info(true, &client->dev, "%s, %s\n", __func__, finfo->cmd_buff);
@@ -5376,7 +5477,6 @@ static int bt532_ts_probe(struct i2c_client *client,
 	/* init touch mode */
 	info->touch_mode = TOUCH_POINT_MODE;
 	misc_info = info;
-
 	mutex_init(&info->set_reg_lock);
 
 	ret = ic_version_check(info);
@@ -5504,6 +5604,12 @@ static int bt532_ts_probe(struct i2c_client *client,
 	}
 	tsp_debug_info(true, &client->dev, "zinitix touch probe.\r\n");
 
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI
+	trustedui_set_tsp_irq(info->irq);
+	tsp_debug_info(true, &client->dev, "%s[%d] called!\n",
+		__func__, info->irq);
+#endif
+
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	info->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
 	info->early_suspend.suspend = bt532_ts_early_suspend;
@@ -5550,6 +5656,10 @@ static int bt532_ts_probe(struct i2c_client *client,
 	if(pdata->support_spay){
 		device_init_wakeup(&client->dev, true);
 	}
+
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI
+	tui_tsp_info = info;
+#endif
 
 	return 0;
 

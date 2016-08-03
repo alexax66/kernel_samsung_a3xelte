@@ -607,8 +607,11 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 	return ret;
 }
 
+extern void do_emergency_remount(struct work_struct *work);
+
 static void deferred_cad(struct work_struct *dummy)
 {
+	do_emergency_remount(NULL);
 	kernel_restart(NULL);
 }
 

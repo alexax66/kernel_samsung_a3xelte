@@ -700,6 +700,11 @@ static void start_batcher(struct exynos5_i2c *i2c)
 	writel(i2c_batcher_con, i2c->regs + HSI2C_BATCHER_CON);
 }
 
+static void stop_batcher(struct exynos5_i2c *i2c)
+{
+	writel(0x0, i2c->regs + HSI2C_BATCHER_INT_EN);
+}
+
 static void set_batcher_idle(struct exynos5_i2c *i2c)
 {
 	u32 i2c_batcher_con = 0x00;
@@ -1326,6 +1331,9 @@ static int exynos5_i2c_xfer_batcher(struct exynos5_i2c *i2c,
 		timeout = wait_for_completion_timeout
 			(&i2c->msg_complete, EXYNOS5_BATCHER_TIMEOUT);
 
+
+		/* disable batcher interrupt for preventing unintended interrupt */
+		stop_batcher(i2c);
 		disable_irq(i2c->irq);
 
 		if (i2c->trans_done < 0) {
@@ -1380,6 +1388,8 @@ static int exynos5_i2c_xfer_batcher(struct exynos5_i2c *i2c,
 		timeout = wait_for_completion_timeout
 			(&i2c->msg_complete, EXYNOS5_I2C_TIMEOUT);
 
+		/* disable batcher interrupt for preventing unintended interrupt */
+		stop_batcher(i2c);
 		disable_irq(i2c->irq);
 
 		if (i2c->trans_done < 0) {

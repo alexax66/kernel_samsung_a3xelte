@@ -382,24 +382,6 @@ bool fimc_is_ois_check_fw(struct fimc_is_core *core)
 	return true;
 }
 
-u32 fimc_is_ois_facotry_read_cal_checksum(struct fimc_is_core *core)
-{
-	u32 ret = 0;
-
-	ret = fimc_is_ois_facotry_read_cal_checksum_impl(core);
-
-	return ret;
-}
-
-u32 fimc_is_ois_factory_read_cal_checksum32(struct fimc_is_core *core)
-{
-	u32 ret = 0;
-
-	ret = fimc_is_ois_factory_read_cal_checksum32_impl(core);
-
-	return ret;
-}
-
 void fimc_is_ois_fw_status(struct fimc_is_core *core)
 {
 	fimc_is_ois_fw_status_impl(core);
@@ -410,6 +392,13 @@ void fimc_is_ois_fw_status(struct fimc_is_core *core)
 void fimc_is_ois_fw_update(struct fimc_is_core *core)
 {
 	fimc_is_ois_fw_update_impl(core);
+
+	return;
+}
+
+void fimc_is_ois_factory_read_IC_ROM_checksum(struct fimc_is_core *core)
+{
+	fimc_is_ois_factory_read_IC_ROM_checksum_impl(core);
 
 	return;
 }

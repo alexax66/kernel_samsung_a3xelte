@@ -32,11 +32,13 @@
 #include <linux/muic/muic_notifier.h>
 #endif /* CONFIG_MUIC_NOTIFIER */
 
+/* Bit 0 : VBUS_VAILD, Bit 1~7 : Reserved */
+#define	REG_RSVDID1	0x15
+
 #define	REG_AFCTXD	0x19
 #define	REG_VBUSSTAT	0x1b
 
 muic_data_t *gpmuic;
-struct delayed_work afc_restart_work;
 static int afc_work_state;
 
 static int muic_is_afc_voltage(void);
@@ -106,7 +108,7 @@ int muic_torch_prepare(int state)
 
 	if (afc_work_state == 1) {
 		pr_info("%s:%s cancel_delayed_work  afc_work_state=%d\n",MUIC_DEV_NAME, __func__, afc_work_state);
-		cancel_delayed_work(&afc_restart_work);
+		cancel_delayed_work(&gpmuic->afc_restart_work);
 		afc_work_state = 0;
 	}
 
@@ -145,7 +147,7 @@ int muic_torch_prepare(int state)
 		gpmuic->is_flash_on = 0;
 		if ((gpmuic->attached_dev == ATTACHED_DEV_AFC_CHARGER_5V_MUIC) ||
 				((gpmuic->is_afc_device) && (gpmuic->attached_dev != ATTACHED_DEV_AFC_CHARGER_9V_MUIC))) {
-			schedule_delayed_work(&afc_restart_work, msecs_to_jiffies(5000)); // 20sec
+			schedule_delayed_work(&gpmuic->afc_restart_work, msecs_to_jiffies(5000)); // 20sec
 			pr_info("%s:%s AFC_torch_work start \n",MUIC_DEV_NAME, __func__ );
 			afc_work_state = 1;
 		}
@@ -205,11 +207,15 @@ static int muic_restart_afc(void)
 	int ret, value;
 	struct afc_ops *afcops = gpmuic->regmapdesc->afcops;
 
-	pr_info("%s:AFC Restart attached_dev = 0x%x\n", __func__, gpmuic->attached_dev );
-
+	pr_info("%s:AFC Restart attached_dev = 0x%x\n", __func__, gpmuic->attached_dev);
 	msleep(120); // 120ms delay
+	if (gpmuic->attached_dev == ATTACHED_DEV_NONE_MUIC) {
+		pr_info("%s:%s Device type is None\n",MUIC_DEV_NAME, __func__);
+		return 0;
+	}
 	gpmuic->attached_dev = ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC;
 	muic_notifier_attach_attached_dev(ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC);
+	cancel_delayed_work(&gpmuic->afc_retry_work);
 	schedule_delayed_work(&gpmuic->afc_retry_work, msecs_to_jiffies(5000)); // 5sec
 
 	// voltage(9.0V) + current(1.65A) setting : 0x
@@ -233,8 +239,13 @@ static void muic_afc_restart_work(struct work_struct *work)
 
 	pr_info("%s:AFC Restart\n", __func__);
 	msleep(120); // 120ms delay
+	if (gpmuic->attached_dev == ATTACHED_DEV_NONE_MUIC) {
+		pr_info("%s:%s Device type is None\n",MUIC_DEV_NAME, __func__);
+		return;
+	}
 	gpmuic->attached_dev = ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC;
 	muic_notifier_attach_attached_dev(ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC);
+	cancel_delayed_work(&gpmuic->afc_retry_work);
 	schedule_delayed_work(&gpmuic->afc_retry_work, msecs_to_jiffies(5000)); // 5sec
 
 	// voltage(9.0V) + current(1.65A) setting : 0x
@@ -251,10 +262,20 @@ static void muic_afc_restart_work(struct work_struct *work)
 
 static void muic_afc_retry_work(struct work_struct *work)
 {
+	struct i2c_client *i2c = gpmuic->i2c;
 	struct afc_ops *afcops = gpmuic->regmapdesc->afcops;
+	int vbus;
 
 	pr_info("%s:AFC retry work\n", __func__);
 	if (gpmuic->attached_dev == ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC) {
+		vbus = muic_i2c_read_byte(i2c, REG_RSVDID1);
+		if (!(vbus & 0x01)) {
+			pr_info("%s:%s VBUS is nothing\n",MUIC_DEV_NAME, __func__);
+			gpmuic->attached_dev = ATTACHED_DEV_NONE_MUIC;
+			muic_notifier_attach_attached_dev(ATTACHED_DEV_NONE_MUIC);
+			return;
+		}		
+		
 		pr_info("%s: [MUIC] devtype is afc prepare - Disable AFC\n", __func__);
 		afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_DIS_AFC, 1);
 		msleep(20);
@@ -295,16 +316,45 @@ void muic_charger_init(void)
 		schedule_work(&muic_afc_init_work);
 }
 
+static ssize_t afc_off_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	muic_data_t *pmuic = dev_get_drvdata(dev);
+	return snprintf(buf, 4, "%d\n", pmuic->is_flash_on);
+}
+
+static ssize_t afc_off_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t size)
+{
+	if (!strncmp(buf, "1", 1)) {
+		pr_info("%s, Disable AFC\n", __func__);
+		muic_check_afc_state(1);
+	} else {
+		pr_info("%s, Enable AFC\n", __func__);
+		muic_check_afc_state(0);
+	}
+
+	return size;
+}
+static DEVICE_ATTR(afc_off, S_IRUGO | S_IWUSR,
+		afc_off_show, afc_off_store);
 void muic_init_afc_state(muic_data_t *pmuic)
 {
+	int ret;
 	gpmuic = pmuic;
 	gpmuic->is_flash_on = 0;
 	gpmuic->is_afc_device = 0;
-	INIT_DELAYED_WORK(&afc_restart_work, muic_afc_restart_work);
+	INIT_DELAYED_WORK(&gpmuic->afc_restart_work, muic_afc_restart_work);
 
 	/* To make AFC work properly on boot */
 	INIT_WORK(&muic_afc_init_work, muic_focrced_detection_by_charger);
 	INIT_DELAYED_WORK(&gpmuic->afc_retry_work, muic_afc_retry_work);
+
+	ret = device_create_file(switch_device, &dev_attr_afc_off);
+	if (ret < 0) {
+		pr_err("[MUIC] Failed to create file (disable AFC)!\n");
+	}
 
 	pr_info("%s:attached_dev = %d\n", __func__, gpmuic->attached_dev);
 }

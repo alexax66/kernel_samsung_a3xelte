@@ -102,7 +102,7 @@ static const struct smtc_reg_data setup_reg[] = {
 	},
 	{
 		.reg = SX9310_CPS_CTRL0_REG,
-		.val = 0x40, /* SCANPERIOD: 60ms */
+		.val = 0x80, /* SCANPERIOD: 400ms */
 	},
 	{
 		.reg = SX9310_CPS_CTRL1_REG,
@@ -134,7 +134,7 @@ static const struct smtc_reg_data setup_reg[] = {
 	},
 	{
 		.reg = SX9310_CPS_CTRL5_REG,
-		.val = 0xC1, /* RANGE: SMALL, RAWFILT: 1-1/2 */
+		.val = 0xC0, /* RANGE: SMALL, RAWFILT: 0 */
 	},
 	{
 		.reg = SX9310_CPS_CTRL6_REG,

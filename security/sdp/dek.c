@@ -320,7 +320,6 @@ static int dek_encrypt_dek(int engine_id, dek_t *plainDek, dek_t *encDek) {
 	        /* no break */
 	    default:
             DEK_LOGE("no ASYMM algo registered : %d\n", engine_id);
-            printk(KERN_INFO "MDM_LOG - encrypt failed, no ASYMM algo supported for id: %d\n", engine_id);
 	        dek_add_to_log(engine_id, "no ASYMM algo supported");
 	        return -EOPNOTSUPP;
 	    }
@@ -381,7 +380,6 @@ static int dek_decrypt_dek(int engine_id, dek_t *encDek, dek_t *plainDek) {
             put_kek(kek);
         } else {
             DEK_LOGE("no KEK_TYPE_SYM for id: %d\n", engine_id);
-            printk(KERN_INFO "MDM_LOG - decrypt failed, no KEK_TYPE_SYM for id: %d\n", engine_id);
             dek_add_to_log(engine_id, "decrypt failed, no KEK_TYPE_SYM");
             return -EIO;
         }
@@ -396,7 +394,6 @@ static int dek_decrypt_dek(int engine_id, dek_t *encDek, dek_t *plainDek) {
             put_kek(kek);
         }else{
             DEK_LOGE("no KEK_TYPE_RSA_PRIV for id: %d\n", engine_id);
-            printk(KERN_INFO "MDM_LOG - decrypt failed, no KEK_TYPE_RSA_PRIV for id: %d\n", engine_id);
             dek_add_to_log(engine_id, "decrypt failed, no KEK_TYPE_RSA_PRIV");
             return -EIO;
         }
@@ -416,7 +413,6 @@ static int dek_decrypt_dek(int engine_id, dek_t *encDek, dek_t *plainDek) {
             put_kek(kek);
         }else{
             DEK_LOGE("no KEK_TYPE_DH_PRIV for id: %d\n", engine_id);
-            printk(KERN_INFO "MDM_LOG - decrypt failed, no KEK_TYPE_DH_PRIV for id: %d\n", engine_id);
             dek_add_to_log(engine_id, "decrypt failed, no KEK_TYPE_DH_PRIV");
             return -EIO;
         }
@@ -436,7 +432,6 @@ static int dek_decrypt_dek(int engine_id, dek_t *encDek, dek_t *plainDek) {
             put_kek(kek);
         }else{
             DEK_LOGE("no KEK_TYPE_ECDH256_PRIV for id: %d\n", engine_id);
-            printk(KERN_INFO "MDM_LOG - decrypt failed, no KEK_TYPE_ECDH256_PRIV for id: %d\n", engine_id);
             dek_add_to_log(engine_id, "decrypt failed, no KEK_TYPE_ECDH256_PRIV");
             return -EIO;
         }
@@ -450,7 +445,6 @@ static int dek_decrypt_dek(int engine_id, dek_t *encDek, dek_t *plainDek) {
 	default:
 	{
         DEK_LOGE("Unsupported edek type: %d\n", encDek->type);
-        printk(KERN_INFO "MDM_LOG - decrypt failed, unsupported key type for id: %d\n", engine_id);
         dek_add_to_log(engine_id, "decrypt failed, unsupported key type");
         return -EFAULT;
 	}
@@ -873,6 +867,12 @@ static long dek_do_ioctl_req(unsigned int minor, unsigned int cmd,
 			ret = -EFAULT;
 			goto err;
 		}
+		if(req.plain_dek.len <= 0 || req.plain_dek.len > DEK_MAXLEN) {
+			DEK_LOGE("Incorrect dek len\n");
+			zero_out((char *)&req, sizeof(dek_arg_encrypt_dek));
+			ret = -EFAULT;
+			goto err;
+		}
 		ret = dek_encrypt_dek(req.engine_id,
 				&req.plain_dek, &req.enc_dek);
 		if (ret < 0) {
@@ -903,6 +903,12 @@ static long dek_do_ioctl_req(unsigned int minor, unsigned int cmd,
 		memset(&req, 0, sizeof(dek_arg_decrypt_dek));
 		if(copy_from_user(&req, ubuf, sizeof(req))) {
 			DEK_LOGE("can't copy from user req\n");
+			zero_out((char *)&req, sizeof(dek_arg_decrypt_dek));
+			ret = -EFAULT;
+			goto err;
+		}
+		if(req.enc_dek.len <= 0 || req.enc_dek.len > DEK_MAXLEN) {
+			DEK_LOGE("Incorrect dek len\n");
 			zero_out((char *)&req, sizeof(dek_arg_decrypt_dek));
 			ret = -EFAULT;
 			goto err;

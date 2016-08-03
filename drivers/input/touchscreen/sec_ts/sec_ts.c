@@ -34,6 +34,10 @@
 
 #include "sec_ts.h"
 
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI
+#include <linux/trustedui.h>
+#endif
+
 #ifdef CONFIG_OF
 #ifdef USE_OPEN_CLOSE
 #undef CONFIG_HAS_EARLYSUSPEND
@@ -165,6 +169,14 @@ int sec_ts_i2c_write(struct sec_ts_data * ts, u8 reg, u8 * data, int len)
 #endif
 	struct i2c_msg msg;
 
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI
+		if (TRUSTEDUI_MODE_INPUT_SECURED & trustedui_get_current_mode()) {
+			tsp_debug_err(true, &ts->client->dev,
+				"%s TSP no accessible from Linux, TUI is enabled!\n", __func__);
+			return -EIO;
+		}
+#endif
+
 	if (len > I2C_WRITE_BUFFER_SIZE) {
 		tsp_debug_err(true, &ts->client->dev,
 			      "sec_ts_i2c_write len is larger than buffer size\n");
@@ -231,6 +243,14 @@ int sec_ts_i2c_read(struct sec_ts_data * ts, u8 reg, u8 * data, int len)
 	int retry_cnt = 0;
 #endif
 	struct i2c_msg msg[2];
+
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI
+		if (TRUSTEDUI_MODE_INPUT_SECURED & trustedui_get_current_mode()) {
+			tsp_debug_err(true, &ts->client->dev,
+				"%s TSP no accessible from Linux, TUI is enabled!\n", __func__);
+			return -EIO;
+		}
+#endif
 
 	if (ts->power_status == SEC_TS_STATE_POWER_OFF) {
 		tsp_debug_err(true, &ts->client->dev,
@@ -847,6 +867,9 @@ static irqreturn_t sec_ts_irq_thread(int irq, void *ptr)
 	struct sec_ts_data * ts;
 
 	ts = (struct sec_ts_data *)ptr;
+
+	if (ts->lowpower_mode)
+		pm_wakeup_event(ts->input_dev->dev.parent, 1000);
 
 	sec_ts_read_event(ts);
 
@@ -1706,11 +1729,9 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 
 #ifdef CONFIG_TRUSTONIC_TRUSTED_UI
-#if 0
-	trustedui_set_tsp_irq(ts->irq);
+	trustedui_set_tsp_irq(client->irq);
 	tsp_debug_info(true, &client->dev, "%s[%d] called!\n",
-		__func__, ts->irq);
-#endif
+		__func__, client->irq);
 #endif
 
 #ifdef CONFIG_HAS_EARLYSUSPEND

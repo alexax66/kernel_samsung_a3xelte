@@ -62,6 +62,7 @@ enum decon_idma_type {
 
 enum decon_output_type {
 	DECON_OUT_DSI = 0,
+	DECON_OUT_TUI,
 };
 
 struct decon_psr_info {
@@ -145,5 +146,14 @@ void decon_reg_enable_mdnie(u32 id, u32 en);
 void decon_reg_set_mdnie_blank(u32 id, u32 front, u32 sync, u32 back, u32 line);
 u32 decon_reg_get_lineval(u32 id, int dsi_idx, struct decon_lcd *lcd_info);
 u32 decon_reg_get_hozval(u32 id, int dsi_idx, struct decon_lcd *lcd_info);
+
+#if defined(CONFIG_EXYNOS_DECON_DPU)
+void decon_reg_enable_apb_clk(u32 id, u32 en);
+void decon_reg_set_pixel_count_se(u32 id, u32 width, u32 height);
+void decon_reg_set_image_size_se(u32 id, u32 width, u32 height);
+void decon_reg_set_porch_se(u32 id, u32 vfp, u32 vsa, u32 vbp, u32 hfp, u32 hsa, u32 hbp);
+void decon_reg_set_bit_order_se(u32 id, u32 out_order, u32 in_order);
+void decon_reg_enable_dpu(u32 id, u32 en);
+#endif
 
 #endif /* ___SAMSUNG_DECON_COMMON_H__ */

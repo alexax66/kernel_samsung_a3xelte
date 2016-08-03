@@ -36,9 +36,6 @@ static enum power_supply_property bq24773_charger_props[] = {
 	POWER_SUPPLY_PROP_CHARGE_OTG_CONTROL,
 	POWER_SUPPLY_PROP_USB_HC,
 	POWER_SUPPLY_PROP_CHARGE_NOW,
-#if defined(CONFIG_BATTERY_SWELLING)
-	POWER_SUPPLY_PROP_VOLTAGE_MAX,
-#endif
 };
 
 static enum power_supply_property bq24773_otg_props[] = {
@@ -147,18 +144,6 @@ static int bq24773_get_charge_current(struct bq24773_charger *charger)
 	return charge_current;
 }
 #endif
-
-static int bq24773_get_max_voltage(struct bq24773_charger *charger)
-{
-	u16 data;
-	u32 max_voltage;
-
-	data = bq24773_read_word(charger->i2c, BQ24773_MAX_CHG_VOLT_1);
-	max_voltage = (data >> 4) * 16;
-	pr_info("%s : DATA(0x%04x) VOLTAGE(%d)\n", __func__, data, max_voltage);
-
-	return max_voltage;
-}
 
 static int bq24773_get_input_current(struct bq24773_charger *charger)
 {
@@ -272,18 +257,9 @@ static void bq24773_charger_function_control(struct bq24773_charger *charger)
 	}
 
 	bq24773_set_max_voltage(charger, charger->chg_float_voltage);
-
-	if (charger->siop_level < 100) {
-		bq24773_set_charge_current(charger, SIOP_INPUT_LIMIT_CURRENT);
-		mdelay(100);
-		bq24773_set_input_current(charger, SIOP_CHARGING_LIMIT_CURRENT);
-	} else {
-		bq24773_set_charge_current(charger, charger->charging_current);
-		mdelay(100);
-		bq24773_set_input_current(charger, charger->input_current);
-	}
-
-	pr_info("%s : SIOP LEVEL = %d\n", __func__, charger->siop_level);
+	bq24773_set_charge_current(charger, charger->charging_current);
+	mdelay(100);
+	bq24773_set_input_current(charger, charger->input_current);
 
 	bq24773_test_read(charger);
 }
@@ -297,13 +273,6 @@ static void bq24773_charger_initialize(struct bq24773_charger *charger)
 	bq24773_set_max_voltage(charger, charger->pdata->chg_float_voltage);
 	bq24773_set_input_current(charger, charger->pdata->charging_current
 				  [POWER_SUPPLY_TYPE_BATTERY].input_current_limit);
-
-	if (charger->frequency_check) {
-		data = bq24773_read_word(charger->i2c, BQ24773_CHG_OPTION0_1);
-		data &= 0xFCFF;
-		bq24773_write_word(charger->i2c, BQ24773_CHG_OPTION0_1, data);
-	}
-
 	bq24773_test_read(charger);
 }
 
@@ -338,11 +307,6 @@ static int bq24773_chg_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_OTG_CONTROL:
 		break;
-#if defined(CONFIG_BATTERY_SWELLING)
-	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
-		val->intval = bq24773_get_max_voltage(charger);
-		break;
-#endif
 	case POWER_SUPPLY_PROP_USB_HC:
 		return -ENODATA;
 	case POWER_SUPPLY_PROP_CHARGE_NOW:
@@ -383,29 +347,10 @@ static int bq24773_chg_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
-		charger->siop_level = val->intval;
-		if (charger->is_charging) {
-			if (charger->siop_level < 100) {
-				bq24773_set_charge_current(charger, SIOP_INPUT_LIMIT_CURRENT);
-				mdelay(100);
-				bq24773_set_input_current(charger, SIOP_CHARGING_LIMIT_CURRENT);
-			} else {
-				bq24773_set_charge_current(charger, charger->charging_current);
-				mdelay(100);
-				bq24773_set_input_current(charger, charger->input_current);
-			}
-			pr_info("%s : SIOP LEVEL = %d\n", __func__, charger->siop_level);
-		}
 		break;
 	case POWER_SUPPLY_PROP_USB_HC:
 	case POWER_SUPPLY_PROP_CHARGE_OTG_CONTROL:
 		break;
-#if defined(CONFIG_BATTERY_SWELLING)
-	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
-		pr_info("%s: float voltage(%d)\n", __func__, val->intval);
-		bq24773_set_max_voltage(charger, val->intval);
-		break;
-#endif
 	case POWER_SUPPLY_PROP_CHARGE_NOW:
 	default:
 		return -EINVAL;
@@ -452,12 +397,12 @@ static int bq24773_otg_set_property(struct power_supply *psy,
 		if (val->intval) {
 			pr_info("%s : OTG EN\n", __func__);
 			gpio_set_value(charger->otg_en, 1);
-			if (charger->otg_en2 > 0)
+			if (charger->otg_en2)
 				gpio_set_value(charger->otg_en2, 1);
 		} else {
 			pr_info("%s : OTG DISEN\n", __func__);
 			gpio_set_value(charger->otg_en, 0);
-			if (charger->otg_en2 > 0)
+			if (charger->otg_en2)
 				gpio_set_value(charger->otg_en2, 0);
 		}
 		pr_info("%s : OTG SET(%d)\n", __func__, gpio_get_value(charger->otg_en));
@@ -511,9 +456,6 @@ static int bq24773_charger_parse_dt(struct bq24773_charger *charger)
 	if (np == NULL) {
 		pr_err("%s np NULL\n", __func__);
 	} else {
-		charger->frequency_check = of_property_read_bool(np,
-								 "battery,frequency_check");
-
 		ret = of_property_read_u32(np, "battery,chg_float_voltage",
 					   &pdata->chg_float_voltage);
 		charger->otg_en = of_get_named_gpio(np, "charger,otg_en", 0);
@@ -624,8 +566,6 @@ static int __devinit bq24773_charger_probe(struct i2c_client *client,
 	charger->psy_otg.set_property	= bq24773_otg_set_property;
 	charger->psy_otg.properties	= bq24773_otg_props;
 	charger->psy_otg.num_properties	= ARRAY_SIZE(bq24773_otg_props);
-
-	charger->siop_level = 100;
 
 	bq24773_charger_initialize(charger);
 

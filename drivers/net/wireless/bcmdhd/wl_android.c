@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver - Android related functions
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: wl_android.c 584755 2015-09-08 15:31:29Z $
+ * $Id: wl_android.c 605803 2015-12-11 14:44:32Z $
  */
 
 #include <linux/module.h>
@@ -115,6 +115,9 @@
 #define CMD_TEST_GET_TX_POWER		"TEST_GET_TX_POWER"
 #endif /* TEST_TX_POWER_CONTROL */
 #define CMD_SARLIMIT_TX_CONTROL		"SET_TX_POWER_CALLING"
+#ifdef WLTDLS
+#define CMD_TDLS_RESET "TDLS_RESET"
+#endif /* WLTDLS */
 #endif /* CUSTOMER_HW4 */
 #ifdef WLFBT
 #define CMD_GET_FTKEY      "GET_FTKEY"
@@ -232,6 +235,10 @@ typedef struct android_wifi_af_params {
 #define CUSTOMER_HW4_DISABLE	-1
 #define CUSTOMER_HW4_EN_CONVERT(i)	(i += 1)
 
+#ifdef IPV6_NDO_SUPPORT
+#define CMD_NDRA_LIMIT "NDRA_LIMIT"
+#endif /* IPV6_NDO_SUPPORT */
+
 #endif /* CUSTOMER_HW4 */
 
 #ifdef WLAIBSS
@@ -244,6 +251,11 @@ typedef struct android_wifi_af_params {
 #endif /* WLAIBSS */
 
 #define CMD_ROAM_OFFLOAD			"SETROAMOFFLOAD"
+
+#if defined(DHD_ENABLE_BIGDATA_LOGGING)
+#define CMD_GET_BSS_INFO			"GETBSSINFO"
+#define CMD_GET_ASSOC_REJECT_INFO	"GETASSOCREJECTINFO"
+#endif /* DHD_ENABLE_BIGDATA_LOGGING */
 
 /* miracast related definition */
 #define MIRACAST_MODE_OFF	0
@@ -284,6 +296,15 @@ struct connection_stats {
 
 static LIST_HEAD(miracast_resume_list);
 static u8 miracast_cur_mode;
+
+#ifdef DHD_LOG_DUMP
+#define CMD_NEW_DEBUG_PRINT_DUMP	"DEBUG_DUMP"
+extern void dhd_schedule_log_dump(dhd_pub_t *dhdp);
+extern int dhd_bus_mem_dump(dhd_pub_t *dhd);
+#endif /* DHD_LOG_DUMP */
+#ifdef DHD_TRACE_WAKE_LOCK
+extern void dhd_wk_lock_stats_dump(dhd_pub_t *dhdp);
+#endif /* DHD_TRACE_WAKE_LOCK */
 
 struct io_cfg {
 	s8 *iovar;
@@ -1019,7 +1040,6 @@ int wl_android_set_scan_dfs_channel_mode(struct net_device *dev, char *command, 
 
 	return 0;
 }
-
 #define JOINPREFFER_BUF_SIZE 12
 
 static int
@@ -1072,6 +1092,12 @@ int wl_android_send_action_frame(struct net_device *dev, char *command, int tota
 	params = (android_wifi_af_params_t *)(command + strlen(CMD_SENDACTIONFRAME) + 1);
 	if (params == NULL) {
 		DHD_ERROR(("%s: Invalid params \n", __FUNCTION__));
+		goto send_action_frame_out;
+	}
+
+	if (params->len > ANDROID_WIFI_ACTION_FRAME_SIZE) {
+		DHD_ERROR(("%s: Requested action frame len was out of range(%d)\n",
+			__FUNCTION__, params->len));
 		goto send_action_frame_out;
 	}
 
@@ -1321,6 +1347,147 @@ wl_android_get_fcc_pwr_limit_2g(struct net_device *dev, char *command, int total
 	return bytes_written;
 }
 #endif /* FCC_PWR_LIMIT_2G */
+
+#ifdef IPV6_NDO_SUPPORT
+int
+wl_android_nd_ra_limit(struct net_device *dev, char *command, int total_len)
+{
+	int err = 0;
+	int bytes_written = 0;
+	uint tokens;
+	char *pos, *token, *delim;
+	char smbuf[WLC_IOCTL_SMLEN];
+	char param[ND_PARAM_SIZE+1], value[ND_VALUE_SIZE+1];
+	uint16 type = 0xff, min = 0, per = 0, hold = 0;
+	nd_ra_ol_limits_t ra_ol_limit;
+
+	WL_TRACE(("command=%s, len=%d\n", command, total_len));
+	pos = command + strlen(CMD_NDRA_LIMIT) + 1;
+	memset(&ra_ol_limit, 0, sizeof(nd_ra_ol_limits_t));
+
+	if (!strncmp(pos, ND_RA_OL_SET, strlen(ND_RA_OL_SET))) {
+		WL_TRACE(("SET NDRA_LIMIT\n"));
+		pos += strlen(ND_RA_OL_SET) + 1;
+		while ((token = strsep(&pos, ND_PARAMS_DELIMETER)) != NULL) {
+			memset(param, 0, sizeof(param));
+			memset(value, 0, sizeof(value));
+
+			delim = strchr(token, ND_PARAM_VALUE_DELLIMETER);
+			if (delim != NULL)
+				*delim = ' ';
+
+			tokens = sscanf(token, ND_LIMIT_STR_FMT, param, value);
+			if (!strncmp(param, ND_RA_TYPE, strlen(ND_RA_TYPE))) {
+				type = simple_strtol(value, NULL, 0);
+			} else if (!strncmp(param, ND_RA_MIN_TIME, strlen(ND_RA_MIN_TIME))) {
+				min = simple_strtol(value, NULL, 0);
+			} else if (!strncmp(param, ND_RA_PER, strlen(ND_RA_PER))) {
+				per = simple_strtol(value, NULL, 0);
+				if (per > 100) {
+					WL_ERR(("Invalid PERCENT %d\n", per));
+					err = BCME_BADARG;
+					goto exit;
+				}
+			} else if (!strncmp(param, ND_RA_HOLD, strlen(ND_RA_HOLD))) {
+				hold = simple_strtol(value, NULL, 0);
+			}
+		}
+
+		ra_ol_limit.version = htod32(ND_RA_OL_LIMITS_VER);
+		ra_ol_limit.type = htod32(type);
+		if (type == ND_RA_OL_LIMITS_REL_TYPE) {
+			if ((min == 0) || (per == 0)) {
+				WL_ERR(("Invalid min_time %d, percent %d\n", min, per));
+				err = BCME_BADARG;
+				goto exit;
+			}
+			ra_ol_limit.length = htod32(ND_RA_OL_LIMITS_REL_TYPE_LEN);
+			ra_ol_limit.limits.lifetime_relative.min_time = htod32(min);
+			ra_ol_limit.limits.lifetime_relative.lifetime_percent = htod32(per);
+		} else if (type == ND_RA_OL_LIMITS_FIXED_TYPE) {
+			if (hold == 0) {
+				WL_ERR(("Invalid hold_time %d\n", hold));
+				err = BCME_BADARG;
+				goto exit;
+			}
+			ra_ol_limit.length = htod32(ND_RA_OL_LIMITS_FIXED_TYPE_LEN);
+			ra_ol_limit.limits.fixed.hold_time = htod32(hold);
+		} else {
+			WL_ERR(("unknown TYPE %d\n", type));
+			err = BCME_BADARG;
+			goto exit;
+		}
+
+		err = wldev_iovar_setbuf(dev, "nd_ra_limit_intv", &ra_ol_limit,
+			sizeof(nd_ra_ol_limits_t), smbuf, sizeof(smbuf), NULL);
+		if (err) {
+			WL_ERR(("Failed to set nd_ra_limit_intv, error = %d\n", err));
+			goto exit;
+		}
+
+		WL_TRACE(("TYPE %d, MIN %d, PER %d, HOLD %d\n", type, min, per, hold));
+	} else if (!strncmp(pos, ND_RA_OL_GET, strlen(ND_RA_OL_GET))) {
+		WL_TRACE(("GET NDRA_LIMIT\n"));
+		err = wldev_iovar_getbuf(dev, "nd_ra_limit_intv", NULL, 0,
+			smbuf, sizeof(smbuf), NULL);
+		if (err) {
+			WL_ERR(("Failed to get nd_ra_limit_intv, error = %d\n", err));
+			goto exit;
+		}
+
+		memcpy(&ra_ol_limit, (uint8 *)smbuf, sizeof(nd_ra_ol_limits_t));
+		type = ra_ol_limit.type;
+		if (ra_ol_limit.version != ND_RA_OL_LIMITS_VER) {
+			WL_ERR(("Invalid Version %d\n", ra_ol_limit.version));
+			err = BCME_VERSION;
+			goto exit;
+		}
+
+		if (ra_ol_limit.type == ND_RA_OL_LIMITS_REL_TYPE) {
+			min = ra_ol_limit.limits.lifetime_relative.min_time;
+			per = ra_ol_limit.limits.lifetime_relative.lifetime_percent;
+			WL_ERR(("TYPE %d, MIN %d, PER %d\n", type, min, per));
+			bytes_written = snprintf(command, total_len,
+				"%s GET TYPE %d, MIN %d, PER %d", CMD_NDRA_LIMIT, type, min, per);
+		} else if (ra_ol_limit.type == ND_RA_OL_LIMITS_FIXED_TYPE) {
+			hold = ra_ol_limit.limits.fixed.hold_time;
+			WL_ERR(("TYPE %d, HOLD %d\n", type, hold));
+			bytes_written = snprintf(command, total_len,
+				"%s GET TYPE %d, HOLD %d", CMD_NDRA_LIMIT, type, hold);
+		} else {
+			WL_ERR(("unknown TYPE %d\n", type));
+			err = BCME_ERROR;
+			goto exit;
+		}
+
+		return bytes_written;
+	} else {
+		WL_ERR(("unknown command\n"));
+		err = BCME_ERROR;
+		goto exit;
+	}
+
+exit:
+	return err;
+}
+#endif /* IPV6_NDO_SUPPORT */
+#ifdef WLTDLS
+int wl_android_tdls_reset(struct net_device *dev)
+{
+	int ret = 0;
+	ret = dhd_tdls_enable(dev, false, false, NULL);
+	if (ret < 0) {
+		DHD_ERROR(("Disable tdls failed. %d\n", ret));
+		return ret;
+	}
+	ret = dhd_tdls_enable(dev, true, true, NULL);
+	if (ret < 0) {
+		DHD_ERROR(("enable tdls failed. %d\n", ret));
+		return ret;
+	}
+	return 0;
+}
+#endif /* WLTDLS */
 #endif /* CUSTOMER_HW4 */
 
 #ifdef PNO_SUPPORT
@@ -3162,7 +3329,13 @@ int wl_android_set_ibss_routetable(struct net_device *dev, char *command, int to
 		err = -EINVAL;
 		goto exit;
 	}
-	WL_INFO(("Routing table count:%d\n", entries));
+        if (entries > MAX_IBSS_ROUTE_TBL_ENTRY) {
+                WL_ERR(("Invalid entries number %u\n", entries));
+                err = -EINVAL;
+                goto exit;
+        }
+
+        WL_INFO(("Routing table count:%u\n", entries));
 	route_tbl->num_entry = entries;
 
 	for (i = 0; i < entries; i++) {
@@ -3346,6 +3519,11 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 
 	net_os_wake_lock(net);
 
+	if (!capable(CAP_NET_ADMIN)) {
+		ret = -EPERM;
+		goto exit;
+	}
+
 	if (!ifr->ifr_data) {
 		ret = -EINVAL;
 		goto exit;
@@ -3506,10 +3684,13 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		char *country_code = command + strlen(CMD_COUNTRY) + 1;
 		bytes_written = wldev_set_country(net, country_code, true, true);
 #ifdef FCC_PWR_LIMIT_2G
-		if (wldev_iovar_setint(net, "fccpwrlimit2g", FALSE)) {
-			DHD_ERROR(("%s: fccpwrlimit2g deactivation is failed\n", __FUNCTION__));
-		} else {
+		{
 			DHD_ERROR(("%s: fccpwrlimit2g is deactivated\n", __FUNCTION__));
+			bytes_written = wldev_iovar_setint(net, "fccpwrlimit2g", FALSE);
+			if (bytes_written) {
+				DHD_ERROR(("%s: fccpwrlimit2g deactivate set error (%d)\n",
+					__FUNCTION__, bytes_written));
+			}
 		}
 #endif /* FCC_PWR_LIMIT_2G */
 	}
@@ -3555,10 +3736,13 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		bytes_written = wl_android_set_country_rev(net, command,
 		priv_cmd.total_len);
 #ifdef FCC_PWR_LIMIT_2G
-		if (wldev_iovar_setint(net, "fccpwrlimit2g", FALSE)) {
-			DHD_ERROR(("%s: fccpwrlimit2g deactivation is failed\n", __FUNCTION__));
-		} else {
+		{
 			DHD_ERROR(("%s: fccpwrlimit2g is deactivated\n", __FUNCTION__));
+			bytes_written = wldev_iovar_setint(net, "fccpwrlimit2g", FALSE);
+			if (bytes_written) {
+				DHD_ERROR(("%s: fccpwrlimit2g deactivate set error (%d)\n",
+					__FUNCTION__, bytes_written));
+			}
 		}
 #endif /* FCC_PWR_LIMIT_2G */
 	} else if (strnicmp(command, CMD_COUNTRYREV_GET,
@@ -3636,6 +3820,16 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		bytes_written = wl_android_set_okc_mode(net, command, priv_cmd.total_len);
 	}
 #endif /* WES_SUPPORT */
+#ifdef IPV6_NDO_SUPPORT
+	else if (strnicmp(command, CMD_NDRA_LIMIT, strlen(CMD_NDRA_LIMIT)) == 0) {
+		bytes_written = wl_android_nd_ra_limit(net, command, priv_cmd.total_len);
+	}
+#endif /* IPV6_NDO_SUPPORT */
+#ifdef WLTDLS
+	else if (strnicmp(command, CMD_TDLS_RESET, strlen(CMD_TDLS_RESET)) == 0) {
+		bytes_written = wl_android_tdls_reset(net);
+	}
+#endif /* WLTDLS */
 #endif /* CUSTOMER_HW4 */
 
 #ifdef PNO_SUPPORT
@@ -3759,7 +3953,8 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 #ifdef SUPPORT_TRIGGER_HANG_EVENT
 	else if (strnicmp(command, CMD_TEST_FORCE_HANG,
 		strlen(CMD_TEST_FORCE_HANG)) == 0) {
-		net_os_send_hang_message(net);
+		int skip = strlen(CMD_TEST_FORCE_HANG) + 1;
+		net_os_send_hang_message_reason(net, (const char*)command+skip);
 	}
 #endif /* SUPPORT_TRIGGER_HANG_EVENT */
 	else if (strnicmp(command, CMD_CHANGE_RL, strlen(CMD_CHANGE_RL)) == 0)
@@ -3887,6 +4082,26 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		bytes_written = wl_android_set_fcc_pwr_limit_2g(net, command, priv_cmd.total_len);
 	}
 #endif /* FCC_PWR_LIMIT_2G */
+#if defined(DHD_ENABLE_BIGDATA_LOGGING)
+	else if (strnicmp(command, CMD_GET_BSS_INFO, strlen(CMD_GET_BSS_INFO)) == 0) {
+		bytes_written = wl_cfg80211_get_bss_info(net, command, priv_cmd.total_len);
+	}
+	else if (strnicmp(command, CMD_GET_ASSOC_REJECT_INFO, strlen(CMD_GET_ASSOC_REJECT_INFO))
+			== 0) {
+		bytes_written = wl_cfg80211_get_connect_failed_status(net, command,
+				priv_cmd.total_len);
+	}
+#endif /* DHD_ENABLE_BIGDATA_LOGGING */
+#ifdef DHD_LOG_DUMP
+	else if (strnicmp(command, CMD_NEW_DEBUG_PRINT_DUMP,
+		strlen(CMD_NEW_DEBUG_PRINT_DUMP)) == 0) {
+		dhd_pub_t *dhdp = wl_cfg80211_get_dhdp();
+#ifdef DHD_TRACE_WAKE_LOCK
+		dhd_wk_lock_stats_dump(dhdp);
+#endif /* DHD_TRACE_WAKE_LOCK */
+		dhd_schedule_log_dump(dhdp);
+	}
+#endif /* DHD_LOG_DUMP */
 	else {
 		DHD_ERROR(("Unknown PRIVATE command %s - ignored\n", command));
 		snprintf(command, 3, "OK");

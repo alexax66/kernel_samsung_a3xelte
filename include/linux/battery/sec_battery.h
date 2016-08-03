@@ -53,6 +53,8 @@
 #define ADC_CH_COUNT		10
 #define ADC_SAMPLE_COUNT	10
 
+#define BATT_MISC_EVENT_UNDEFINED_RANGE_TYPE	0x00000001
+
 struct adc_sample_info {
 	unsigned int cnt;
 	int total_adc;
@@ -239,6 +241,11 @@ struct sec_battery_info {
 	bool complete_timetofull;
 	struct delayed_work timetofull_work;
 #endif
+	struct mutex misclock;
+	unsigned int misc_event;
+	unsigned int prev_misc_event;
+	struct delayed_work misc_event_work;
+	struct wake_lock misc_event_wake_lock;
 };
 
 ssize_t sec_bat_show_attrs(struct device *dev,
@@ -363,6 +370,7 @@ enum {
 	FG_CYCLE,
 	FG_FULL_VOLTAGE,
 #endif
+	BATT_MISC_EVENT,
 };
 
 void charger_control_init(struct sec_battery_info *info);

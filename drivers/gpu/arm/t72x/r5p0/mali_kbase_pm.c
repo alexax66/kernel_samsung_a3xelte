@@ -66,6 +66,8 @@ mali_error kbase_pm_init(struct kbase_device *kbdev)
 
 	kbdev->pm.gpu_powered = MALI_FALSE;
 	kbdev->pm.suspending = MALI_FALSE;
+	/* MALI_SEC_INTEGRATION */
+	init_waitqueue_head(&kbdev->pm.suspending_wait);
 #ifdef CONFIG_MALI_DEBUG
 	kbdev->pm.driver_ready_for_irqs = MALI_FALSE;
 #endif /* CONFIG_MALI_DEBUG */
@@ -471,6 +473,8 @@ void kbase_pm_resume(struct kbase_device *kbdev)
 	mutex_lock(&kbdev->pm.lock);
 	kbdev->pm.suspending = MALI_FALSE;
 	kbase_pm_do_poweron(kbdev, MALI_TRUE);
+	/* MALI_SEC_INTEGRATION */
+	wake_up(&kbdev->pm.suspending_wait);
 	mutex_unlock(&kbdev->pm.lock);
 
 	/* Initial active call, to power on the GPU/cores if needed */

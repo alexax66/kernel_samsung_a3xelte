@@ -78,10 +78,9 @@ obj-$(CONFIG_SAMSUNG_JACK)	+= sec_jack.o
 # for DMVerity
 obj-$(CONFIG_DM_VERITY)		+= dmverity_query.o
 
-# GPIO_DETECT
-obj-$(CONFIG_CHECK_GPIO_DETECT) += gpio_detect.o
-
 # Tima
 ifeq ($(TIMA_ENABLED),1)
 obj-$(CONFIG_TIMA_LOG)		+= tima_debug_log.o
 endif
+
+obj-$(CONFIG_UID_CPUTIME) 	+= uid_cputime.o

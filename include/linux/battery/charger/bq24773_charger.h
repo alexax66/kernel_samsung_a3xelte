@@ -39,8 +39,8 @@
 #define BQ24773_MIN_SYS_VOLT 0x0E
 #define BQ24773_INPUT_CURR 0x0F
 
-#define SIOP_INPUT_LIMIT_CURRENT                1400
-#define SIOP_CHARGING_LIMIT_CURRENT             1400
+#define SIOP_INPUT_LIMIT_CURRENT                1200
+#define SIOP_CHARGING_LIMIT_CURRENT             1000
 #define SIOP_WIRELESS_INPUT_LIMIT_CURRENT       660
 #define SIOP_WIRELESS_CHARGING_LIMIT_CURRENT    780
 #define SLOW_CHARGING_CURRENT_STANDARD          400
@@ -81,7 +81,6 @@ struct bq24773_charger {
 	bool		reg_loop_deted;
 
 	bool afc_detect;
-	bool frequency_check;
 
 	int input_curr_limit_step;
 	int wpc_input_curr_limit_step;

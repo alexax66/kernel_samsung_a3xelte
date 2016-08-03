@@ -1064,6 +1064,9 @@ static void dw_mci_idmac_complete_dma(struct dw_mci *host)
 #define AES_CBC		1
 #define AES_XTS		2
 
+extern volatile unsigned int disk_key_flag;
+extern spinlock_t disk_key_lock;
+
 static void dw_mci_translate_sglist(struct dw_mci *host, struct mmc_data *data,
 				    unsigned int sg_len)
 {
@@ -1074,7 +1077,6 @@ static void dw_mci_translate_sglist(struct dw_mci *host, struct mmc_data *data,
 #if defined(CONFIG_MMC_DW_FMP_DM_CRYPT) || defined(CONFIG_MMC_DW_FMP_ECRYPT_FS)
 	unsigned int sector = 0;
 	unsigned int sector_key = DW_MMC_BYPASS_SECTOR_BEGIN;
-	static unsigned int fmp_key_flag = 0;
 #if defined(CONFIG_MMC_DW_FMP_DM_CRYPT)
 	struct mmc_blk_request *brq = NULL;
 	struct mmc_queue_req *mq_rq = NULL;
@@ -1162,8 +1164,10 @@ static void dw_mci_translate_sglist(struct dw_mci *host, struct mmc_data *data,
 					desc->des31 = htonl(sector);
 
 					/* Disk Enc Key, Tweak Key */
-					if (!fmp_key_flag) {
+					if (disk_key_flag) {
 						int ret;
+
+						/* Disk Enc Key, Tweak Key*/
 						ret = exynos_smc(SMC_CMD_FMP, FMP_KEY_SET, EMMC0_FMP, 0);
 						if (ret) {
 							dev_err(host->dev, "Failed to smc call for FMP key setting: %x\n", ret);
@@ -1173,7 +1177,9 @@ static void dw_mci_translate_sglist(struct dw_mci *host, struct mmc_data *data,
 							host->state_cmd = STATE_IDLE;
 							spin_unlock(&host->lock);
 						}
-						fmp_key_flag = 1;
+						spin_lock(&disk_key_lock);
+						disk_key_flag = 0;
+						spin_unlock(&disk_key_lock);
 					}
 
 				}
@@ -1887,9 +1893,11 @@ static void dw_mci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	struct dw_mci *host = slot->host;
 
 	if (!test_bit(DW_MMC_CARD_PRESENT, &slot->flags)) {
-		mrq->cmd->error = -ENOMEDIUM;
-		mmc_request_done(mmc, mrq);
-		return;
+		if (!mmc->card) {
+			mrq->cmd->error = -ENOMEDIUM;
+			mmc_request_done(mmc, mrq);
+			return;
+		}
 	}
 
 	if (!MMC_CHECK_CMDQ_MODE(host)) {
@@ -4123,7 +4131,7 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
     defined(CONFIG_BCM43454) || defined(CONFIG_BCM43454_MODULE)
 	if (host->pdata->cd_type == DW_MCI_CD_EXTERNAL) {
 		printk("%s, set DW_MCI_CD_EXTERNAL \n",mmc_hostname(mmc));
-		host->pdata->ext_cd_init(&dw_mci_notify_change, (void*)host);
+		host->pdata->ext_cd_init(&dw_mci_notify_change, (void*)host, mmc);
 	}
 #else /* CONFIG_BCM43455 || CONFIG_BCM43455_MODULE */
 	if (host->pdata->cd_type == DW_MCI_CD_EXTERNAL)
@@ -4285,15 +4293,16 @@ static struct dw_mci_of_quirks {
 void (*notify_func_callback)(void *dev_id, int state);
 void *mmc_host_dev = NULL;
 static DEFINE_MUTEX(notify_mutex_lock);
-
+struct mmc_host *wlan_mmc = NULL;
 static int ext_cd_init_callback(
-	void (*notify_func)(void *dev_id, int state), void *dev_id)
+	void (*notify_func)(void *dev_id, int state), void *dev_id, struct mmc_host *mmc) 
 {
 	printk("Enter %s\n",__FUNCTION__);
 	mutex_lock(&notify_mutex_lock);
 	WARN_ON(notify_func_callback);
 	notify_func_callback = notify_func;
 	mmc_host_dev = dev_id;
+	wlan_mmc = mmc;
 	mutex_unlock(&notify_mutex_lock);
 
 	return 0;
@@ -4493,8 +4502,10 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 				&pdata->cd_type))
 		pdata->cd_type = DW_MCI_CD_PERMANENT;
 
-	if (of_find_property(np, "cd-type-gpio", NULL))
+	if (of_find_property(np, "cd-type-gpio", NULL)) {
 		pdata->cd_type = DW_MCI_CD_GPIO;
+		pdata->caps2 |= MMC_CAP2_DETECT_ON_ERR;
+	}
 
 #if defined(CONFIG_BCM43455) || defined(CONFIG_BCM43455_MODULE)|| \
     defined(CONFIG_BCM4343)  || defined(CONFIG_BCM4343_MODULE) || \
@@ -4990,10 +5001,6 @@ int dw_mci_suspend(struct dw_mci *host)
 		host->transferred_cnt = 0;
 		host->cmd_cnt = 0;
 	}
-	if (host->vmmc) {
-		if (regulator_is_enabled(host->vmmc))
-			regulator_disable(host->vmmc);
-	}
 
 	if (host->pdata->enable_cclk_on_suspend) {
 		host->pdata->on_suspend = true;
@@ -5023,21 +5030,6 @@ int dw_mci_resume(struct dw_mci *host)
 		host->pdata->on_suspend = false;
 
 	host->current_speed = 0;
-
-	if (host->pdata->ext_setpower)
-		host->pdata->ext_setpower(host,
-			DW_MMC_EXT_VMMC_ON | DW_MMC_EXT_VQMMC_ON);
-
-	if (host->vmmc) {
-		if (!regulator_is_enabled(host->vmmc)) {
-			ret = regulator_enable(host->vmmc);
-			if (ret) {
-				dev_err(host->dev,
-						"failed to enable regulator: %d\n", ret);
-				return ret;
-			}
-		}
-	}
 
 	if (host->pdata->use_biu_gate_clock)
 		atomic_inc_return(&host->biu_en_win);

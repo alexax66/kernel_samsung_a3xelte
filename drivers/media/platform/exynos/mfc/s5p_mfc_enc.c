@@ -3463,6 +3463,9 @@ static int vidioc_querybuf(struct file *file, void *priv,
 static int vidioc_qbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 {
 	struct s5p_mfc_ctx *ctx = fh_to_mfc_ctx(file->private_data);
+	struct s5p_mfc_enc *enc = ctx->enc_priv;
+	struct s5p_mfc_enc_params *p = &enc->params;
+	struct s5p_mfc_h264_enc_params *p_264 = &p->codec.h264;
 	int ret = -EINVAL;
 
 	mfc_debug_enter();
@@ -3471,6 +3474,10 @@ static int vidioc_qbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 		mfc_err_ctx("Call on QBUF after unrecoverable error.\n");
 		return -EIO;
 	}
+
+	if (!p->seq_hdr_mode && !p_264->loop_filter_mode && p_264->vui_enable)
+		ctx->skype_scenario = 1;
+
 	if (buf->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		ret = vb2_qbuf(&ctx->vq_src, buf);
 		if (!ret) {

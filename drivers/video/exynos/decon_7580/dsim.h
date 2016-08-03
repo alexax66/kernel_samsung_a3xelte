@@ -85,51 +85,11 @@ struct dsim_resources {
 };
 
 struct panel_private {
-	struct backlight_device *bd;
-	unsigned char id[3];
-	unsigned char code[5];
-	unsigned char tset[8];
-	unsigned char elvss[4];
-	int	temperature;
-	unsigned int coordinate[2];
-	unsigned char date[7];
 	unsigned int lcdConnected;
-	unsigned int state;
-	unsigned int auto_brightness;
-	unsigned int br_index;
-	unsigned int acl_enable;
-	unsigned int current_acl;
-	unsigned int current_hbm;
-	unsigned int current_vint;
-	unsigned int siop_enable;
-	unsigned char dump_info[2];
-	unsigned int weakness_hbm_comp;
-
-	void *dim_data;
-	void *dim_info;
-	unsigned int *br_tbl;
-	unsigned char **hbm_tbl;
-	unsigned char **acl_cutoff_tbl;
-	unsigned char **acl_opr_tbl;
-	struct mutex lock;
-	struct dsim_panel_ops *ops;
-	unsigned int panel_type;
-
 #ifdef CONFIG_LCD_HMT
 	unsigned int hmt_on;
 #endif
-
 	void *par;
-};
-
-struct dsim_panel_ops {
-	int (*early_probe)(struct dsim_device *dsim);
-	int	(*probe)(struct dsim_device *dsim);
-	int	(*displayon)(struct dsim_device *dsim);
-	int	(*exit)(struct dsim_device *dsim);
-	int	(*init)(struct dsim_device *dsim);
-	int	(*lvds_init)(struct dsim_device *dsim);
-	void (*lvds_pwm_set)(struct dsim_device *dsim);
 };
 
 struct dsim_device {

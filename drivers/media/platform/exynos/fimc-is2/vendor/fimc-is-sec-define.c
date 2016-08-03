@@ -14,6 +14,10 @@
 
 #include "fimc-is-sec-define.h"
 
+#if defined(CONFIG_CAMERA_EEPROM_SUPPORT_OIS) && defined(CONFIG_SEC_FACTORY)
+#include "fimc-is-device-ois.h"
+#endif
+
 #if defined(CONFIG_CAMERA_EEPROM_SUPPORT_REAR) || defined(CONFIG_CAMERA_EEPROM_SUPPORT_FRONT)
 #include <linux/i2c.h>
 #include "fimc-is-device-eeprom.h"
@@ -40,6 +44,11 @@ bool companion_coef_isvalid = false;
 #ifdef CONFIG_COMPANION_C2_USE
 bool companion_front_lsc_isvalid = false;
 #endif
+#endif
+#ifdef CONFIG_CAMERA_EEPROM_SUPPORT_OIS
+bool crc32_ois_check = true;
+bool crc32_ois_fw_check = true;
+bool crc32_ois_cal_check = true;
 #endif
 
 #define FIMC_IS_DEFAULT_CAL_SIZE	(20 * 1024)
@@ -541,6 +550,83 @@ bool fimc_is_sec_check_cal_crc32(char *buf, int id)
 	}
 #endif
 
+#if defined(CONFIG_CAMERA_EEPROM_SUPPORT_OIS)
+	if (id == SENSOR_POSITION_REAR) {
+		/* OIS Header  */
+		check_base = EEP_HEADER_OIS_START_ADDR / 4;
+		checksum = 0;
+		check_length = OIS_HEADER_CRC32_LEN;
+		checksum_base = EEP_CHECKSUM_OIS_HEADER_ADDR / 4;
+
+		checksum = (u32)getCRC((u16 *)&buf32[check_base], check_length, NULL, NULL);
+		if (checksum != buf32[checksum_base]) {
+			err("Camera: CRC32 error at the OIS Header(0x%08X != 0x%08X)",
+				checksum, buf32[checksum_base]);
+			crc32_ois_check = false;
+			goto out;
+		}
+
+		/* OIS Cal */
+		check_base = finfo->ois_cal_start_addr / 4;
+		checksum = 0;
+		check_length = OIS_HEADER_CRC32_CAL_LEN;
+		checksum_base = EEP_CHECKSUM_OIS_CAL_ADDR / 4;
+
+		checksum = (u32)getCRC((u16 *)&buf32[check_base], check_length, NULL, NULL);
+		if (checksum != buf32[checksum_base]) {
+			err("Camera: CRC32 error at the OIS Cal(0x%08X != 0x%08X)",
+				checksum, buf32[checksum_base]);
+			crc32_ois_check = false;
+			crc32_ois_cal_check = false;
+			goto out;
+		}
+
+		/* OIS Shift Data */
+		check_base = finfo->ois_shift_start_addr / 4;
+		checksum = 0;
+		check_length = OIS_HEADER_CRC32_SHIFT_LEN;
+		checksum_base = EEP_CHECKSUM_OIS_SHIFT_ADDR / 4;
+
+		checksum = (u32)getCRC((u16 *)&buf32[check_base], check_length, NULL, NULL);
+		if (checksum != buf32[checksum_base]) {
+			err("Camera: CRC32 error at the OIS Shift Data(0x%08X != 0x%08X)",
+				checksum, buf32[checksum_base]);
+			crc32_ois_check = false;
+			crc32_ois_cal_check = false;
+			goto out;
+		}
+
+		/* OIS FW Set */
+		check_base = finfo->ois_fw_set_start_addr / 4;
+		checksum = 0;
+		check_length = OIS_HEADER_CRC32_FW_SET_LEN;
+		checksum_base = EEP_CHECKSUM_OIS_FW_SET_ADDR / 4;
+
+		checksum = (u32)getCRC((u16 *)&buf32[check_base], check_length, NULL, NULL);
+		if (checksum != buf32[checksum_base]) {
+			err("Camera: CRC32 error at the OIS FW Set(0x%08X != 0x%08X)",
+				checksum, buf32[checksum_base]);
+			crc32_ois_check = false;
+			crc32_ois_fw_check = false;
+			goto out;
+		}
+
+		/* OIS FW Factory */
+		check_base = finfo->ois_fw_factory_start_addr / 4;
+		checksum = 0;
+		check_length = OIS_HEADER_CRC32_FW_FACTORY_LEN;
+		checksum_base = EEP_CHECKSUM_OIS_FW_FACTORY_ADDR / 4;
+
+		checksum = (u32)getCRC((u16 *)&buf32[check_base], check_length, NULL, NULL);
+		if (checksum != buf32[checksum_base]) {
+			err("Camera: CRC32 error at the OIS FW Factory(0x%08X != 0x%08X)",
+				checksum, buf32[checksum_base]);
+			crc32_ois_check = false;
+			crc32_ois_fw_check = false;
+			goto out;
+		}
+	}
+#endif
 out:
 #if defined(CONFIG_CAMERA_EEPROM_SUPPORT_FRONT)
 	if (id == SENSOR_POSITION_FRONT) {
@@ -552,8 +638,10 @@ out:
 	{
 		crc32_check = crc32_temp;
 		crc32_header_check = crc32_header_temp;
-#ifdef CONFIG_COMPANION_USE
+#if defined(CONFIG_COMPANION_USE)
 		return crc32_check && crc32_c1_check;
+#elif defined(CONFIG_CAMERA_EEPROM_SUPPORT_OIS)
+		return crc32_check && crc32_ois_check;
 #else
 		return crc32_check;
 #endif
@@ -1279,7 +1367,7 @@ static int fimc_is_i2c_config(struct i2c_client *client, bool onoff)
 		/* ON */
 		pinctrl_i2c = devm_pinctrl_get_select(i2c_dev, "on_i2c");
 		if (IS_ERR_OR_NULL(pinctrl_i2c)) {
-			printk(KERN_ERR "%s: Failed to configure i2c pin\n", __func__);
+			printk(KERN_ERR "%s: don't use on_i2c\n", __func__);
 		} else {
 			devm_pinctrl_put(pinctrl_i2c);
 		}
@@ -1287,7 +1375,7 @@ static int fimc_is_i2c_config(struct i2c_client *client, bool onoff)
 		/* OFF */
 		pinctrl_i2c = devm_pinctrl_get_select(i2c_dev, "off_i2c");
 		if (IS_ERR_OR_NULL(pinctrl_i2c)) {
-			printk(KERN_ERR "%s: Failed to configure i2c pin\n", __func__);
+			printk(KERN_ERR "%s: don't use off_i2c\n", __func__);
 		} else {
 			devm_pinctrl_put(pinctrl_i2c);
 		}
@@ -1408,6 +1496,9 @@ int fimc_is_sec_readcal_eeprom(struct device *dev, int position)
 		ret = fimc_is_i2c_read(client, finfo->ois_fw_ver,
 						EEP_HEADER_OIS_FW_VER_START_ADDR,
 						FIMC_IS_OIS_FW_VER_SIZE);
+#endif
+#if defined(CONFIG_CAMERA_EEPROM_SUPPORT_OIS) && defined(CONFIG_SEC_FACTORY)
+		fimc_is_ois_factory_read_IC_ROM_checksum(core);
 #endif
 	}
 #endif
@@ -1593,8 +1684,8 @@ crc_retry:
 		memcpy(finfo->shading_ver, &buf[EEP_AP_SHADING_VER_START_ADDR], FIMC_IS_SHADING_VER_SIZE);
 		finfo->shading_ver[FIMC_IS_SHADING_VER_SIZE] = '\0';
 
-		sysfs_finfo.af_cal_pan = *((u32 *)&cal_buf[FROM_AF_CAL_PAN_ADDR]);
-		sysfs_finfo.af_cal_macro = *((u32 *)&cal_buf[FROM_AF_CAL_MACRO_ARRD]);
+		sysfs_finfo.af_cal_pan = *((u32 *)&buf[FROM_AF_CAL_PAN_ADDR]);
+		sysfs_finfo.af_cal_macro = *((u32 *)&buf[FROM_AF_CAL_MACRO_ARRD]);
 
 #if defined(CONFIG_CAMERA_EEPROM_SUPPORT_OIS)
 		finfo->ois_cal_start_addr = *((u32 *)&buf[EEP_HEADER_OIS_CAL_START_ADDR]);
@@ -1752,7 +1843,7 @@ crc_retry:
 		} else {
 			pr_info("dump folder exist, Dump EEPROM cal data.\n");
 			if (write_data_to_file("/data/media/0/dump/eeprom_cal.bin", cal_buf,
-									FIMC_IS_DUMP_EEPROM_CAL_SIZE, &pos) < 0) {
+									cal_size, &pos) < 0) {
 				pr_info("Failed to dump cal data.\n");
 				goto dump_err;
 			}
@@ -3470,7 +3561,7 @@ int fimc_is_sec_fw_sel_eeprom(struct device *dev, int id, bool headerOnly)
 				is_ldo_enabled[0] = true;
 			}
 
-			info("Camera: read cal data from Rear EEPROM\n");
+			info("Camera: read cal data from Rear EEPROM, headerOnly(%d)\n", headerOnly);
 			if (headerOnly) {
 #if defined(CONFIG_CAMERA_EEPROM_SUPPORT_REAR)
 				fimc_is_sec_read_eeprom_header(dev);

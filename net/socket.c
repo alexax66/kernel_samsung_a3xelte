@@ -3281,6 +3281,7 @@ static int compat_sock_ioctl_trans(struct file *file, struct socket *sock,
 	case SIOCSIFVLAN:
 	case SIOCADDDLCI:
 	case SIOCDELDLCI:
+	case SIOCKILLADDR:
 		return sock_ioctl(file, cmd, arg);
 
 	case SIOCGIFFLAGS:

@@ -705,12 +705,14 @@ make_proc:
 	gpio_tray_det = of_get_named_gpio(of_node, "mif,gpio_tray_det", 0);
 	if (!gpio_is_valid(gpio_tray_det)) {
 		mif_err("DT error: failed to get gpio tray_det\n");
+		retval = 0;
 		goto make_tray_proc;
 	}
 
 	retval = gpio_request(gpio_tray_det, "TRAY_DET");
 	if (retval) {
 		mif_err("Failed to reqeust tray_det GPIO(%d)\n", retval);
+		retval = 0;
 		goto make_tray_proc;
 	} else {
 		gpio_direction_input(gpio_tray_det);

@@ -1,7 +1,7 @@
 /*
  * Customer HW 4 dependant file
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -226,9 +226,9 @@ const struct cntry_locales_custom translate_custom_table[] = {
 	{"IN", "IN", 3},
 	{"ID", "ID", 1},
 	{"IE", "IE", 5},
-	{"IL", "IL", 7},
+	{"IL", "IL", 14},
 	{"IT", "IT", 4},
-	{"JP", "JP", 45},
+	{"JP", "JP", 968},
 	{"JO", "JO", 3},
 	{"KE", "SA", 0},
 	{"KW", "KW", 5},
@@ -292,8 +292,8 @@ const struct cntry_locales_custom translate_custom_table[] = {
 	{"EC", "EC", 21},
 	{"SV", "SV", 25},
 	{"KR", "KR", 70},
-	{"RU", "RU", 13},
-	{"UA", "UA", 8},
+	{"RU", "RU", 988},
+	{"UA", "UA", 16},
 	{"GT", "GT", 1},
 	{"MN", "MN", 1},
 	{"NI", "NI", 2},
@@ -307,20 +307,11 @@ const struct cntry_locales_custom translate_custom_table[] = {
 	{"LY", "LI", 4},
 	{"BO", "NG", 0},
 	{"UM", "PR", 38},
-#if defined(BCM43430_CHIP) || defined(BCM43455_CHIP) || defined(BCM43454_CHIP)
-#ifdef DHD_SUPPORT_FCC_US_988
 	/* Support FCC 15.407 (Part 15E) Changes, effective June 2 2014 */
+	/* US/988, Q2/993 country codes with higher power on UNII-1 5G band */
 	{"US", "US", 988},
 	{"CU", "US", 988},
 	{"CA", "Q2", 993},
-#else
-	{"US", "US", 1},
-	{"CU", "US", 1},
-	{"CA", "US", 1},
-#endif /* DHD_SUPPORT_FCC_US_988 */
-#else /* BCM4354, BCM4339, BCM4335 */
-	{"CA", "US", 0},
-#endif /* defined(BCM43430_CHIP) || defined(BCM43455_CHIP) || defined(BCM43454_CHIP) */
 #endif /* default ccode/regrev */
 };
 
@@ -1504,7 +1495,7 @@ int sec_get_param_wfa_cert(dhd_pub_t *dhd, int mode, uint* read_val)
 		return BCME_ERROR;
 	} else {
 		if (kernel_read(fp, fp->f_pos, (char *)&val, 4) < 0) {
-			filp_close(fp, NULL);
+		filp_close(fp, NULL);
 			/* File operation is failed so we will return error code */
 			DHD_ERROR(("[WIFI_SEC] %s: read failed, file path=%s\n",
 				__FUNCTION__, filepath));
@@ -1667,4 +1658,16 @@ uint32 sec_save_wlinfo(char *firm_ver, char *dhd_ver, char *nvram_p)
 	return ret;
 }
 #endif /* WRITE_WLANINFO */
+
+#ifdef SUPPORT_MULTIPLE_BOARD_REV_FROM_HW
+unsigned int system_hw_rev;
+static int __init get_hw_rev(char *arg)
+{
+	get_option(&arg, &system_hw_rev);
+	printk("dhd : hw_rev : %d\n", system_hw_rev);
+	return 0;
+}
+
+early_param("androidboot.hw_rev", get_hw_rev);
+#endif /* SUPPORT_MULTIPLE_BOARD_REV_FROM_HW */
 #endif /* CUSTOMER_HW4 */

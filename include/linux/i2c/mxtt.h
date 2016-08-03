@@ -83,8 +83,6 @@
 
 #define FOR_BRINGUP				0
 
-#define TSP_SUPPROT_MULTIMEDIA
-
 /* TSP_USE_ATMELDBG feature just for atmel tunning app
 * so it should be disabled after finishing tunning
 * because it use other write permission. it will be cause
@@ -102,6 +100,8 @@
 #endif
 
 #if TSP_SEC_FACTORY
+#define TSP_BUF_SIZE	 1024
+
 #define NODE_PER_PAGE	64
 #define DATA_PER_NODE	2
 
@@ -110,7 +110,7 @@
 #define REF_MAX_VALUE		(28884 - REF_OFFSET_VALUE)
 
 #define TSP_CMD_STR_LEN			32
-#define TSP_CMD_RESULT_STR_LEN	2000	//512
+#define TSP_CMD_RESULT_STR_LEN	512
 #define TSP_CMD_PARAM_NUM		8
 
 #define MXT_FIRMWARE_INKERNEL_PATH_NAME	"/sdcard/mxt.fw"
@@ -124,13 +124,6 @@
 
 #define MXT_SW_RESET_TIME		300	/* msec */
 #define MXT_HW_RESET_TIME		82	/* msec */
-
-#define LONG_CMD_RETURN_CNT		300
-enum {
-	LONG_CMD_NOT_DEFINED = 0,
-	LONG_CMD_REFERENCE,
-	LONG_CMD_DELTA
-};
 
 enum {
 	MXT_RESERVED_T0 = 0,
@@ -617,10 +610,6 @@ struct mxt_fac_data {
 	struct mutex	cmd_lock;
 	bool	cmd_is_running;
 
-	bool long_cmd_ret_val;
-	int long_cmd_ret_point;
-	int long_cmd_type;
-
 	u8 num_xnode;
 	u8 num_ynode;
 	u16 num_nodes;
@@ -718,16 +707,6 @@ struct mxt_data {
 	bool is_inputmethod;
 #endif
     u16 pos_of_ghost[4][MXT_MAX_FINGER]; /* 0320 */
-
-#if defined(TSP_SUPPROT_MULTIMEDIA) && !defined(CONFIG_SEC_FACTORY)
-	bool velocity_enable;
-	bool brush_enable;
-	u8 amp_adj_min;
-	u8 amp_adj_max;
-	u8 amp_const;
-	u8 amp_coef;
-	u8 amp_offset;
-#endif
 };
 
 /**

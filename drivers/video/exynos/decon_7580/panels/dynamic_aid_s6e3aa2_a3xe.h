@@ -2,7 +2,6 @@
 #define __DYNAMIC_AID_XXXX_H __FILE__
 
 #include "dynamic_aid.h"
-#include "dynamic_aid_gamma_curve.h"
 
 enum {
 	IV_VT,
@@ -136,20 +135,6 @@ static int index_voltage_reference[IV_MAX] = {
 	VREG_OUT_X1000		/* IV_255 */
 };
 
-static struct m_gray_limit_t m_gray_limit[IV_MAX] = {
-	{0,	0},	/* IV_VT */
-	{1,	1},
-	{-1,	-1},
-	{-1,	-1},
-	{-1,	-1},
-	{-1,	-1},
-	{-1,	-1},
-	{-1,	-1},
-	{-1,	-1},
-	{-1,	-1},
-	{-1,	-1}	/* IV_255 */
-};
-
 static const int index_brightness_table[IBRIGHTNESS_HBM_MAX] = {
 	2,	/* IBRIGHTNESS_002NIT */
 	3,	/* IBRIGHTNESS_003NIT */
@@ -269,238 +254,82 @@ static const int vt_voltage_value[] = {
 	0, 12, 24, 36, 48, 60, 72, 84, 96, 108, 138, 148, 158, 168, 178, 186
 };
 
-static const int brightness_base_table[IBRIGHTNESS_MAX] = {
-	94,	/* IBRIGHTNESS_002NIT */
-	94,	/* IBRIGHTNESS_003NIT */
-	94,	/* IBRIGHTNESS_004NIT */
-	94,	/* IBRIGHTNESS_005NIT */
-	94,	/* IBRIGHTNESS_006NIT */
-	94,	/* IBRIGHTNESS_007NIT */
-	94,	/* IBRIGHTNESS_008NIT */
-	94,	/* IBRIGHTNESS_009NIT */
-	94,	/* IBRIGHTNESS_010NIT */
-	94,	/* IBRIGHTNESS_011NIT */
-	94,	/* IBRIGHTNESS_012NIT */
-	94,	/* IBRIGHTNESS_013NIT */
-	94,	/* IBRIGHTNESS_014NIT */
-	94,	/* IBRIGHTNESS_015NIT */
-	94,	/* IBRIGHTNESS_016NIT */
-	94,	/* IBRIGHTNESS_017NIT */
-	94,	/* IBRIGHTNESS_019NIT */
-	94,	/* IBRIGHTNESS_020NIT */
-	94,	/* IBRIGHTNESS_021NIT */
-	94,	/* IBRIGHTNESS_022NIT */
-	94,	/* IBRIGHTNESS_024NIT */
-	94,	/* IBRIGHTNESS_025NIT */
-	94,	/* IBRIGHTNESS_027NIT */
-	94,	/* IBRIGHTNESS_029NIT */
-	94,	/* IBRIGHTNESS_030NIT */
-	94,	/* IBRIGHTNESS_032NIT */
-	94,	/* IBRIGHTNESS_034NIT */
-	94,	/* IBRIGHTNESS_037NIT */
-	94,	/* IBRIGHTNESS_039NIT */
-	94,	/* IBRIGHTNESS_041NIT */
-	94,	/* IBRIGHTNESS_044NIT */
-	94,	/* IBRIGHTNESS_047NIT */
-	94,	/* IBRIGHTNESS_050NIT */
-	94,	/* IBRIGHTNESS_053NIT */
-	94,	/* IBRIGHTNESS_056NIT */
-	94,	/* IBRIGHTNESS_060NIT */
-	94,	/* IBRIGHTNESS_064NIT */
-	94,	/* IBRIGHTNESS_068NIT */
-	94,	/* IBRIGHTNESS_072NIT */
-	95,	/* IBRIGHTNESS_077NIT */
-	102,	/* IBRIGHTNESS_082NIT */
-	109,	/* IBRIGHTNESS_087NIT */
-	116,	/* IBRIGHTNESS_093NIT */
-	123,	/* IBRIGHTNESS_098NIT */
-	135,	/* IBRIGHTNESS_105NIT */
-	144,	/* IBRIGHTNESS_111NIT */
-	156,	/* IBRIGHTNESS_119NIT */
-	168,	/* IBRIGHTNESS_126NIT */
-	181,	/* IBRIGHTNESS_134NIT */
-	194,	/* IBRIGHTNESS_143NIT */
-	209,	/* IBRIGHTNESS_152NIT */
-	226,	/* IBRIGHTNESS_162NIT */
-	243,	/* IBRIGHTNESS_172NIT */
-	259,	/* IBRIGHTNESS_183NIT */
-	259,	/* IBRIGHTNESS_195NIT */
-	259,	/* IBRIGHTNESS_207NIT */
-	259,	/* IBRIGHTNESS_220NIT */
-	259,	/* IBRIGHTNESS_234NIT */
-	261,	/* IBRIGHTNESS_249NIT */
-	283,	/* IBRIGHTNESS_265NIT */
-	303,	/* IBRIGHTNESS_282NIT */
-	322,	/* IBRIGHTNESS_300NIT */
-	343,	/* IBRIGHTNESS_316NIT */
-	363,	/* IBRIGHTNESS_333NIT */
-	386,	/* IBRIGHTNESS_350NIT */
-	390,	/* IBRIGHTNESS_357NIT */
-	402,	/* IBRIGHTNESS_365NIT */
-	402,	/* IBRIGHTNESS_372NIT */
-	402,	/* IBRIGHTNESS_380NIT */
-	402,	/* IBRIGHTNESS_387NIT */
-	402,	/* IBRIGHTNESS_395NIT */
-	403,	/* IBRIGHTNESS_403NIT */
-	412,	/* IBRIGHTNESS_412NIT */
-	420	/* IBRIGHTNESS_420NIT */
-};
-
-static const int *gamma_curve_tables[IBRIGHTNESS_MAX] = {
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_002NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_003NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_004NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_005NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_006NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_007NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_008NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_009NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_010NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_011NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_012NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_013NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_014NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_015NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_016NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_017NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_019NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_020NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_021NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_022NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_024NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_025NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_027NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_029NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_030NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_032NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_034NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_037NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_039NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_041NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_044NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_047NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_050NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_053NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_056NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_060NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_064NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_068NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_072NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_077NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_082NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_087NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_093NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_098NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_105NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_111NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_119NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_126NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_134NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_143NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_152NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_162NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_172NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_183NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_195NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_207NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_220NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_234NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_249NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_265NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_282NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_300NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_316NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_333NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_350NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_357NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_365NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_372NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_380NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_387NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_395NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_403NIT */
-	gamma_curve_2p15_table,	/* IBRIGHTNESS_412NIT */
-	gamma_curve_2p20_table	/* IBRIGHTNESS_420NIT */
-};
-
-static const int *gamma_curve_lut = gamma_curve_2p20_table;
-
-static const int offset_gradation[IBRIGHTNESS_MAX][IV_MAX] = {
+static const int m_gray[IBRIGHTNESS_MAX][IV_MAX] = {
 	/* VT ~ V255 */
-	{0, 0, 46, 45, 42, 37, 34, 25, 13, 8, 0},
-	{0, 0, 34, 33, 28, 24, 22, 15, 6, 2, 0},
-	{0, 0, 32, 31, 26, 22, 19, 14, 6, 3, 0},
-	{0, 0, 29, 28, 23, 19, 18, 13, 6, 4, 0},
-	{0, 0, 30, 29, 24, 20, 18, 12, 6, 2, 0},
-	{0, 0, 31, 30, 25, 21, 19, 12, 6, 2, 0},
-	{0, 0, 32, 32, 27, 23, 19, 13, 6, 3, 0},
-	{0, 0, 30, 30, 26, 21, 17, 12, 5, 3, 0},
-	{0, 0, 29, 28, 24, 19, 16, 11, 5, 3, 0},
-	{0, 0, 28, 27, 23, 19, 15, 10, 5, 3, 0},
-	{0, 0, 27, 26, 22, 17, 14, 10, 4, 2, 0},
-	{0, 0, 25, 25, 21, 16, 13, 9, 4, 2, 0},
-	{0, 0, 24, 24, 20, 16, 13, 9, 4, 2, 0},
-	{0, 0, 24, 23, 19, 15, 12, 8, 3, 2, 0},
-	{0, 0, 23, 23, 19, 15, 12, 8, 3, 2, 0},
-	{0, 0, 22, 22, 18, 14, 11, 8, 3, 2, 0},
-	{0, 0, 21, 20, 17, 13, 10, 7, 3, 2, 0},
-	{0, 0, 20, 19, 16, 12, 9, 6, 3, 2, 0},
-	{0, 0, 19, 19, 15, 12, 9, 6, 3, 2, 0},
-	{0, 0, 19, 18, 15, 11, 9, 6, 3, 2, 0},
-	{0, 0, 18, 17, 14, 10, 8, 5, 3, 2, 0},
-	{0, 0, 18, 17, 14, 10, 8, 5, 3, 2, 0},
-	{0, 0, 17, 16, 13, 9, 7, 4, 3, 2, 0},
-	{0, 0, 16, 15, 12, 9, 7, 4, 2, 2, 0},
-	{0, 0, 16, 15, 12, 9, 7, 4, 2, 2, 0},
-	{0, 0, 15, 14, 11, 8, 6, 4, 2, 1, 0},
-	{0, 0, 14, 14, 11, 8, 6, 4, 2, 1, 0},
-	{0, 0, 13, 13, 10, 7, 5, 3, 2, 1, 0},
-	{0, 0, 13, 12, 9, 6, 5, 3, 2, 1, 0},
-	{0, 0, 12, 12, 9, 6, 5, 3, 2, 1, 0},
-	{0, 0, 11, 11, 8, 5, 4, 3, 1, 1, 0},
-	{0, 0, 11, 11, 8, 5, 4, 2, 1, 1, 0},
-	{0, 0, 10, 10, 7, 4, 4, 2, 1, 1, 0},
-	{0, 0, 9, 9, 7, 4, 3, 2, 1, 1, 0},
-	{0, 0, 9, 8, 6, 4, 3, 2, 1, 1, 0},
-	{0, 0, 8, 8, 6, 3, 3, 2, 1, 1, 0},
-	{0, 0, 7, 7, 5, 3, 2, 1, 1, 1, 0},
-	{0, 0, 7, 7, 5, 3, 2, 1, 1, 1, 0},
-	{0, 0, 6, 6, 4, 2, 2, 1, 1, 1, 0},
-	{0, 0, 6, 6, 4, 2, 2, 1, 1, 1, 0},
-	{0, 0, 6, 6, 4, 3, 2, 1, 1, 1, 0},
-	{0, 0, 6, 5, 3, 2, 2, 1, 0, 1, 0},
-	{0, 0, 6, 5, 3, 3, 2, 1, 0, 1, 0},
-	{0, 0, 6, 5, 3, 2, 2, 1, 1, 2, 0},
-	{0, 0, 6, 5, 3, 2, 1, 2, 1, 2, 0},
-	{0, 0, 5, 5, 3, 2, 1, 2, 1, 2, 0},
-	{0, 0, 5, 4, 4, 3, 1, 2, 2, 2, 0},
-	{0, 0, 5, 4, 3, 3, 2, 2, 1, 1, 0},
-	{0, 0, 5, 4, 3, 2, 2, 2, 1, 1, 0},
-	{0, 0, 5, 4, 3, 2, 2, 2, 1, 0, 0},
-	{0, 0, 5, 4, 3, 2, 1, 2, 2, 0, 0},
-	{0, 0, 5, 4, 3, 2, 2, 2, 2, 0, 0},
-	{0, 0, 5, 4, 3, 2, 2, 2, 2, 0, 0},
-	{0, 0, 5, 5, 3, 2, 2, 2, 2, 1, 0},
-	{0, 0, 4, 4, 3, 2, 2, 1, 2, 1, 0},
-	{0, 0, 4, 3, 2, 2, 2, 1, 2, 1, 0},
-	{0, 0, 3, 3, 2, 2, 2, 1, 2, 1, 0},
-	{0, 0, 3, 3, 2, 1, 1, 1, 1, 1, 0},
-	{0, 0, 2, 1, 0, 1, 0, 1, 1, 0, 0},
-	{0, 0, 2, 1, 1, 0, 1, 0, 1, 0, 0},
-	{0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0},
-	{0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0},
-	{0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0},
-	{0, 0, 1, 0, 0, 0, -1, 0, 0, 0, 0},
-	{0, 0, 1, 0, 0, 0, -1, -1, -1, 0, 0},
-	{0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0},
-	{0, 0, 1, 0, -1, -1, -1, 0, -1, 0, 0},
-	{0, 0, 1, -1, -1, -1, -1, 0, -1, 0, 0},
-	{0, 0, 0, -1, -1, -1, -1, -1, -1, 0, 0},
-	{0, 0, 0, -1, -1, -1, -1, -1, -1, 0, 0},
-	{0, 0, 0, -1, -1, -1, -1, -1, -1, 0, 0},
-	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	{0, 1, 50, 51, 54, 56, 61, 70, 90, 111, 129},
+	{0, 1, 38, 39, 40, 43, 49, 60, 83, 105, 129},
+	{0, 1, 36, 37, 38, 41, 46, 59, 83, 106, 129},
+	{0, 1, 33, 34, 35, 38, 45, 58, 83, 107, 129},
+	{0, 1, 34, 35, 36, 39, 45, 57, 83, 105, 129},
+	{0, 1, 35, 36, 37, 40, 46, 57, 83, 105, 129},
+	{0, 1, 36, 38, 39, 42, 46, 58, 83, 106, 129},
+	{0, 1, 34, 36, 38, 40, 44, 57, 82, 106, 129},
+	{0, 1, 33, 34, 36, 38, 43, 56, 82, 106, 129},
+	{0, 1, 32, 33, 35, 38, 42, 55, 82, 106, 129},
+	{0, 1, 31, 32, 34, 36, 41, 55, 81, 105, 129},
+	{0, 1, 29, 31, 33, 35, 40, 54, 81, 105, 129},
+	{0, 1, 28, 30, 32, 35, 40, 54, 81, 105, 129},
+	{0, 1, 28, 29, 31, 34, 39, 53, 80, 105, 129},
+	{0, 1, 27, 29, 31, 34, 39, 53, 80, 105, 129},
+	{0, 1, 26, 28, 30, 33, 38, 53, 80, 105, 129},
+	{0, 1, 25, 26, 29, 32, 37, 52, 80, 105, 129},
+	{0, 1, 24, 25, 28, 31, 36, 51, 80, 105, 129},
+	{0, 1, 23, 25, 27, 31, 36, 51, 80, 105, 129},
+	{0, 1, 23, 24, 27, 30, 36, 51, 80, 105, 129},
+	{0, 1, 22, 23, 26, 29, 35, 50, 80, 105, 129},
+	{0, 1, 22, 23, 26, 29, 35, 50, 80, 105, 129},
+	{0, 1, 21, 22, 25, 28, 34, 49, 80, 105, 129},
+	{0, 1, 20, 21, 24, 28, 34, 49, 79, 105, 129},
+	{0, 1, 20, 21, 24, 28, 34, 49, 79, 105, 129},
+	{0, 1, 19, 20, 23, 27, 33, 49, 79, 104, 129},
+	{0, 1, 18, 20, 23, 27, 33, 49, 79, 104, 129},
+	{0, 1, 17, 19, 22, 26, 32, 48, 79, 104, 129},
+	{0, 1, 17, 18, 21, 25, 32, 48, 79, 104, 129},
+	{0, 1, 16, 18, 21, 25, 32, 48, 79, 104, 129},
+	{0, 1, 15, 17, 20, 24, 31, 48, 78, 104, 129},
+	{0, 1, 15, 17, 20, 24, 31, 47, 78, 104, 129},
+	{0, 1, 14, 16, 19, 23, 31, 47, 78, 104, 129},
+	{0, 1, 13, 15, 19, 23, 30, 47, 78, 104, 129},
+	{0, 1, 13, 14, 18, 23, 30, 47, 78, 104, 129},
+	{0, 1, 12, 14, 18, 22, 30, 47, 78, 104, 129},
+	{0, 1, 11, 13, 17, 22, 29, 46, 78, 104, 129},
+	{0, 1, 11, 13, 17, 22, 29, 46, 78, 104, 129},
+	{0, 1, 10, 12, 16, 21, 29, 46, 78, 104, 129},
+	{0, 1, 10, 12, 16, 21, 29, 46, 79, 105, 130},
+	{0, 1, 10, 12, 17, 22, 30, 48, 81, 108, 134},
+	{0, 1, 10, 11, 16, 22, 31, 49, 83, 112, 138},
+	{0, 1, 10, 12, 17, 23, 31, 51, 85, 115, 142},
+	{0, 1, 10, 12, 17, 23, 32, 52, 88, 119, 146},
+	{0, 1, 11, 12, 17, 24, 33, 55, 92, 124, 152},
+	{0, 1, 10, 12, 18, 25, 34, 57, 95, 127, 157},
+	{0, 1, 10, 12, 19, 26, 35, 59, 99, 132, 163},
+	{0, 1, 10, 12, 19, 27, 37, 61, 102, 136, 168},
+	{0, 1, 10, 12, 20, 27, 38, 63, 105, 140, 174},
+	{0, 1, 10, 12, 20, 28, 39, 65, 109, 144, 179},
+	{0, 1, 11, 13, 21, 29, 40, 67, 113, 149, 186},
+	{0, 1, 11, 13, 21, 30, 42, 69, 117, 154, 192},
+	{0, 1, 11, 13, 22, 31, 43, 72, 121, 159, 199},
+	{0, 1, 11, 14, 22, 31, 44, 74, 125, 165, 205},
+	{0, 1, 10, 13, 22, 31, 44, 73, 125, 165, 205},
+	{0, 1, 10, 12, 21, 31, 44, 73, 125, 165, 205},
+	{0, 1, 9, 12, 21, 31, 44, 73, 125, 165, 205},
+	{0, 1, 9, 12, 21, 30, 43, 73, 124, 165, 205},
+	{0, 1, 8, 11, 20, 30, 43, 73, 124, 164, 205},
+	{0, 1, 8, 11, 21, 31, 45, 75, 129, 171, 213},
+	{0, 1, 8, 11, 21, 32, 46, 77, 133, 176, 220},
+	{0, 1, 8, 11, 22, 32, 47, 79, 136, 181, 226},
+	{0, 1, 8, 11, 22, 33, 48, 81, 139, 186, 233},
+	{0, 1, 8, 11, 23, 34, 49, 83, 143, 191, 239},
+	{0, 1, 8, 11, 23, 35, 50, 85, 146, 196, 245},
+	{0, 1, 8, 11, 23, 35, 51, 86, 148, 197, 247},
+	{0, 1, 8, 12, 23, 35, 51, 87, 149, 200, 250},
+	{0, 1, 8, 11, 23, 35, 51, 87, 149, 200, 250},
+	{0, 1, 7, 11, 23, 35, 51, 86, 149, 200, 250},
+	{0, 1, 7, 11, 23, 35, 51, 86, 149, 200, 250},
+	{0, 1, 7, 11, 23, 35, 51, 86, 149, 200, 250},
+	{0, 1, 7, 12, 24, 36, 52, 87, 150, 200, 250},
+	{0, 1, 8, 12, 24, 36, 52, 88, 151, 202, 253},
+	{0, 1, 7, 11, 23, 35, 51, 87, 151, 203, 255}
 };
 
 static const int offset_color[IBRIGHTNESS_MAX][CI_MAX * IV_MAX] = {

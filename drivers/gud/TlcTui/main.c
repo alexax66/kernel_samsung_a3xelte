@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2014 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -14,7 +14,6 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/kthread.h>
 #include <linux/init.h>
 #include <linux/ioctl.h>
 #include <linux/device.h>
@@ -30,21 +29,31 @@
 #include "mobicore_driver_api.h"
 #include "dciTui.h"
 #include "tui-hal.h"
+#include "build_tag.h"
 
-/* extern */
-extern struct mc_session_handle drSessionHandle;
-extern struct completion dciComp;
-extern uint32_t gCmdId;
-extern tlcTuiResponse_t gUserRsp;
+/*static int tui_dev_major_number = 122; */
 
-/* Global variables */
-DECLARE_COMPLETION(ioComp);
+/*module_param(tui_dev_major_number, int, 0000); */
+/*MODULE_PARM_DESC(major, */
+/* "The device major number used to register a unique char device driver"); */
 
 /* Static variables */
 static struct cdev tui_cdev;
-static struct task_struct *threadId;
 
 struct switch_dev tui_switch;
+
+int tui_force_close(uint32_t arg)
+{
+	int ret = 0;
+
+	pr_info("Force TUI_IO_NOTIFY %d\n", arg);
+
+	if (tlc_notify_event(arg))
+		ret = 0;
+	else
+		ret = -EFAULT;
+}
+EXPORT_SYMBOL(tui_force_close);
 
 static long tui_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 {
@@ -54,58 +63,58 @@ static long tui_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 	if (_IOC_TYPE(cmd) != TUI_IO_MAGIC)
 		return -EINVAL;
 
-	pr_err("t-base-tui module: ioctl 0x%x ", cmd);
+	pr_info("t-base-tui module: ioctl 0x%x ", cmd);
 
 	switch (cmd) {
-
 	case TUI_IO_NOTIFY:
-		pr_err("TUI_IO_NOTIFY\n");
+		pr_info("TUI_IO_NOTIFY\n");
 
-		if (tlcNotifyEvent(arg))
+		if (tlc_notify_event(arg))
 			ret = 0;
 		else
 			ret = -EFAULT;
 		break;
 
-	case TUI_IO_WAITCMD:
-		pr_err("TUI_IO_WAITCMD\n");
+	case TUI_IO_WAITCMD:{
+		uint32_t cmd_id;
 
-		/* Create the TlcTui Main thread and start secure driver (only
-		   1st time) */
-		if (drSessionHandle.session_id == 0) {
-			threadId = kthread_run(mainThread, NULL, "dci_thread");
-			if (!threadId) {
-				pr_debug(KERN_ERR "Unable to start Trusted UI main thread\n");
-				return -EFAULT;
-			}
+		pr_info("TUI_IO_WAITCMD\n");
+
+		ret = tlc_wait_cmd(&cmd_id);
+		if (ret) {
+			pr_debug("ERROR %s:%d tlc_wait_cmd returned (0x%08X)\n",
+				__func__, __LINE__, ret);
+			return ret;
 		}
 
-		/* Wait for signal from DCI handler */
-		wait_for_completion_interruptible(&dciComp);
-		INIT_COMPLETION(dciComp);
-
 		/* Write command id to user */
-		pr_debug("IOCTL: sending command %d to user.\n", gCmdId);
+		pr_debug("IOCTL: sending command %d to user.\n", cmd_id);
 
-		if (copy_to_user(uarg, &gCmdId, sizeof(gCmdId)))
+		if (copy_to_user(uarg, &cmd_id, sizeof(cmd_id)))
 			ret = -EFAULT;
 		else
 			ret = 0;
-		break;
 
-	case TUI_IO_ACK:
-		pr_err("TUI_IO_ACK\n");
+		break;
+}
+
+	case TUI_IO_ACK: {
+		struct tlc_tui_response_t rsp_id;
+
+		pr_info("TUI_IO_ACK\n");
 
 		/* Read user response */
-		if (copy_from_user(&gUserRsp, uarg, sizeof(gUserRsp)))
+		if (copy_from_user(&rsp_id, uarg, sizeof(rsp_id)))
 			ret = -EFAULT;
 		else
 			ret = 0;
 
-		/* Send signal to DCI */
-		pr_debug("IOCTL: User completed command %d.\n", gUserRsp.id);
-		complete(&ioComp);
+		pr_debug("IOCTL: User completed command %d.\n", rsp_id.id);
+		ret = tlc_ack_cmd(&rsp_id);
+		if (ret)
+			return ret;
 		break;
+	}
 
 	default:
 		pr_info("undefined!\n");
@@ -115,20 +124,41 @@ static long tui_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 	return ret;
 }
 
-static struct file_operations tui_fops = {
+atomic_t fileopened;
+static int tui_open(struct inode *inode, struct file *file)
+{
+	printk(KERN_INFO "TUI file opened");
+	atomic_inc(&fileopened);
+	return 0;
+}
+
+static int tui_release(struct inode *inode, struct file *file)
+{
+	printk(KERN_INFO "TUI file closed");
+	atomic_dec(&fileopened);
+	return 0;
+}
+
+static const struct file_operations tui_fops = {
 	.owner = THIS_MODULE,
+	/*.unlocked_ioctl = tui_ioctl,*/
 	.compat_ioctl = tui_ioctl,
+	.open = tui_open,
+	.release = tui_release,
 };
 
 /*--------------------------------------------------------------------------- */
-static int __init tlcTui_init(void)
+static int __init tlc_tui_init(void)
 {
-	pr_err("Loading t-base-tui module.\n");
+	pr_info("Loading t-base-tui module.\n");
 	pr_debug("\n=============== Running TUI Kernel TLC ===============\n");
+	pr_info("%s\n", MOBICORE_COMPONENT_BUILD_TAG);
 
 	dev_t devno;
 	int err;
 	static struct class *tui_class;
+
+	atomic_set(&fileopened, 0);
 
 	err = alloc_chrdev_region(&devno, 0, 1, TUI_DEV_NAME);
 	if (err) {
@@ -173,7 +203,7 @@ static int __init tlcTui_init(void)
 	return 0;
 }
 
-static void __exit tlcTui_exit(void)
+static void __exit tlc_tui_exit(void)
 {
 	pr_info("Unloading t-base-tui module.\n");
 
@@ -184,9 +214,8 @@ static void __exit tlcTui_exit(void)
 	hal_tui_exit();
 }
 
-module_init(tlcTui_init);
-module_exit(tlcTui_exit);
+module_init(tlc_tui_init);
+module_exit(tlc_tui_exit);
 
-MODULE_AUTHOR("Trustonic");
-MODULE_LICENSE("Dual BSD/GPL");
-MODULE_DESCRIPTION("TUI Kernel TLC");
+MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("<t-base TUI");

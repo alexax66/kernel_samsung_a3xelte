@@ -40,6 +40,12 @@ extern bool fw_version_crc_check;
 extern bool is_latest_cam_module;
 extern bool is_final_cam_module;
 
+#if defined(CONFIG_CAMERA_EEPROM_SUPPORT_OIS)
+extern bool crc32_ois_check;
+extern bool crc32_ois_fw_check;
+extern bool crc32_ois_cal_check;
+#endif
+
 #ifdef CONFIG_COMPANION_USE
 extern bool crc32_c1_fw_check;
 extern bool crc32_c1_check;
@@ -530,7 +536,10 @@ static ssize_t camera_rear_camfw_show(struct device *dev,
 	if(fw_version_crc_check) {
 		if (crc32_fw_check && crc32_check_factory
 #ifdef CONFIG_COMPANION_USE
-		    && crc32_c1_fw_check && crc32_c1_check_factory
+			&& crc32_c1_fw_check && crc32_c1_check_factory
+#endif
+#ifdef CONFIG_CAMERA_EEPROM_SUPPORT_OIS
+			&& crc32_ois_check
 #endif
 		) {
 			return sprintf(buf, "%s %s\n", finfo->header_ver, loaded_fw);
@@ -545,6 +554,12 @@ static ssize_t camera_rear_camfw_show(struct device *dev,
 			if (!crc32_c1_fw_check)
 				strcat(command_ack, "FW1");
 			if (!crc32_c1_check_factory)
+				strcat(command_ack, "CD1");
+#endif
+#ifdef CONFIG_CAMERA_EEPROM_SUPPORT_OIS
+			if (!crc32_ois_fw_check)
+				strcat(command_ack, "FW1");
+			if (!crc32_ois_check)
 				strcat(command_ack, "CD1");
 #endif
 			if (finfo->header_ver[3] != 'L')
@@ -594,7 +609,10 @@ static ssize_t camera_rear_camfw_full_show(struct device *dev,
 	if(fw_version_crc_check) {
 		if (crc32_fw_check && crc32_check_factory
 #ifdef CONFIG_COMPANION_USE
-		    && crc32_c1_fw_check && crc32_c1_check_factory
+			&& crc32_c1_fw_check && crc32_c1_check_factory
+#endif
+#ifdef CONFIG_CAMERA_EEPROM_SUPPORT_OIS
+			&& crc32_ois_check
 #endif
 		) {
 			return sprintf(buf, "%s %s %s\n", finfo->header_ver, pinfo->header_ver, loaded_fw);
@@ -609,6 +627,12 @@ static ssize_t camera_rear_camfw_full_show(struct device *dev,
 			if (!crc32_c1_fw_check)
 				strcat(command_ack, "FW1");
 			if (!crc32_c1_check_factory)
+				strcat(command_ack, "CD1");
+#endif
+#ifdef CONFIG_CAMERA_EEPROM_SUPPORT_OIS
+			if (!crc32_ois_fw_check)
+				strcat(command_ack, "FW1");
+			if (!crc32_ois_check)
 				strcat(command_ack, "CD1");
 #endif
 			if (finfo->header_ver[3] != 'L')
@@ -641,7 +665,7 @@ static ssize_t camera_rear_checkfw_user_show(struct device *dev,
 	/* 2T2 Sensor Only. Can be removed after development */
 	fimc_is_sec_get_cal_buf(&cal_buf);
 	if (((finfo->header_ver[0] == 'A') && (finfo->header_ver[1] == '2') && (finfo->header_ver[2] == '0'))
-		   && (cal_buf[0xC0] < 0xC0)) {
+			&& (cal_buf[0xC0] < 0xC0)) {
 		err(" NG, old sensor revision");
 		return sprintf(buf, "%s\n", "NG");
 	}
@@ -654,7 +678,10 @@ static ssize_t camera_rear_checkfw_user_show(struct device *dev,
 	if(fw_version_crc_check) {
 		if (crc32_fw_check && crc32_check_factory
 #ifdef CONFIG_COMPANION_USE
-		    && crc32_c1_fw_check && crc32_c1_check_factory
+			&& crc32_c1_fw_check && crc32_c1_check_factory
+#endif
+#ifdef CONFIG_CAMERA_EEPROM_SUPPORT_OIS
+			&& crc32_ois_check && crc32_ois_fw_check
 #endif
 		) {
 			if (!is_latest_cam_module) {
@@ -699,7 +726,10 @@ static ssize_t camera_rear_checkfw_factory_show(struct device *dev,
 	if(fw_version_crc_check) {
 		if (crc32_fw_check && crc32_check_factory
 #ifdef CONFIG_COMPANION_USE
-		    && crc32_c1_fw_check && crc32_c1_check_factory
+			&& crc32_c1_fw_check && crc32_c1_check_factory
+#endif
+#ifdef CONFIG_CAMERA_EEPROM_SUPPORT_OIS
+			&& crc32_ois_check && crc32_ois_fw_check
 #endif
 		) {
 			if (!is_final_cam_module) {

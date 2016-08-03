@@ -669,6 +669,10 @@ static int abov_load_fw(struct abov_tk_info *info, u8 cmd)
 		info->checksum_l_bin = info->firm_data_bin->data[9];
 		info->firm_size = info->firm_data_bin->size;
 
+		if (strncmp(info->pdata->fw_path, "abov/abov_ft1604_a3.fw", 22) == 0){
+			info->fw_model_number = 0x30;	//A310 fw 0x05
+		}
+
 		tk_debug_info(true, &client->dev, "%s, bin version:%2X,%2X,%2X   crc:%2X,%2X\n", __func__, \
 			info->firm_data_bin->data[1], info->firm_data_bin->data[3], info->fw_ver_bin, \
 			info->checksum_h_bin, info->checksum_l_bin);

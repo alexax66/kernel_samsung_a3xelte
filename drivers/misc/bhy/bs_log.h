@@ -63,8 +63,8 @@
 
 #if (LOG_LEVEL >= LOG_LEVEL_I)
 /*! print information message */
-#define PINFO(fmt, ...) printk(KERN_INFO "[I]" KERN_INFO MODULE_TAG \
-	"<%s><%d>" fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+#define PINFO(fmt, ...) printk(KERN_INFO "[I]" MODULE_TAG \
+	"<%20s><%5d>" fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
 #else
 /*! invalid message */
 #define PINFO(fmt, args...)

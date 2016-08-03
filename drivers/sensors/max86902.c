@@ -204,6 +204,7 @@ static int max86900_regulator_onoff(struct max86900_device_data *data, int onoff
 	if (onoff == HRM_LDO_ON) {
 		if (data->vdd_1p8_gpio) {
 			gpio_set_value(data->vdd_1p8_gpio, HRM_LDO_ON);
+			msleep(20);
 		} else {
 			rc = regulator_set_voltage(regulator_vdd_1p8, 1800000, 1800000);
 			if (rc < 0) {
@@ -222,6 +223,7 @@ static int max86900_regulator_onoff(struct max86900_device_data *data, int onoff
 
 		if (data->led_3p3_gpio) {
 			gpio_set_value(data->led_3p3_gpio, HRM_LDO_ON);
+			msleep(20);
 		} else {
 			rc = regulator_set_voltage(regulator_led_3p3, 3300000, 3300000);
 			if (rc < 0) {

@@ -2365,11 +2365,19 @@ static int s5p_mfc_release(struct file *file)
 			s5p_mfc_cleanup_timeout(ctx);
 	}
 
+	/* If a H/W operation is in progress, wait for it complete */
 	if (need_to_wait_nal_abort(ctx)) {
 		ctx->state = MFCINST_ABORT;
 		if (s5p_mfc_wait_for_done_ctx(ctx,
 				S5P_FIMV_R2H_CMD_NAL_ABORT_RET))
 			s5p_mfc_cleanup_timeout(ctx);
+	} else if (test_bit(ctx->num, &dev->hw_lock)) {
+		ctx->state = MFCINST_ABORT;
+		ret = wait_event_timeout(ctx->queue,
+				(test_bit(ctx->num, &dev->hw_lock) == 0),
+				msecs_to_jiffies(MFC_INT_TIMEOUT));
+		if (ret == 0)
+			mfc_err_ctx("wait for event failed\n");
 	}
 
 	if (ctx->type == MFCINST_ENCODER) {
@@ -2417,6 +2425,9 @@ static int s5p_mfc_release(struct file *file)
 		mfc_info_ctx("UHD decoding stop\n");
 	}
 #endif
+
+	if (ctx->skype_scenario)
+		ctx->skype_scenario = 0;
 
 	if (call_cop(ctx, cleanup_ctx_ctrls, ctx) < 0)
 		mfc_err_ctx("failed in cleanup_ctx_ctrl\n");
@@ -3123,6 +3134,8 @@ static int s5p_mfc_probe(struct platform_device *pdev)
 				dev->pdata->qos_extra[i].freq_mfc,
 				dev->pdata->qos_extra[i].freq_mif);
 	}
+	pm_qos_add_request(&dev->qos_req_cluster0, PM_QOS_CLUSTER0_FREQ_MIN, 0);
+	pm_qos_add_request(&dev->qos_req_cluster1, PM_QOS_CLUSTER1_FREQ_MIN, 0);
 #endif
 
 	iovmm_set_fault_handler(dev->device,

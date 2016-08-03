@@ -107,9 +107,8 @@ struct fimc_is_ishcain_mem {
 	u32			dvaddr_3dnr;
 	ulong			kvaddr_3dnr;
 #ifdef ENABLE_FD_SW
-	/* f/w shared part */
-	u32			dvaddr_fshared;	/* FD ymap using */
-	ulong			kvaddr_fshared;	/* 1.5KB: 0 ~ 0x600 */
+	/* Y map region : 256 Byte*/
+	ulong			kvaddr_fd_shared;
 	/* internal memory for FD */
 	u32			*dvaddr_fd;
 	ulong			*kvaddr_fd;

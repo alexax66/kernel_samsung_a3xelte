@@ -45,6 +45,15 @@ extern int FP_CHECK; /* extern variable */
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 #define MC_FC_FP_PM_SUSPEND ((uint32_t)(0x83000021))
 #define MC_FC_FP_PM_RESUME ((uint32_t)(0x83000022))
+
+/* using for awake the samsung FP daemon */
+extern bool fp_lockscreen_mode;
+#ifdef CONFIG_SENSORS_FP_LOCKSCREEN_MODE
+/* input/Keyboard/gpio_keys.c */
+extern bool wakeup_by_key(void);
+/* export variable for signaling */
+EXPORT_SYMBOL(fp_lockscreen_mode);
+#endif
 #endif
 
 #endif

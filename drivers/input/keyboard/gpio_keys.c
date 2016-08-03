@@ -38,13 +38,28 @@
 
 struct device *sec_key;
 EXPORT_SYMBOL(sec_key);
+int wakeup_reason;
+bool irq_in_suspend;
+bool suspend_state;
+
+bool wakeup_by_key(void) {
+	if (irq_in_suspend) {
+		if (wakeup_reason == KEY_HOMEPAGE) {
+			irq_in_suspend = false;
+			wakeup_reason = 0;
+			return true;
+		}
+	}
+	return false;
+}
+
+EXPORT_SYMBOL(wakeup_by_key);
 
 struct gpio_button_data {
 	struct gpio_keys_button *button;
 	struct input_dev *input;
 	struct timer_list timer;
 	struct work_struct work;
-	struct workqueue_struct *workqueue;
 	unsigned int timer_debounce;	/* in msecs */
 	unsigned int irq;
 	spinlock_t lock;
@@ -430,31 +445,38 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 	struct input_dev *input = bdata->input;
 	unsigned int type = button->type ?: EV_KEY;
 	int state = (gpio_get_value_cansleep(button->gpio) ? 1 : 0) ^ button->active_low;
+	struct irq_desc *desc = irq_to_desc(gpio_to_irq(button->gpio));
 
-	switch (button->code) {
-	case KEY_POWER:
-		printk(KERN_INFO "PWR key is %s\n", !!state ? "pressed" : "released");
-		break;
-	case KEY_HOMEPAGE:
-		printk(KERN_INFO "HOME key is %s\n", !!state ? "pressed" : "released");
-		break;
-	case KEY_VOLUMEUP:
-		printk(KERN_INFO "VolumeUp key is %s\n", !!state ? "pressed" : "released");
-		break;
-	case KEY_VOLUMEDOWN:
-		printk(KERN_INFO "VolumeDown key is %s\n", !!state ? "pressed" : "released");
-		break;
-	default:
-		printk(KERN_INFO "%d key is %s\n", button->code, !!state ? "pressed" : "released");
-		break;
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	if ((button->code == KEY_POWER)) {
+		printk(KERN_INFO "GPIO-KEY : PWR key is %s[%d]\n",
+					state ? "pressed" : "released", irqd_is_wakeup_set(&desc->irq_data));
+	} else if ((button->code == KEY_HOMEPAGE)) {
+		printk(KERN_INFO "GPIO-KEY : HOME key is %s[%d]\n",
+					state ? "pressed" : "released", irqd_is_wakeup_set(&desc->irq_data));
+	} else if ((button->code == KEY_VOLUMEUP)) {
+		printk(KERN_INFO "GPIO-KEY : VOL_UP key is %s[%d]\n",
+					state ? "pressed" : "released", irqd_is_wakeup_set(&desc->irq_data));
+	} else if ((button->code == KEY_VOLUMEDOWN)) {
+		printk(KERN_INFO "GPIO-KEY : VOL_DOWN key is %s[%d]\n",
+					state ? "pressed" : "released", irqd_is_wakeup_set(&desc->irq_data));
 	}
+#else
+	if ((button->code == KEY_POWER) && !!state) {
+		printk(KERN_INFO "GPIO-KEY : key is pressed!!\n");
+	} else if ((button->code == KEY_HOMEPAGE) && !!state) {
+		printk(KERN_INFO "GPIO-KEY : key is pressed!\n");
+	}
+#endif
+
 
 	if (type == EV_ABS) {
 		if (state)
 			input_event(input, type, button->code, button->value);
 	} else {
 		bdata->key_state = !!state;
-		input_event(input, type, button->code, !!state);
+		input_event(input, type, button->code,
+				irqd_is_wakeup_set(&desc->irq_data) ? 1 : !!state);
 	}
 	input_sync(input);
 }
@@ -474,22 +496,24 @@ static void gpio_keys_gpio_timer(unsigned long _data)
 {
 	struct gpio_button_data *bdata = (struct gpio_button_data *)_data;
 
-	if (bdata->workqueue)
-		queue_work(bdata->workqueue, &bdata->work);
-	else
 	schedule_work(&bdata->work);
 }
 
 static irqreturn_t gpio_keys_gpio_isr(int irq, void *dev_id)
 {
 	struct gpio_button_data *bdata = dev_id;
-
 #ifdef CONFIG_SEC_DEBUG
 	int state = (gpio_get_value(bdata->button->gpio) ? 1 : 0) ^ bdata->button->active_low;
 	sec_debug_check_crash_key(bdata->button->code, state);
 #endif
 
 	BUG_ON(irq != bdata->irq);
+
+	if (suspend_state) {
+		irq_in_suspend = true;
+		wakeup_reason = bdata->button->code;
+		pr_info("%s before resume by %d\n", __func__, wakeup_reason);
+	}
 
 	if (bdata->button->wakeup)
 		pm_stay_awake(bdata->input->dev.parent);
@@ -596,10 +620,6 @@ static int gpio_keys_setup_key(struct platform_device *pdev,
 			}
 			bdata->irq = irq;
 		}
-
-		bdata->workqueue = alloc_workqueue("gpio-keys/highpri", WQ_HIGHPRI, 0);
-		if (!bdata->workqueue)
-			dev_err(dev, "failed to alloc own workqueue\n");
 
 		INIT_WORK(&bdata->work, gpio_keys_gpio_work_func);
 		setup_timer(&bdata->timer,
@@ -868,6 +888,9 @@ static int gpio_keys_probe(struct platform_device *pdev)
 	input->id.vendor = 0x0001;
 	input->id.product = 0x0001;
 	input->id.version = 0x0100;
+	wakeup_reason = 0;
+	suspend_state = false;
+	irq_in_suspend = false;
 
 	/* Enable auto repeat feature of Linux input subsystem */
 	if (pdata->rep)
@@ -929,7 +952,7 @@ static int gpio_keys_probe(struct platform_device *pdev)
 
 	for (i = 0; i < pdata->nbuttons; i++) {
 		struct gpio_button_data *bdata = &ddata->data[i];
-		char *code_name = 0;
+		char *code_name;
 
 		if (bdata->button->code == KEY_POWER)
 			code_name = "POWER_KEY";
@@ -949,14 +972,8 @@ static int gpio_keys_probe(struct platform_device *pdev)
  fail3:
 	sysfs_remove_group(&pdev->dev.kobj, &gpio_keys_attr_group);
  fail2:
-	while (--i >= 0) {
-		struct gpio_button_data *bdata = &ddata->data[i];
-
-		if (bdata->workqueue)
-			destroy_workqueue(bdata->workqueue);
-
-		gpio_remove_key(bdata);
-	}
+	while (--i >= 0)
+		gpio_remove_key(&ddata->data[i]);
 
 	platform_set_drvdata(pdev, NULL);
  fail1:
@@ -979,14 +996,8 @@ static int gpio_keys_remove(struct platform_device *pdev)
 
 	device_init_wakeup(&pdev->dev, 0);
 
-	for (i = 0; i < ddata->pdata->nbuttons; i++) {
-		struct gpio_button_data *bdata = &ddata->data[i];
-
-		if (bdata->workqueue)
-			destroy_workqueue(bdata->workqueue);
-
-		gpio_remove_key(bdata);
-	}
+	for (i = 0; i < ddata->pdata->nbuttons; i++)
+		gpio_remove_key(&ddata->data[i]);
 
 	input_unregister_device(input);
 
@@ -1005,6 +1016,10 @@ static int gpio_keys_suspend(struct device *dev)
 	struct gpio_keys_drvdata *ddata = dev_get_drvdata(dev);
 	struct input_dev *input = ddata->input;
 	int i;
+
+	suspend_state = true;
+	irq_in_suspend = false;
+	wakeup_reason = 0;
 
 	if (device_may_wakeup(dev)) {
 		for (i = 0; i < ddata->pdata->nbuttons; i++) {
@@ -1029,6 +1044,7 @@ static int gpio_keys_resume(struct device *dev)
 	int error = 0;
 	int i;
 
+	suspend_state = false;
 	if (device_may_wakeup(dev)) {
 		for (i = 0; i < ddata->pdata->nbuttons; i++) {
 			struct gpio_button_data *bdata = &ddata->data[i];

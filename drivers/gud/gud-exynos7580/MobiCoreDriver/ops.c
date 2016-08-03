@@ -224,6 +224,7 @@ static void fastcall_work_func(struct work_struct *work)
 		if (desc->depth != 0)
 			enable_irq(MC_INTR_LOCAL_TIMER);
 	}
+
 	if (cpu_swap) {
 		if (fc_generic->as_out.ret == 0) {
 			cpumask_t cpu;
@@ -469,10 +470,14 @@ void mc_cpu_offfline(int cpu)
 	mutex_unlock(&ctx->core_switch_lock);
 }
 
+/* ExySp: for sos performance */
 void mc_cpu_online(int cpu)
 {
 	mutex_lock(&ctx->core_switch_lock);
 	core_status |= (0x1<<cpu);
+
+	if (cpu == NONBOOT_LITTLE_CORE)
+		__mc_switch_core(NONBOOT_LITTLE_CORE);
 	mutex_unlock(&ctx->core_switch_lock);
 }
 
@@ -482,10 +487,12 @@ static int mobicore_cpu_callback(struct notifier_block *nfb,
 	unsigned int cpu = (unsigned long)hcpu;
 
 	switch (action) {
+/* ExySp: for sos performance */
 	case CPU_ONLINE:
 	case CPU_ONLINE_FROZEN:
 		mc_cpu_online(cpu);
 		break;
+/* ExySp: end */
 	case CPU_DOWN_PREPARE:
 	case CPU_DOWN_PREPARE_FROZEN:
 		mc_cpu_offfline(cpu);

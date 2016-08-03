@@ -231,6 +231,10 @@ struct kbase_pm_device_data {
 	int active_count;
 	/** Flag indicating suspending/suspended */
 	mali_bool suspending;
+
+	/* MALI_SEC_INTEGRATION */
+	wait_queue_head_t suspending_wait;
+
 	/* Wait queue set when active_count == 0 */
 	wait_queue_head_t zero_active_count_wait;
 

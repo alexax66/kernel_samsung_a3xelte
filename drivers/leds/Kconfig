@@ -542,4 +542,14 @@ config LEDS_KTD2026_PANEL
 	    If you say yes here you will get support for
 	    different brightness in panels
 
+config LEDS_S2MU005_FLASH
+	bool "LED support for the S2MU005"
+	depends on LEDS_CLASS
+	help
+	  This option enables support for the LEDs on the S2MU005.
+
+config LEDS_SUPPORT_FRONT_FLASH
+	bool "LED support for Front Flash"
+	help
+	  This option enables support for the LEDs.
 endif # NEW_LEDS

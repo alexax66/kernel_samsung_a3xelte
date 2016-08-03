@@ -214,6 +214,10 @@ void kbase_destroy_context(struct kbase_context *kctx)
 	kbdev = kctx->kbdev;
 	KBASE_DEBUG_ASSERT(NULL != kbdev);
 
+	/* MALI_SEC_INTEGRATION */
+	while (wait_event_timeout(kbdev->pm.suspending_wait, kbdev->pm.suspending == MALI_FALSE, (unsigned int) msecs_to_jiffies(1000)) == 0)
+		printk("[G3D] Waiting for resuming the device\n");
+
 	KBASE_TRACE_ADD(kbdev, CORE_CTX_DESTROY, kctx, NULL, 0u, 0u);
 
 	/* MALI_SEC_INTEGRATION */

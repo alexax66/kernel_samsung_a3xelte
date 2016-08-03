@@ -58,8 +58,6 @@ obj-$(CONFIG_FB_INTEL)          += video/intelfb/
 obj-$(CONFIG_VBUS_NOTIFIER)	+= staging/samsung/sec_notifier/
 obj-$(CONFIG_USE_MUIC)		+= muic/
 
-obj-$(CONFIG_SEC_NET_FILTER)	+= secfilter/
-
 obj-$(CONFIG_PARPORT)		+= parport/
 obj-y				+= base/ block/ misc/ mfd/ nfc/
 obj-$(CONFIG_NUBUS)		+= nubus/

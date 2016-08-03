@@ -124,4 +124,9 @@ extern struct class *sec_class;
 
 void tsp_charger_infom(bool en);
 
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI
+extern void trustedui_mode_on(void);
+extern void trustedui_mode_off(void);
+#endif
+
 #endif /* LINUX_BT532_TS_H */

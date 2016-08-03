@@ -1330,27 +1330,29 @@ static int dw_mci_exynos_execute_tuning(struct dw_mci *host, u32 opcode)
 			/*
 			 * Get at middle clock sample values.
 			 */
+
+			if (sample_good == abnormal_result)
+				all_pass_count++;
+
 			if (priv->ctrl_flag & DW_MMC_EXYNOS_BYPASS_FOR_ALL_PASS)
-				bypass = (all_pass_count >= 2) ? true : false;
+				bypass = (all_pass_count >= (priv->drv_str_num)) ? true : false;
+
+			if (bypass) {
+				dev_info(host->dev, "Bypassed for all pass at %d times\n", priv->drv_str_num);
+				if (en_fine_tuning) {
+					sample_good = abnormal_result & 0x7FFF;
+				} else {
+					sample_good = abnormal_result & 0x7F;
+				}
+				tuned = true;
+			}
+
 			if (en_fine_tuning)
 				best_sample = find_median_of_16bits(host,
 						sample_good, bypass);
 			else
 				best_sample = find_median_of_bits(host,
 						sample_good, bypass);
-
-			if (sample_good == abnormal_result)
-				all_pass_count++;
-			if (bypass) {
-				dev_info(host->dev, "Bypassed for all pass at 3 times\n");
-				if (en_fine_tuning) {
-					best_sample = 4;
-					sample_good = 0x7FFF;
-				} else {
-					best_sample = 4;
-					sample_good = 0x7F;
-				}
-			}
 
 			dev_info(host->dev, "sample_good: 0x %02x best_sample: 0x %02x\n",
 					sample_good, best_sample);

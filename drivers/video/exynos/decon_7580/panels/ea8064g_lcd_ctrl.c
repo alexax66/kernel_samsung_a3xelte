@@ -29,16 +29,45 @@
 #include "mdnie_lite_table_s5neo.h"
 #endif
 
+struct lcd_info {
+	struct lcd_device *ld;
+	struct backlight_device *bd;
+	unsigned char id[3];
+	unsigned char code[5];
+	unsigned char tset[8];
+	unsigned char elvss[4];
+
+	int	temperature;
+	unsigned int coordinate[2];
+	unsigned char date[7];
+	unsigned int state;
+	unsigned int auto_brightness;
+	unsigned int br_index;
+	unsigned int acl_enable;
+	unsigned int current_acl;
+	unsigned int current_hbm;
+	unsigned int siop_enable;
+	unsigned char dump_info[3];
+	unsigned int weakness_hbm_comp;
+
+	void *dim_data;
+	void *dim_info;
+	unsigned int *br_tbl;
+	unsigned char **hbm_tbl;
+	unsigned char **acl_cutoff_tbl;
+	unsigned char **acl_opr_tbl;
+	struct mutex lock;
+	struct dsim_device *dsim;
+};
 
 
 #ifdef CONFIG_PANEL_AID_DIMMING
-static unsigned int get_actual_br_value(struct dsim_device *dsim, int index)
+static unsigned int get_actual_br_value(struct lcd_info *lcd, int index)
 {
-	struct panel_private *panel = &dsim->priv;
-	struct SmtDimInfo *dimming_info = (struct SmtDimInfo *)panel->dim_info;
+	struct SmtDimInfo *dimming_info = (struct SmtDimInfo *)lcd->dim_info;
 
 	if (dimming_info == NULL) {
-		dsim_err("%s : dimming info is NULL\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : dimming info is NULL\n", __func__);
 		goto get_br_err;
 	}
 
@@ -51,13 +80,12 @@ get_br_err:
 	return 0;
 }
 
-static unsigned char *get_gamma_from_index(struct dsim_device *dsim, int index)
+static unsigned char *get_gamma_from_index(struct lcd_info *lcd, int index)
 {
-	struct panel_private *panel = &dsim->priv;
-	struct SmtDimInfo *dimming_info = (struct SmtDimInfo *)panel->dim_info;
+	struct SmtDimInfo *dimming_info = (struct SmtDimInfo *)lcd->dim_info;
 
 	if (dimming_info == NULL) {
-		dsim_err("%s : dimming info is NULL\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : dimming info is NULL\n", __func__);
 		goto get_gamma_err;
 	}
 
@@ -70,13 +98,12 @@ get_gamma_err:
 	return NULL;
 }
 
-static unsigned char *get_aid_from_index(struct dsim_device *dsim, int index)
+static unsigned char *get_aid_from_index(struct lcd_info *lcd, int index)
 {
-	struct panel_private *panel = &dsim->priv;
-	struct SmtDimInfo *dimming_info = (struct SmtDimInfo *)panel->dim_info;
+	struct SmtDimInfo *dimming_info = (struct SmtDimInfo *)lcd->dim_info;
 
 	if (dimming_info == NULL) {
-		dsim_err("%s : dimming info is NULL\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : dimming info is NULL\n", __func__);
 		goto get_aid_err;
 	}
 
@@ -89,13 +116,12 @@ get_aid_err:
 	return NULL;
 }
 
-static unsigned char *get_elvss_from_index(struct dsim_device *dsim, int index, int acl)
+static unsigned char *get_elvss_from_index(struct lcd_info *lcd, int index, int acl)
 {
-	struct panel_private *panel = &dsim->priv;
-	struct SmtDimInfo *dimming_info = (struct SmtDimInfo *)panel->dim_info;
+	struct SmtDimInfo *dimming_info = (struct SmtDimInfo *)lcd->dim_info;
 
 	if (dimming_info == NULL) {
-		dsim_err("%s : dimming info is NULL\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : dimming info is NULL\n", __func__);
 		goto get_elvess_err;
 	}
 
@@ -108,42 +134,44 @@ get_elvess_err:
 	return NULL;
 }
 
-static void dsim_panel_gamma_ctrl(struct dsim_device *dsim)
+static void dsim_panel_gamma_ctrl(struct lcd_info *lcd)
 {
 	u8 *gamma = NULL;
-	gamma = get_gamma_from_index(dsim, dsim->priv.br_index);
+
+	gamma = get_gamma_from_index(lcd, lcd->br_index);
 	if (gamma == NULL) {
-		dsim_err("%s :faied to get gamma\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to get gamma\n", __func__);
 		return;
 	}
 
-	if (dsim_write_hl_data(dsim, gamma, GAMMA_CMD_CNT) < 0)
-		dsim_err("%s : failed to write gamma\n", __func__);
+	if (dsim_write_hl_data(lcd->dsim, gamma, GAMMA_CMD_CNT) < 0)
+		dev_err(&lcd->ld->dev, "%s : failed to write gamma\n", __func__);
 }
 
-static void dsim_panel_aid_ctrl(struct dsim_device *dsim)
+static void dsim_panel_aid_ctrl(struct lcd_info *lcd)
 {
 	u8 *aid = NULL;
-	aid = get_aid_from_index(dsim, dsim->priv.br_index);
+
+	aid = get_aid_from_index(lcd, lcd->br_index);
 	if (aid == NULL) {
-		dsim_err("%s : faield to get aid value\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to get aid value\n", __func__);
 		return;
 	}
-	if (dsim_write_hl_data(dsim, aid, AID_CMD_CNT) < 0)
-		dsim_err("%s : failed to write gamma\n", __func__);
+	if (dsim_write_hl_data(lcd->dsim, aid, AID_CMD_CNT) < 0)
+		dev_err(&lcd->ld->dev, "%s : failed to write gamma\n", __func__);
 }
 
-static void dsim_panel_set_elvss(struct dsim_device *dsim)
+static void dsim_panel_set_elvss(struct lcd_info *lcd)
 {
 	u8 *elvss = NULL;
 	u8 elvss_val[5] = {0, };
 	int real_br = 0;
 
-	real_br = get_actual_br_value(dsim, dsim->priv.br_index);
+	real_br = get_actual_br_value(lcd, lcd->br_index);
 
-	elvss = get_elvss_from_index(dsim, dsim->priv.br_index, dsim->priv.acl_enable);
+	elvss = get_elvss_from_index(lcd, lcd->br_index, lcd->acl_enable);
 	if (elvss == NULL) {
-		dsim_err("%s : failed to get elvss value\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to get elvss value\n", __func__);
 		return;
 	}
 
@@ -155,52 +183,46 @@ static void dsim_panel_set_elvss(struct dsim_device *dsim)
 		elvss_val[1] = 0x4C;
 
 	elvss_val[2] = elvss[2];
-	elvss_val[3] = dsim->priv.elvss[2];
-	elvss_val[4] = dsim->priv.elvss[3];
+	elvss_val[3] = lcd->elvss[2];
+	elvss_val[4] = lcd->elvss[3];
 
 	if (real_br <= 29) {
-		if (dsim->priv.temperature <= -20)
+		if (lcd->temperature <= -20)
 			elvss_val[4] = elvss[5];
-		else if (dsim->priv.temperature > -20 && dsim->priv.temperature <= 0)
+		else if (lcd->temperature > -20 && lcd->temperature <= 0)
 			elvss_val[4] = elvss[4];
 		else
 			elvss_val[4] = elvss[3];
 	}
 
-	if (dsim_write_hl_data(dsim, elvss_val, ELVSS_LEN + 1) < 0)
-		dsim_err("%s : failed to write elvss\n", __func__);
+	if (dsim_write_hl_data(lcd->dsim, elvss_val, ELVSS_LEN + 1) < 0)
+		dev_err(&lcd->ld->dev, "%s : failed to write elvss\n", __func__);
 }
 
-static int dsim_panel_set_acl(struct dsim_device *dsim, int force)
+static int dsim_panel_set_acl(struct lcd_info *lcd, int force)
 {
 	int ret = 0, level = ACL_STATUS_15P;
-	struct panel_private *panel = &dsim->priv;
 
-	if (panel == NULL) {
-		dsim_err("%s : panel is NULL\n", __func__);
-		goto exit;
-	}
-
-	if (dsim->priv.siop_enable || LEVEL_IS_HBM(dsim->priv.auto_brightness))  /* auto acl or hbm is acl on */
+	if (lcd->siop_enable || LEVEL_IS_HBM(lcd->auto_brightness))  /* auto acl or hbm is acl on */
 		goto acl_update;
 
-	if (!dsim->priv.acl_enable)
+	if (!lcd->acl_enable)
 		level = ACL_STATUS_0P;
 
 acl_update:
-	if (force || dsim->priv.current_acl != panel->acl_cutoff_tbl[level][1]) {
-		if (dsim_write_hl_data(dsim,  panel->acl_opr_tbl[level], 2) < 0) {
-			dsim_err("fail to write acl opr command.\n");
+	if (force || lcd->current_acl != lcd->acl_cutoff_tbl[level][1]) {
+		if (dsim_write_hl_data(lcd->dsim,  lcd->acl_opr_tbl[level], 2) < 0) {
+			dev_err(&lcd->ld->dev, "failed to write acl opr command.\n");
 			ret = -EPERM;
 			goto exit;
 		}
-		if (dsim_write_hl_data(dsim, panel->acl_cutoff_tbl[level], 2) < 0) {
-			dsim_err("fail to write acl command.\n");
+		if (dsim_write_hl_data(lcd->dsim, lcd->acl_cutoff_tbl[level], 2) < 0) {
+			dev_err(&lcd->ld->dev, "failed to write acl command.\n");
 			ret = -EPERM;
 			goto exit;
 		}
-		dsim->priv.current_acl = panel->acl_cutoff_tbl[level][1];
-		dsim_info("acl: %d, auto_brightness: %d\n", dsim->priv.current_acl, dsim->priv.auto_brightness);
+		lcd->current_acl = lcd->acl_cutoff_tbl[level][1];
+		dev_info(&lcd->ld->dev, "acl: %d, auto_brightness: %d\n", lcd->current_acl, lcd->auto_brightness);
 	}
 exit:
 	if (!ret)
@@ -208,96 +230,92 @@ exit:
 	return ret;
 }
 
-static int dsim_panel_set_tset(struct dsim_device *dsim, int force)
+static int dsim_panel_set_tset(struct lcd_info *lcd, int force)
 {
 	int ret = 0;
 	int tset = 0;
 	unsigned char SEQ_TSET[TSET_LEN] = {TSET_REG, };
 
-	tset = ((dsim->priv.temperature >= 0) ? 0 : BIT(7)) | abs(dsim->priv.temperature);
+	tset = ((lcd->temperature >= 0) ? 0 : BIT(7)) | abs(lcd->temperature);
 
-	if (force || dsim->priv.tset[0] != tset)
-		dsim->priv.tset[0] = SEQ_TSET[1] = tset;
+	if (force || lcd->tset[0] != tset)
+		lcd->tset[0] = SEQ_TSET[1] = tset;
 	else
 		return ret;
 
-	if (dsim_write_hl_data(dsim, SEQ_TSET, ARRAY_SIZE(SEQ_TSET)) < 0) {
-		dsim_err("fail to write tset command.\n");
+	if (dsim_write_hl_data(lcd->dsim, SEQ_TSET, ARRAY_SIZE(SEQ_TSET)) < 0) {
+		dev_err(&lcd->ld->dev, "failed to write tset command.\n");
 		ret = -EPERM;
 
 	}
-	dsim_info("temperature: %d, tset: %d\n", dsim->priv.temperature, SEQ_TSET[1]);
+	dev_info(&lcd->ld->dev, "temperature: %d, tset: %d\n", lcd->temperature, SEQ_TSET[1]);
 
 	return ret;
 }
 
-static int dsim_panel_set_hbm(struct dsim_device *dsim, int force)
+static int dsim_panel_set_hbm(struct lcd_info *lcd, int force)
 {
-	int ret = 0, level = LEVEL_IS_HBM(dsim->priv.auto_brightness);
-	struct panel_private *panel = &dsim->priv;
+	int ret = 0, level = 0;
 
-	if (panel == NULL) {
-		dsim_err("%s : panel is NULL\n", __func__);
-		goto exit;
-	}
+	level = LEVEL_IS_HBM(lcd->auto_brightness);
 
-	if (force || dsim->priv.current_hbm != panel->hbm_tbl[level][1]) {
-		dsim->priv.current_hbm = panel->hbm_tbl[level][1];
-		if (dsim_write_hl_data(dsim, panel->hbm_tbl[level], ARRAY_SIZE(SEQ_HBM_OFF)) < 0) {
-			dsim_err("fail to write hbm command.\n");
+	if (force || lcd->current_hbm != lcd->hbm_tbl[level][1]) {
+		lcd->current_hbm = lcd->hbm_tbl[level][1];
+		if (dsim_write_hl_data(lcd->dsim, lcd->hbm_tbl[level], ARRAY_SIZE(SEQ_HBM_OFF)) < 0) {
+			dev_err(&lcd->ld->dev, "failed to write hbm command.\n");
 			ret = -EPERM;
 		}
-		dsim_info("hbm: %d, auto_brightness: %d\n", dsim->priv.current_hbm, dsim->priv.auto_brightness);
+		dev_info(&lcd->ld->dev, "hbm: %d, auto_brightness: %d\n", lcd->current_hbm, lcd->auto_brightness);
 	}
-exit:
+
 	return ret;
 }
 
-static int low_level_set_brightness(struct dsim_device *dsim, int force)
+static int low_level_set_brightness(struct lcd_info *lcd, int force)
 {
-	if (dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0)) < 0)
-		dsim_err("%s : fail to write F0 on command.\n", __func__);
-	if (dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_F1, ARRAY_SIZE(SEQ_TEST_KEY_ON_F1)) < 0)
-		dsim_err("%s : fail to write F1 on command.\n", __func__);
-	if (dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC)) < 0)
-		dsim_err("%s : fail to write FC on command.\n", __func__);
 
-	dsim_panel_gamma_ctrl(dsim);
+	if (dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0)) < 0)
+		dev_err(&lcd->ld->dev, "%s : failed to write F0 on command.\n", __func__);
+	if (dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_ON_F1, ARRAY_SIZE(SEQ_TEST_KEY_ON_F1)) < 0)
+		dev_err(&lcd->ld->dev, "%s : failed to write F1 on command.\n", __func__);
+	if (dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC)) < 0)
+		dev_err(&lcd->ld->dev, "%s : failed to write FC on command.\n", __func__);
 
-	dsim_panel_aid_ctrl(dsim);
+	dsim_panel_gamma_ctrl(lcd);
 
-	dsim_panel_set_elvss(dsim);
+	dsim_panel_aid_ctrl(lcd);
 
-	if (dsim_write_hl_data(dsim, SEQ_GAMMA_UPDATE_EA8064G, ARRAY_SIZE(SEQ_GAMMA_UPDATE_EA8064G)) < 0)
-		dsim_err("%s : failed to write gamma\n", __func__);
+	dsim_panel_set_elvss(lcd);
 
-	dsim_panel_set_acl(dsim, force);
+	if (dsim_write_hl_data(lcd->dsim, SEQ_GAMMA_UPDATE_EA8064G, ARRAY_SIZE(SEQ_GAMMA_UPDATE_EA8064G)) < 0)
+		dev_err(&lcd->ld->dev, "%s : failed to write gamma\n", __func__);
 
-	dsim_panel_set_tset(dsim, force);
+	dsim_panel_set_acl(lcd, force);
 
-	dsim_panel_set_hbm(dsim, force);
+	dsim_panel_set_tset(lcd, force);
 
-	if (dsim_write_hl_data(dsim, SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC)) < 0)
-			dsim_err("%s : fail to write FC on command.\n", __func__);
-	if (dsim_write_hl_data(dsim, SEQ_TEST_KEY_OFF_F1, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F1)) < 0)
-			dsim_err("%s : fail to write F1 on command.\n", __func__);
-	if (dsim_write_hl_data(dsim, SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0)) < 0)
-		dsim_err("%s : fail to write F0 on command\n", __func__);
+	dsim_panel_set_hbm(lcd, force);
+
+	if (dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC)) < 0)
+			dev_err(&lcd->ld->dev, "%s : failed to write FC on command.\n", __func__);
+	if (dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_OFF_F1, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F1)) < 0)
+			dev_err(&lcd->ld->dev, "%s : failed to write F1 on command.\n", __func__);
+	if (dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0)) < 0)
+		dev_err(&lcd->ld->dev, "%s : failed to write F0 on command\n", __func__);
 
 	return 0;
 }
 
-static int get_acutal_br_index(struct dsim_device *dsim, int br)
+static int get_acutal_br_index(struct lcd_info *lcd, int br)
 {
 	int i;
 	int min;
 	int gap;
 	int index = 0;
-	struct panel_private *panel = &dsim->priv;
-	struct SmtDimInfo *dimming_info = panel->dim_info;
+	struct SmtDimInfo *dimming_info = lcd->dim_info;
 
 	if (dimming_info == NULL) {
-		dsim_err("%s : dimming_info is NULL\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : dimming_info is NULL\n", __func__);
 		return 0;
 	}
 
@@ -323,56 +341,55 @@ static int get_acutal_br_index(struct dsim_device *dsim, int br)
 }
 #endif
 
-static int dsim_panel_set_brightness(struct dsim_device *dsim, int force)
+static int dsim_panel_set_brightness(struct lcd_info *lcd, int force)
 {
 	struct dim_data *dimming;
-	struct panel_private *panel = &dsim->priv;
-	int p_br = panel->bd->props.brightness;
+	int p_br = lcd->bd->props.brightness;
 	int acutal_br = 0;
 	int real_br = 0;
-	int prev_index = panel->br_index;
+	int prev_index = lcd->br_index;
 	int ret = 0;
 
-	dimming = (struct dim_data *)panel->dim_data;
-	if ((dimming == NULL) || (panel->br_tbl == NULL)) {
-		dsim_info("%s : this panel does not support dimming\n", __func__);
+	dimming = (struct dim_data *)lcd->dim_data;
+	if ((dimming == NULL) || (lcd->br_tbl == NULL)) {
+		dev_info(&lcd->ld->dev, "%s : this panel does not support dimming\n", __func__);
 		return ret;
 	}
 
-	acutal_br = panel->br_tbl[p_br];
-	panel->br_index = get_acutal_br_index(dsim, acutal_br);
-	real_br = get_actual_br_value(dsim, panel->br_index);
-	panel->acl_enable = ACL_IS_ON(real_br);
+	acutal_br = lcd->br_tbl[p_br];
+	lcd->br_index = get_acutal_br_index(lcd, acutal_br);
+	real_br = get_actual_br_value(lcd, lcd->br_index);
+	lcd->acl_enable = ACL_IS_ON(real_br);
 
-	if (LEVEL_IS_HBM(panel->auto_brightness) && (p_br == panel->bd->props.max_brightness)) {
-		panel->br_index = HBM_INDEX;
-		panel->acl_enable = 1;				/* hbm is acl on */
+	if (LEVEL_IS_HBM(lcd->auto_brightness) && (p_br == lcd->bd->props.max_brightness)) {
+		lcd->br_index = HBM_INDEX;
+		lcd->acl_enable = 1;				/* hbm is acl on */
 	}
 
-	if (panel->siop_enable)					/* check auto acl */
-		panel->acl_enable = 1;
+	if (lcd->siop_enable)					/* check auto acl */
+		lcd->acl_enable = 1;
 
-	if (panel->state != PANEL_STATE_RESUMED) {
-		dsim_info("%s : panel is not active state..\n", __func__);
+	if (lcd->state != PANEL_STATE_RESUMED) {
+		dev_info(&lcd->ld->dev, "%s : panel is not active state..\n", __func__);
 		goto set_br_exit;
 	}
 
-	dsim_info("%s : platform : %d, : mapping : %d, real : %d, index : %d force : %d\n",
-		__func__, p_br, acutal_br, real_br, panel->br_index, force);
+	dev_info(&lcd->ld->dev, "%s : platform : %d, : mapping : %d, real : %d, index : %d force : %d\n",
+		__func__, p_br, acutal_br, real_br, lcd->br_index, force);
 
-	if (!force && panel->br_index == prev_index)
+	if (!force && lcd->br_index == prev_index)
 		goto set_br_exit;
 
 	if ((acutal_br == 0) || (real_br == 0))
 		goto set_br_exit;
 
-	mutex_lock(&panel->lock);
+	mutex_lock(&lcd->lock);
 
-	ret = low_level_set_brightness(dsim, force);
+	ret = low_level_set_brightness(lcd, force);
 	if (ret)
-		dsim_err("%s failed to set brightness : %d\n", __func__, acutal_br);
+		dev_err(&lcd->ld->dev, "%s failed to set brightness : %d\n", __func__, acutal_br);
 
-	mutex_unlock(&panel->lock);
+	mutex_unlock(&lcd->lock);
 
 set_br_exit:
 	return ret;
@@ -387,10 +404,7 @@ static int panel_set_brightness(struct backlight_device *bd)
 {
 	int ret = 0;
 	int brightness = bd->props.brightness;
-	struct panel_private *priv = bl_get_data(bd);
-	struct dsim_device *dsim;
-
-	dsim = container_of(priv, struct dsim_device, priv);
+	struct lcd_info *lcd = bl_get_data(bd);
 
 	if (brightness < UI_MIN_BRIGHTNESS || brightness > UI_MAX_BRIGHTNESS) {
 		pr_alert("Brightness should be in the range of 0 ~ 255\n");
@@ -398,9 +412,9 @@ static int panel_set_brightness(struct backlight_device *bd)
 		goto exit_set;
 	}
 
-	ret = dsim_panel_set_brightness(dsim, 0);
+	ret = dsim_panel_set_brightness(lcd, 0);
 	if (ret) {
-		dsim_err("%s : fail to set brightness\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to set brightness\n", __func__);
 		goto exit_set;
 	}
 exit_set:
@@ -412,700 +426,6 @@ static const struct backlight_ops panel_backlight_ops = {
 	.get_brightness = panel_get_brightness,
 	.update_status = panel_set_brightness,
 };
-
-static int dsim_backlight_probe(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct panel_private *panel = &dsim->priv;
-
-	panel->bd = backlight_device_register("panel", dsim->dev, &dsim->priv,
-					&panel_backlight_ops, NULL);
-	if (IS_ERR(panel->bd)) {
-		dsim_err("%s:failed register backlight\n", __func__);
-		ret = PTR_ERR(panel->bd);
-	}
-
-	panel->bd->props.max_brightness = UI_MAX_BRIGHTNESS;
-	panel->bd->props.brightness = UI_DEFAULT_BRIGHTNESS;
-
-	return ret;
-}
-
-
-
-static ssize_t lcd_type_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-
-	sprintf(buf, "SDC_%02X%02X%02X\n", priv->id[0], priv->id[1], priv->id[2]);
-
-	return strlen(buf);
-}
-
-static ssize_t window_type_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-
-	sprintf(buf, "%x %x %x\n", priv->id[0], priv->id[1], priv->id[2]);
-
-	return strlen(buf);
-}
-
-static ssize_t brightness_table_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *panel = dev_get_drvdata(dev);
-
-	char *pos = buf;
-	int nit, i;
-
-	if (panel->br_tbl == NULL)
-		return strlen(buf);
-
-	for (i = 0; i <= UI_MAX_BRIGHTNESS; i++) {
-		nit = panel->br_tbl[i];
-		pos += sprintf(pos, "%3d %3d\n", i, nit);
-	}
-	return pos - buf;
-}
-
-static ssize_t auto_brightness_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-
-	sprintf(buf, "%u\n", priv->auto_brightness);
-
-	return strlen(buf);
-}
-
-static ssize_t auto_brightness_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-	int value;
-	int rc;
-
-	dsim = container_of(priv, struct dsim_device, priv);
-
-	rc = kstrtoul(buf, (unsigned int)0, (unsigned long *)&value);
-	if (rc < 0)
-		return rc;
-	else {
-		if (priv->auto_brightness != value) {
-			dev_info(dev, "%s: %d, %d\n", __func__, priv->auto_brightness, value);
-			mutex_lock(&priv->lock);
-			priv->auto_brightness = value;
-			mutex_unlock(&priv->lock);
-			dsim_panel_set_brightness(dsim, 0);
-		}
-	}
-	return size;
-}
-
-static ssize_t siop_enable_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-
-	sprintf(buf, "%u\n", priv->siop_enable);
-
-	return strlen(buf);
-}
-
-static ssize_t siop_enable_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-	int value;
-	int rc;
-
-	dsim = container_of(priv, struct dsim_device, priv);
-
-	rc = kstrtoul(buf, (unsigned int)0, (unsigned long *)&value);
-	if (rc < 0)
-		return rc;
-	else {
-		if (priv->siop_enable != value) {
-			dev_info(dev, "%s: %d, %d\n", __func__, priv->siop_enable, value);
-			mutex_lock(&priv->lock);
-			priv->siop_enable = value;
-			mutex_unlock(&priv->lock);
-
-			dsim_panel_set_brightness(dsim, 1);
-		}
-	}
-	return size;
-}
-
-static ssize_t power_reduce_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-
-	sprintf(buf, "%u\n", priv->acl_enable);
-
-	return strlen(buf);
-}
-
-static ssize_t power_reduce_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-	int value;
-	int rc;
-
-	dsim = container_of(priv, struct dsim_device, priv);
-	rc = kstrtoul(buf, (unsigned int)0, (unsigned long *)&value);
-
-	if (rc < 0)
-		return rc;
-	else {
-		if (priv->acl_enable != value) {
-			dev_info(dev, "%s: %d, %d\n", __func__, priv->acl_enable, value);
-			mutex_lock(&priv->lock);
-			priv->acl_enable = value;
-			mutex_unlock(&priv->lock);
-			dsim_panel_set_brightness(dsim, 1);
-		}
-	}
-	return size;
-}
-
-
-static ssize_t temperature_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	char temp[] = "-20, -19, 0, 1\n";
-
-	strcat(buf, temp);
-	return strlen(buf);
-}
-
-static ssize_t temperature_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-	int value;
-	int rc;
-
-	dsim = container_of(priv, struct dsim_device, priv);
-
-	rc = kstrtoint(buf, 10, &value);
-
-	if (rc < 0)
-		return rc;
-	else {
-		mutex_lock(&priv->lock);
-		priv->temperature = value;
-		mutex_unlock(&priv->lock);
-
-		dsim_panel_set_brightness(dsim, 1);
-		dev_info(dev, "%s: %d, %d\n", __func__, value, priv->temperature);
-	}
-
-	return size;
-}
-
-static ssize_t color_coordinate_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-
-	sprintf(buf, "%u, %u\n", priv->coordinate[0], priv->coordinate[1]);
-	return strlen(buf);
-}
-
-static ssize_t manufacture_date_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-	u16 year;
-	u8 month, day, hour, min;
-
-	year = ((priv->date[0] & 0xF0) >> 4) + 2011;
-	month = priv->date[0] & 0xF;
-	day = priv->date[1] & 0x1F;
-	hour = priv->date[2] & 0x1F;
-	min = priv->date[3] & 0x3F;
-
-	sprintf(buf, "%d, %d, %d, %d:%d\n", year, month, day, hour, min);
-	return strlen(buf);
-}
-
-static ssize_t read_mtp_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-	unsigned int reg, pos, length, i;
-	unsigned char readbuf[256] = {0xff, };
-	unsigned char writebuf[2] = {0xB0, };
-
-	dsim = container_of(priv, struct dsim_device, priv);
-
-	sscanf(buf, "%x %d %d", &reg, &pos, &length);
-
-	if (!reg || !length || reg > 0xff || length > 255 || pos > 255)
-		return -EINVAL;
-
-	if (priv->state == PANEL_STATE_RESUMED)
-		return -EINVAL;
-
-	writebuf[1] = pos;
-	if (dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0)) < 0)
-		dsim_err("fail to write F0 on command.\n");
-
-	if (dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC)) < 0)
-		dsim_err("fail to write test on fc command.\n");
-
-	if (dsim_write_hl_data(dsim, writebuf, ARRAY_SIZE(writebuf)) < 0)
-		dsim_err("fail to write global command.\n");
-
-	if (dsim_read_hl_data(dsim, reg, length, readbuf) < 0)
-		dsim_err("fail to read id on command.\n");
-
-	if (dsim_write_hl_data(dsim, SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0)) < 0)
-		dsim_err("fail to write F0 on command.\n");
-
-	if (dsim_write_hl_data(dsim, SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC)) < 0)
-		dsim_err("fail to write test on fc command.\n");
-
-	dsim_info("READ_Reg addr : %02x, start pos : %d len : %d\n", reg, pos, length);
-	for (i = 0; i < length; i++)
-		dsim_info("READ_Reg %dth : %02x\n", i + 1, readbuf[i]);
-
-	return size;
-}
-
-#ifdef CONFIG_PANEL_AID_DIMMING
-static void show_aid_log(struct dsim_device *dsim)
-{
-	int i, j, k;
-	struct dim_data *dim_data = NULL;
-	struct SmtDimInfo *dimming_info = NULL;
-	struct panel_private *panel = &dsim->priv;
-	u8 temp[256];
-
-
-	if (panel == NULL) {
-		dsim_err("%s:panel is NULL\n", __func__);
-		return;
-	}
-
-	dim_data = (struct dim_data *)(panel->dim_data);
-	if (dim_data == NULL) {
-		dsim_info("%s:dimming is NULL\n", __func__);
-		return;
-	}
-
-	dimming_info = (struct SmtDimInfo *)(panel->dim_info);
-	if (dimming_info == NULL) {
-		dsim_info("%s:dimming is NULL\n", __func__);
-		return;
-	}
-
-	dsim_info("MTP VT : %d %d %d\n",
-			dim_data->vt_mtp[CI_RED], dim_data->vt_mtp[CI_GREEN], dim_data->vt_mtp[CI_BLUE]);
-
-	for (i = 0; i < VMAX; i++) {
-		dsim_info("MTP V%d : %4d %4d %4d\n",
-			vref_index[i], dim_data->mtp[i][CI_RED], dim_data->mtp[i][CI_GREEN], dim_data->mtp[i][CI_BLUE]);
-	}
-
-	for (i = 0; i < MAX_BR_INFO; i++) {
-		memset(temp, 0, sizeof(temp));
-		for (j = 1; j < OLED_CMD_GAMMA_CNT; j++) {
-			if (j == 1 || j == 3 || j == 5)
-				k = dimming_info[i].gamma[j++] * 256;
-			else
-				k = 0;
-			snprintf(temp + strnlen(temp, 256), 256, " %d", dimming_info[i].gamma[j] + k);
-		}
-		dsim_info("nit :%3d %s\n", dimming_info[i].br, temp);
-	}
-}
-
-static ssize_t aid_log_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-
-	dsim = container_of(priv, struct dsim_device, priv);
-
-	show_aid_log(dsim);
-	return strlen(buf);
-}
-#endif
-
-static ssize_t manufacture_code_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-
-	sprintf(buf, "%02X%02X%02X%02X%02X\n",
-		priv->code[0], priv->code[1], priv->code[2], priv->code[3], priv->code[4]);
-
-	return strlen(buf);
-}
-
-static ssize_t cell_id_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-
-	sprintf(buf, "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
-		priv->date[0] , priv->date[1], priv->date[2], priv->date[3], priv->date[4],
-		priv->date[5], priv->date[6], (priv->coordinate[0] & 0xFF00) >> 8, priv->coordinate[0] & 0x00FF,
-		(priv->coordinate[1]&0xFF00)>>8, priv->coordinate[1]&0x00FF);
-
-	return strlen(buf);
-}
-
-static ssize_t dump_register_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct dsim_device *dsim;
-	struct panel_private *priv = dev_get_drvdata(dev);
-	char *pos = buf;
-	u8 reg, len;
-	int ret, i;
-	u8 *dump = NULL;
-
-	dsim = container_of(priv, struct dsim_device, priv);
-
-	reg = priv->dump_info[0];
-	len = priv->dump_info[1];
-
-	if (!reg || !len || reg > 0xff || len > 255)
-		goto exit;
-
-	dump = kzalloc(len * sizeof(u8), GFP_KERNEL);
-
-	if (priv->state == PANEL_STATE_RESUMED) {
-		if (dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0)) < 0)
-			dsim_err("fail to write test on f0 command.\n");
-		if (dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC)) < 0)
-			dsim_err("fail to write test on fc command.\n");
-
-		ret = dsim_read_hl_data(dsim, reg, len, dump);
-
-		if (dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC)) < 0)
-			dsim_err("fail to write test on fc command.\n");
-		if (dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0)) < 0)
-			dsim_err("fail to write test on f0 command.\n");
-	}
-
-	pos += sprintf(pos, "+ [%02X]\n", reg);
-	for (i = 0; i < len; i++)
-		pos += sprintf(pos, "%2d: %02x\n", i + 1, dump[i]);
-	pos += sprintf(pos, "- [%02X]\n", reg);
-
-	kfree(dump);
-exit:
-	return pos - buf;
-}
-
-static ssize_t dump_register_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct panel_private *priv = dev_get_drvdata(dev);
-	unsigned int reg, len;
-	int ret;
-
-	ret = sscanf(buf, "%x %d", &reg, &len);
-
-	dev_info(dev, "%s: %x %d\n", __func__, reg, len);
-
-	if (ret < 0)
-		return ret;
-	else {
-		if (!reg || !len || reg > 0xff || len > 255)
-			return -EINVAL;
-
-		priv->dump_info[0] = reg;
-		priv->dump_info[1] = len;
-	}
-
-	return size;
-}
-
-static DEVICE_ATTR(lcd_type, 0444, lcd_type_show, NULL);
-static DEVICE_ATTR(window_type, 0444, window_type_show, NULL);
-static DEVICE_ATTR(manufacture_code, 0444, manufacture_code_show, NULL);
-static DEVICE_ATTR(cell_id, 0444, cell_id_show, NULL);
-static DEVICE_ATTR(brightness_table, 0444, brightness_table_show, NULL);
-static DEVICE_ATTR(auto_brightness, 0644, auto_brightness_show, auto_brightness_store);
-static DEVICE_ATTR(siop_enable, 0664, siop_enable_show, siop_enable_store);
-static DEVICE_ATTR(power_reduce, 0664, power_reduce_show, power_reduce_store);
-static DEVICE_ATTR(temperature, 0664, temperature_show, temperature_store);
-static DEVICE_ATTR(color_coordinate, 0444, color_coordinate_show, NULL);
-static DEVICE_ATTR(manufacture_date, 0444, manufacture_date_show, NULL);
-static DEVICE_ATTR(read_mtp, 0220, NULL, read_mtp_store);
-#ifdef CONFIG_PANEL_AID_DIMMING
-static DEVICE_ATTR(aid_log, 0444, aid_log_show, NULL);
-#endif
-static DEVICE_ATTR(dump_register, 0644, dump_register_show, dump_register_store);
-
-static void lcd_init_sysfs(struct dsim_device *dsim)
-{
-	int ret = -1;
-
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_lcd_type);
-	if (ret < 0)
-		dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_window_type);
-	if (ret < 0)
-		dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_manufacture_code);
-	if (ret < 0)
-		dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_cell_id);
-	if (ret < 0)
-		dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_brightness_table);
-	if (ret < 0)
-		dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-
-	ret = device_create_file(&dsim->priv.bd->dev, &dev_attr_auto_brightness);
-	if (ret < 0)
-		dev_err(&dsim->priv.bd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_siop_enable);
-	if (ret < 0)
-		dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_power_reduce);
-		if (ret < 0)
-			dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_temperature);
-	if (ret < 0)
-		dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_color_coordinate);
-	if (ret < 0)
-		dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_manufacture_date);
-	if (ret < 0)
-		dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-
-#ifdef CONFIG_PANEL_AID_DIMMING
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_aid_log);
-	if (ret < 0)
-		dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-#endif
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_read_mtp);
-	if (ret < 0)
-		dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-
-	ret = device_create_file(&dsim->lcd->dev, &dev_attr_dump_register);
-	if (ret < 0)
-		dev_err(&dsim->lcd->dev, "failed to add sysfs entries, %d\n", __LINE__);
-}
-
-
-
-#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
-static int mdnie_lite_write_set(struct dsim_device *dsim, struct lcd_seq_info *seq, u32 num)
-{
-	int ret = 0, i;
-
-	for (i = 0; i < num; i++) {
-		if (seq[i].cmd) {
-			ret = dsim_write_hl_data(dsim, seq[i].cmd, seq[i].len);
-			if (ret != 0) {
-				dsim_err("%s failed.\n", __func__);
-				return ret;
-			}
-		}
-		if (seq[i].sleep)
-			usleep_range(seq[i].sleep * 1000 , seq[i].sleep * 1000);
-	}
-	return ret;
-}
-
-int mdnie_lite_send_seq(struct dsim_device *dsim, struct lcd_seq_info *seq, u32 num)
-{
-	int ret = 0;
-	struct panel_private *panel = &dsim->priv;
-
-	if (panel->state != PANEL_STATE_RESUMED) {
-		dsim_info("%s : panel is not active\n", __func__);
-		return -EIO;
-	}
-
-	mutex_lock(&panel->lock);
-	ret = mdnie_lite_write_set(dsim, seq, num);
-
-	mutex_unlock(&panel->lock);
-
-	return ret;
-}
-
-int mdnie_lite_read(struct dsim_device *dsim, u8 addr, u8 *buf, u32 size)
-{
-	int ret = 0;
-	struct panel_private *panel = &dsim->priv;
-
-	if (panel->state != PANEL_STATE_RESUMED) {
-		dsim_info("%s : panel is not active\n", __func__);
-		return -EIO;
-	}
-	mutex_lock(&panel->lock);
-	ret = dsim_read_hl_data(dsim, addr, size, buf);
-
-	mutex_unlock(&panel->lock);
-
-	return ret;
-}
-#endif
-
-static int dsim_panel_early_probe(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct panel_private *panel = &dsim->priv;
-
-	panel->ops = dsim_panel_get_priv_ops(dsim);
-
-	if (panel->ops->early_probe)
-		ret = panel->ops->early_probe(dsim);
-	return ret;
-}
-
-static int dsim_panel_probe(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct panel_private *panel = &dsim->priv;
-#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
-	u16 coordinate[2] = {0, };
-#endif
-	dsim->lcd = lcd_device_register("panel", dsim->dev, &dsim->priv, NULL);
-	if (IS_ERR(dsim->lcd)) {
-		dsim_err("%s : faield to register lcd device\n", __func__);
-		ret = PTR_ERR(dsim->lcd);
-		goto probe_err;
-	}
-	ret = dsim_backlight_probe(dsim);
-	if (ret) {
-		dsim_err("%s : failed to prbe backlight driver\n", __func__);
-		goto probe_err;
-	}
-
-	panel->lcdConnected = PANEL_CONNECTED;
-	panel->state = PANEL_STATE_RESUMED;
-	panel->temperature = NORMAL_TEMPERATURE;
-	panel->acl_enable = 0;
-	panel->current_acl = 0;
-	panel->auto_brightness = 0;
-	panel->siop_enable = 0;
-	panel->current_hbm = 0;
-	panel->current_vint = 0;
-	mutex_init(&panel->lock);
-
-	if (panel->ops->probe) {
-		ret = panel->ops->probe(dsim);
-		if (ret) {
-			dsim_err("%s : failed to probe panel\n", __func__);
-			goto probe_err;
-		}
-	}
-
-#if defined(CONFIG_EXYNOS_DECON_LCD_SYSFS)
-	lcd_init_sysfs(dsim);
-#endif
-
-#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
-	coordinate[0] = (u16)panel->coordinate[0];
-	coordinate[1] = (u16)panel->coordinate[1];
-	mdnie_register(&dsim->lcd->dev, dsim, (mdnie_w)mdnie_lite_send_seq, (mdnie_r)mdnie_lite_read, coordinate, &tune_info);
-#endif
-	dsim_info("%s probe done\n", __FILE__);
-probe_err:
-	return ret;
-}
-
-static int dsim_panel_displayon(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct panel_private *panel = &dsim->priv;
-
-	if (panel->state == PANEL_STATE_SUSPENED) {
-		panel->state = PANEL_STATE_RESUMED;
-		if (panel->ops->init) {
-			ret = panel->ops->init(dsim);
-			if (ret) {
-				dsim_err("%s : failed to panel init\n", __func__);
-				panel->state = PANEL_STATE_SUSPENED;
-				goto displayon_err;
-			}
-		}
-	}
-
-	dsim_panel_set_brightness(dsim, 1);
-
-	if (panel->ops->displayon) {
-		ret = panel->ops->displayon(dsim);
-		if (ret) {
-			dsim_err("%s : failed to panel display on\n", __func__);
-			goto displayon_err;
-		}
-	}
-
-displayon_err:
-	return ret;
-}
-
-static int dsim_panel_suspend(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct panel_private *panel = &dsim->priv;
-
-	if (panel->state == PANEL_STATE_SUSPENED)
-		goto suspend_err;
-
-	panel->state = PANEL_STATE_SUSPENDING;
-
-	if (panel->ops->exit) {
-		ret = panel->ops->exit(dsim);
-		if (ret) {
-			dsim_err("%s : failed to panel exit\n", __func__);
-			goto suspend_err;
-		}
-	}
-	panel->state = PANEL_STATE_SUSPENED;
-
-suspend_err:
-	return ret;
-}
-
-static int dsim_panel_resume(struct dsim_device *dsim)
-{
-	int ret = 0;
-	return ret;
-}
-
-
-struct mipi_dsim_lcd_driver ea8064g_mipi_lcd_driver = {
-	.early_probe = dsim_panel_early_probe,
-	.probe		= dsim_panel_probe,
-	.displayon	= dsim_panel_displayon,
-	.suspend	= dsim_panel_suspend,
-	.resume		= dsim_panel_resume,
-};
-
 
 
 #ifdef CONFIG_PANEL_AID_DIMMING
@@ -1145,320 +465,165 @@ static const short center_gamma[NUM_VREF][CI_MAX] = {
 };
 
 struct SmtDimInfo lily_dimming_info[MAX_BR_INFO + 1] = {				/* add hbm array */
-	{.br = 5, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl5nit_B, .cTbl = ctbl5nit_B, .aid = aid5_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 6, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl6nit_B, .cTbl = ctbl6nit_B, .aid = aid6_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 7, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl7nit_B, .cTbl = ctbl7nit_B, .aid = aid7_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 8, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl8nit_B, .cTbl = ctbl8nit_B, .aid = aid8_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 9, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl9nit_B, .cTbl = ctbl9nit_B, .aid = aid9_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 10, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl10nit_B, .cTbl = ctbl10nit_B, .aid = aid10_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 11, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl11nit_B, .cTbl = ctbl11nit_B, .aid = aid11_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 12, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl12nit_B, .cTbl = ctbl12nit_B, .aid = aid12_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 13, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl13nit_B, .cTbl = ctbl13nit_B, .aid = aid13_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 14, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl14nit_B, .cTbl = ctbl14nit_B, .aid = aid14_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 15, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl15nit_B, .cTbl = ctbl15nit_B, .aid = aid15_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 16, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl16nit_B, .cTbl = ctbl16nit_B, .aid = aid16_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 17, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl17nit_B, .cTbl = ctbl17nit_B, .aid = aid17_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 19, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl19nit_B, .cTbl = ctbl19nit_B, .aid = aid19_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 20, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl20nit_B, .cTbl = ctbl20nit_B, .aid = aid20_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 21, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl21nit_B, .cTbl = ctbl21nit_B, .aid = aid21_B, .elvAcl = elv86, .elv = elv86},
-	{.br = 22, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl22nit_B, .cTbl = ctbl22nit_B, .aid = aid22_B, .elvAcl = elv88, .elv = elv88},
-	{.br = 24, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl24nit_B, .cTbl = ctbl24nit_B, .aid = aid24_B, .elvAcl = elv8a, .elv = elv8a},
-	{.br = 25, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl25nit_B, .cTbl = ctbl25nit_B, .aid = aid25_B, .elvAcl = elv8c, .elv = elv8c},
-	{.br = 27, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl27nit_B, .cTbl = ctbl27nit_B, .aid = aid27_B, .elvAcl = elv8e, .elv = elv8e},
-	{.br = 29, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl29nit_B, .cTbl = ctbl29nit_B, .aid = aid29_B, .elvAcl = elv90, .elv = elv90},
-	{.br = 30, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl30nit_B, .cTbl = ctbl30nit_B, .aid = aid30_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 32, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl32nit_B, .cTbl = ctbl32nit_B, .aid = aid32_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 34, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl34nit_B, .cTbl = ctbl34nit_B, .aid = aid34_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 37, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl37nit_B, .cTbl = ctbl37nit_B, .aid = aid37_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 39, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl39nit_B, .cTbl = ctbl39nit_B, .aid = aid39_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 41, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl41nit_B, .cTbl = ctbl41nit_B, .aid = aid41_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 44, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl44nit_B, .cTbl = ctbl44nit_B, .aid = aid44_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 47, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl47nit_B, .cTbl = ctbl47nit_B, .aid = aid47_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 50, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl50nit_B, .cTbl = ctbl50nit_B, .aid = aid50_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 53, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl53nit_B, .cTbl = ctbl53nit_B, .aid = aid53_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 56, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl56nit_B, .cTbl = ctbl56nit_B, .aid = aid56_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 60, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl60nit_B, .cTbl = ctbl60nit_B, .aid = aid60_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 64, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl64nit_B, .cTbl = ctbl64nit_B, .aid = aid64_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 68, .refBr = 114, .cGma = gma2p15, .rTbl = rtbl68nit_B, .cTbl = ctbl68nit_B, .aid = aid68_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 72, .refBr = 120, .cGma = gma2p15, .rTbl = rtbl72nit_B, .cTbl = ctbl72nit_B, .aid = aid68_B, .elvAcl = elv92, .elv = elv92},
-	{.br = 77, .refBr = 127, .cGma = gma2p15, .rTbl = rtbl77nit_B, .cTbl = ctbl77nit_B, .aid = aid68_B, .elvAcl = elv91, .elv = elv91},
-	{.br = 82, .refBr = 136, .cGma = gma2p15, .rTbl = rtbl82nit_B, .cTbl = ctbl82nit_B, .aid = aid68_B, .elvAcl = elv91, .elv = elv91},
-	{.br = 87, .refBr = 143, .cGma = gma2p15, .rTbl = rtbl87nit_B, .cTbl = ctbl87nit_B, .aid = aid68_B, .elvAcl = elv91, .elv = elv91},
-	{.br = 93, .refBr = 153, .cGma = gma2p15, .rTbl = rtbl93nit_B, .cTbl = ctbl93nit_B, .aid = aid68_B, .elvAcl = elv90, .elv = elv90},
-	{.br = 98, .refBr = 159, .cGma = gma2p15, .rTbl = rtbl98nit_B, .cTbl = ctbl98nit_B, .aid = aid68_B, .elvAcl = elv90, .elv = elv90},
-	{.br = 105, .refBr = 171, .cGma = gma2p15, .rTbl = rtbl105nit_B, .cTbl = ctbl105nit_B, .aid = aid68_B, .elvAcl = elv90, .elv = elv90},
-	{.br = 111, .refBr = 179, .cGma = gma2p15, .rTbl = rtbl111nit_B, .cTbl = ctbl111nit_B, .aid = aid68_B, .elvAcl = elv8f, .elv = elv8f},
-	{.br = 119, .refBr = 190, .cGma = gma2p15, .rTbl = rtbl119nit_B, .cTbl = ctbl119nit_B, .aid = aid68_B, .elvAcl = elv8f, .elv = elv8f},
-	{.br = 126, .refBr = 202, .cGma = gma2p15, .rTbl = rtbl126nit_B, .cTbl = ctbl126nit_B, .aid = aid68_B, .elvAcl = elv8e, .elv = elv8e},
-	{.br = 134, .refBr = 216, .cGma = gma2p15, .rTbl = rtbl134nit_B, .cTbl = ctbl134nit_B, .aid = aid68_B, .elvAcl = elv8e, .elv = elv8e},
-	{.br = 143, .refBr = 227, .cGma = gma2p15, .rTbl = rtbl143nit_B, .cTbl = ctbl143nit_B, .aid = aid68_B, .elvAcl = elv8d, .elv = elv8d},
-	{.br = 152, .refBr = 240, .cGma = gma2p15, .rTbl = rtbl152nit_B, .cTbl = ctbl152nit_B, .aid = aid68_B, .elvAcl = elv8c, .elv = elv8c},
-	{.br = 162, .refBr = 256, .cGma = gma2p15, .rTbl = rtbl162nit_B, .cTbl = ctbl162nit_B, .aid = aid68_B, .elvAcl = elv8c, .elv = elv8c},
-	{.br = 172, .refBr = 256, .cGma = gma2p15, .rTbl = rtbl172nit_B, .cTbl = ctbl172nit_B, .aid = aid172_B, .elvAcl = elv8c, .elv = elv8c},
-	{.br = 183, .refBr = 256, .cGma = gma2p15, .rTbl = rtbl183nit_B, .cTbl = ctbl183nit_B, .aid = aid183_B, .elvAcl = elv8c, .elv = elv8c},
-	{.br = 195, .refBr = 256, .cGma = gma2p15, .rTbl = rtbl195nit_B, .cTbl = ctbl195nit_B, .aid = aid195_B, .elvAcl = elv8b, .elv = elv8b},
-	{.br = 207, .refBr = 256, .cGma = gma2p15, .rTbl = rtbl207nit_B, .cTbl = ctbl207nit_B, .aid = aid207_B, .elvAcl = elv8a, .elv = elv8a},
-	{.br = 220, .refBr = 256, .cGma = gma2p15, .rTbl = rtbl220nit_B, .cTbl = ctbl220nit_B, .aid = aid220_B, .elvAcl = elv8a, .elv = elv8a},
-	{.br = 234, .refBr = 256, .cGma = gma2p15, .rTbl = rtbl234nit_B, .cTbl = ctbl234nit_B, .aid = aid234_B, .elvAcl = elv8a, .elv = elv8a},
-	{.br = 249, .refBr = 256, .cGma = gma2p15, .rTbl = rtbl249nit_B, .cTbl = ctbl249nit_B, .aid = aid249_B, .elvAcl = elv89, .elv = elv89},
-	{.br = 265, .refBr = 268, .cGma = gma2p15, .rTbl = rtbl265nit_B, .cTbl = ctbl265nit_B, .aid = aid249_B, .elvAcl = elv88, .elv = elv88},
-	{.br = 282, .refBr = 286, .cGma = gma2p15, .rTbl = rtbl282nit_B, .cTbl = ctbl282nit_B, .aid = aid249_B, .elvAcl = elv87, .elv = elv87},
-	{.br = 300, .refBr = 305, .cGma = gma2p15, .rTbl = rtbl300nit_B, .cTbl = ctbl300nit_B, .aid = aid249_B, .elvAcl = elv86, .elv = elv86},
-	{.br = 316, .refBr = 319, .cGma = gma2p15, .rTbl = rtbl316nit_B, .cTbl = ctbl316nit_B, .aid = aid249_B, .elvAcl = elv86, .elv = elv86},
-	{.br = 333, .refBr = 336, .cGma = gma2p15, .rTbl = rtbl333nit_B, .cTbl = ctbl333nit_B, .aid = aid249_B, .elvAcl = elv85, .elv = elv85},
-	{.br = 360, .refBr = 350, .cGma = gma2p20, .rTbl = rtbl360nit_B, .cTbl = ctbl360nit_B, .aid = aid249_B, .elvAcl = elv84, .elv = elv84},
-	{.br = 360, .refBr = 350, .cGma = gma2p20, .rTbl = rtbl360nit_B, .cTbl = ctbl360nit_B, .aid = aid249_B, .elvAcl = elv84, .elv = elv84},
+	{.br = 5, .cTbl = ctbl5nit_B, .aid = aid5_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray005_B},
+	{.br = 6, .cTbl = ctbl6nit_B, .aid = aid6_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray006_B},
+	{.br = 7, .cTbl = ctbl7nit_B, .aid = aid7_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray007_B},
+	{.br = 8, .cTbl = ctbl8nit_B, .aid = aid8_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray008_B},
+	{.br = 9, .cTbl = ctbl9nit_B, .aid = aid9_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray009_B},
+	{.br = 10, .cTbl = ctbl10nit_B, .aid = aid10_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray010_B},
+	{.br = 11, .cTbl = ctbl11nit_B, .aid = aid11_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray011_B},
+	{.br = 12, .cTbl = ctbl12nit_B, .aid = aid12_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray012_B},
+	{.br = 13, .cTbl = ctbl13nit_B, .aid = aid13_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray013_B},
+	{.br = 14, .cTbl = ctbl14nit_B, .aid = aid14_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray014_B},
+	{.br = 15, .cTbl = ctbl15nit_B, .aid = aid15_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray015_B},
+	{.br = 16, .cTbl = ctbl16nit_B, .aid = aid16_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray016_B},
+	{.br = 17, .cTbl = ctbl17nit_B, .aid = aid17_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray017_B},
+	{.br = 19, .cTbl = ctbl19nit_B, .aid = aid19_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray019_B},
+	{.br = 20, .cTbl = ctbl20nit_B, .aid = aid20_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray020_B},
+	{.br = 21, .cTbl = ctbl21nit_B, .aid = aid21_B, .elvAcl = elv86, .elv = elv86, .m_gray = m_gray021_B},
+	{.br = 22, .cTbl = ctbl22nit_B, .aid = aid22_B, .elvAcl = elv88, .elv = elv88, .m_gray = m_gray022_B},
+	{.br = 24, .cTbl = ctbl24nit_B, .aid = aid24_B, .elvAcl = elv8a, .elv = elv8a, .m_gray = m_gray024_B},
+	{.br = 25, .cTbl = ctbl25nit_B, .aid = aid25_B, .elvAcl = elv8c, .elv = elv8c, .m_gray = m_gray025_B},
+	{.br = 27, .cTbl = ctbl27nit_B, .aid = aid27_B, .elvAcl = elv8e, .elv = elv8e, .m_gray = m_gray027_B},
+	{.br = 29, .cTbl = ctbl29nit_B, .aid = aid29_B, .elvAcl = elv90, .elv = elv90, .m_gray = m_gray029_B},
+	{.br = 30, .cTbl = ctbl30nit_B, .aid = aid30_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray030_B},
+	{.br = 32, .cTbl = ctbl32nit_B, .aid = aid32_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray032_B},
+	{.br = 34, .cTbl = ctbl34nit_B, .aid = aid34_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray034_B},
+	{.br = 37, .cTbl = ctbl37nit_B, .aid = aid37_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray037_B},
+	{.br = 39, .cTbl = ctbl39nit_B, .aid = aid39_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray039_B},
+	{.br = 41, .cTbl = ctbl41nit_B, .aid = aid41_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray041_B},
+	{.br = 44, .cTbl = ctbl44nit_B, .aid = aid44_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray044_B},
+	{.br = 47, .cTbl = ctbl47nit_B, .aid = aid47_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray047_B},
+	{.br = 50, .cTbl = ctbl50nit_B, .aid = aid50_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray050_B},
+	{.br = 53, .cTbl = ctbl53nit_B, .aid = aid53_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray053_B},
+	{.br = 56, .cTbl = ctbl56nit_B, .aid = aid56_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray056_B},
+	{.br = 60, .cTbl = ctbl60nit_B, .aid = aid60_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray060_B},
+	{.br = 64, .cTbl = ctbl64nit_B, .aid = aid64_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray064_B},
+	{.br = 68, .cTbl = ctbl68nit_B, .aid = aid68_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray068_B},
+	{.br = 72, .cTbl = ctbl72nit_B, .aid = aid68_B, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray072_B},
+	{.br = 77, .cTbl = ctbl77nit_B, .aid = aid68_B, .elvAcl = elv91, .elv = elv91, .m_gray = m_gray077_B},
+	{.br = 82, .cTbl = ctbl82nit_B, .aid = aid68_B, .elvAcl = elv91, .elv = elv91, .m_gray = m_gray082_B},
+	{.br = 87, .cTbl = ctbl87nit_B, .aid = aid68_B, .elvAcl = elv91, .elv = elv91, .m_gray = m_gray087_B},
+	{.br = 93, .cTbl = ctbl93nit_B, .aid = aid68_B, .elvAcl = elv90, .elv = elv90, .m_gray = m_gray093_B},
+	{.br = 98, .cTbl = ctbl98nit_B, .aid = aid68_B, .elvAcl = elv90, .elv = elv90, .m_gray = m_gray098_B},
+	{.br = 105, .cTbl = ctbl105nit_B, .aid = aid68_B, .elvAcl = elv90, .elv = elv90, .m_gray = m_gray105_B},
+	{.br = 111, .cTbl = ctbl111nit_B, .aid = aid68_B, .elvAcl = elv8f, .elv = elv8f, .m_gray = m_gray111_B},
+	{.br = 119, .cTbl = ctbl119nit_B, .aid = aid68_B, .elvAcl = elv8f, .elv = elv8f, .m_gray = m_gray119_B},
+	{.br = 126, .cTbl = ctbl126nit_B, .aid = aid68_B, .elvAcl = elv8e, .elv = elv8e, .m_gray = m_gray126_B},
+	{.br = 134, .cTbl = ctbl134nit_B, .aid = aid68_B, .elvAcl = elv8e, .elv = elv8e, .m_gray = m_gray134_B},
+	{.br = 143, .cTbl = ctbl143nit_B, .aid = aid68_B, .elvAcl = elv8d, .elv = elv8d, .m_gray = m_gray143_B},
+	{.br = 152, .cTbl = ctbl152nit_B, .aid = aid68_B, .elvAcl = elv8c, .elv = elv8c, .m_gray = m_gray152_B},
+	{.br = 162, .cTbl = ctbl162nit_B, .aid = aid68_B, .elvAcl = elv8c, .elv = elv8c, .m_gray = m_gray162_B},
+	{.br = 172, .cTbl = ctbl172nit_B, .aid = aid172_B, .elvAcl = elv8c, .elv = elv8c, .m_gray = m_gray172_B},
+	{.br = 183, .cTbl = ctbl183nit_B, .aid = aid183_B, .elvAcl = elv8c, .elv = elv8c, .m_gray = m_gray183_B},
+	{.br = 195, .cTbl = ctbl195nit_B, .aid = aid195_B, .elvAcl = elv8b, .elv = elv8b, .m_gray = m_gray195_B},
+	{.br = 207, .cTbl = ctbl207nit_B, .aid = aid207_B, .elvAcl = elv8a, .elv = elv8a, .m_gray = m_gray207_B},
+	{.br = 220, .cTbl = ctbl220nit_B, .aid = aid220_B, .elvAcl = elv8a, .elv = elv8a, .m_gray = m_gray220_B},
+	{.br = 234, .cTbl = ctbl234nit_B, .aid = aid234_B, .elvAcl = elv8a, .elv = elv8a, .m_gray = m_gray234_B},
+	{.br = 249, .cTbl = ctbl249nit_B, .aid = aid249_B, .elvAcl = elv89, .elv = elv89, .m_gray = m_gray249_B},
+	{.br = 265, .cTbl = ctbl265nit_B, .aid = aid249_B, .elvAcl = elv88, .elv = elv88, .m_gray = m_gray265_B},
+	{.br = 282, .cTbl = ctbl282nit_B, .aid = aid249_B, .elvAcl = elv87, .elv = elv87, .m_gray = m_gray282_B},
+	{.br = 300, .cTbl = ctbl300nit_B, .aid = aid249_B, .elvAcl = elv86, .elv = elv86, .m_gray = m_gray300_B},
+	{.br = 316, .cTbl = ctbl316nit_B, .aid = aid249_B, .elvAcl = elv86, .elv = elv86, .m_gray = m_gray316_B},
+	{.br = 333, .cTbl = ctbl333nit_B, .aid = aid249_B, .elvAcl = elv85, .elv = elv85, .m_gray = m_gray333_B},
+	{.br = 360, .cTbl = ctbl360nit_B, .aid = aid249_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray360_B},
+	{.br = 360, .cTbl = ctbl360nit_B, .aid = aid249_B, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray360_B},
 };
 
 struct SmtDimInfo daisy_dimming_info[MAX_BR_INFO + 1] = {				/* add hbm array */
-	{.br = 5, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl5nit, .cTbl = ctbl5nit, .aid = aid5, .elvAcl = elv84, .elv = elv84},
-	{.br = 6, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl6nit, .cTbl = ctbl6nit, .aid = aid6, .elvAcl = elv84, .elv = elv84},
-	{.br = 7, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl7nit, .cTbl = ctbl7nit, .aid = aid7, .elvAcl = elv84, .elv = elv84},
-	{.br = 8, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl8nit, .cTbl = ctbl8nit, .aid = aid8, .elvAcl = elv84, .elv = elv84},
-	{.br = 9, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl9nit, .cTbl = ctbl9nit, .aid = aid9, .elvAcl = elv84, .elv = elv84},
-	{.br = 10, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl10nit, .cTbl = ctbl10nit, .aid = aid10, .elvAcl = elv84, .elv = elv84},
-	{.br = 11, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl11nit, .cTbl = ctbl11nit, .aid = aid11, .elvAcl = elv84, .elv = elv84},
-	{.br = 12, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl12nit, .cTbl = ctbl12nit, .aid = aid12, .elvAcl = elv84, .elv = elv84},
-	{.br = 13, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl13nit, .cTbl = ctbl13nit, .aid = aid13, .elvAcl = elv84, .elv = elv84},
-	{.br = 14, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl14nit, .cTbl = ctbl14nit, .aid = aid14, .elvAcl = elv84, .elv = elv84},
-	{.br = 15, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl15nit, .cTbl = ctbl15nit, .aid = aid15, .elvAcl = elv84, .elv = elv84},
-	{.br = 16, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl16nit, .cTbl = ctbl16nit, .aid = aid16, .elvAcl = elv84, .elv = elv84},
-	{.br = 17, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl17nit, .cTbl = ctbl17nit, .aid = aid17, .elvAcl = elv84, .elv = elv84},
-	{.br = 19, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl19nit, .cTbl = ctbl19nit, .aid = aid19, .elvAcl = elv84, .elv = elv84},
-	{.br = 20, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl20nit, .cTbl = ctbl20nit, .aid = aid20, .elvAcl = elv84, .elv = elv84},
-	{.br = 21, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl21nit, .cTbl = ctbl21nit, .aid = aid21, .elvAcl = elv86, .elv = elv86},
-	{.br = 22, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl22nit, .cTbl = ctbl22nit, .aid = aid22, .elvAcl = elv88, .elv = elv88},
-	{.br = 24, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl24nit, .cTbl = ctbl24nit, .aid = aid24, .elvAcl = elv8a, .elv = elv8a},
-	{.br = 25, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl25nit, .cTbl = ctbl25nit, .aid = aid25, .elvAcl = elv8c, .elv = elv8c},
-	{.br = 27, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl27nit, .cTbl = ctbl27nit, .aid = aid27, .elvAcl = elv8e, .elv = elv8e},
-	{.br = 29, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl29nit, .cTbl = ctbl29nit, .aid = aid29, .elvAcl = elv90, .elv = elv90},
-	{.br = 30, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl30nit, .cTbl = ctbl30nit, .aid = aid30, .elvAcl = elv92, .elv = elv92},
-	{.br = 32, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl32nit, .cTbl = ctbl32nit, .aid = aid32, .elvAcl = elv92, .elv = elv92},
-	{.br = 34, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl34nit, .cTbl = ctbl34nit, .aid = aid34, .elvAcl = elv92, .elv = elv92},
-	{.br = 37, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl37nit, .cTbl = ctbl37nit, .aid = aid37, .elvAcl = elv92, .elv = elv92},
-	{.br = 39, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl39nit, .cTbl = ctbl39nit, .aid = aid39, .elvAcl = elv92, .elv = elv92},
-	{.br = 41, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl41nit, .cTbl = ctbl41nit, .aid = aid41, .elvAcl = elv92, .elv = elv92},
-	{.br = 44, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl44nit, .cTbl = ctbl44nit, .aid = aid44, .elvAcl = elv92, .elv = elv92},
-	{.br = 47, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl47nit, .cTbl = ctbl47nit, .aid = aid47, .elvAcl = elv92, .elv = elv92},
-	{.br = 50, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl50nit, .cTbl = ctbl50nit, .aid = aid50, .elvAcl = elv92, .elv = elv92},
-	{.br = 53, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl53nit, .cTbl = ctbl53nit, .aid = aid53, .elvAcl = elv92, .elv = elv92},
-	{.br = 56, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl56nit, .cTbl = ctbl56nit, .aid = aid56, .elvAcl = elv92, .elv = elv92},
-	{.br = 60, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl60nit, .cTbl = ctbl60nit, .aid = aid60, .elvAcl = elv92, .elv = elv92},
-	{.br = 64, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl64nit, .cTbl = ctbl64nit, .aid = aid64, .elvAcl = elv92, .elv = elv92},
-	{.br = 68, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl68nit, .cTbl = ctbl68nit, .aid = aid68, .elvAcl = elv92, .elv = elv92},
-	{.br = 72, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl72nit, .cTbl = ctbl72nit, .aid = aid72, .elvAcl = elv92, .elv = elv92},
-	{.br = 77, .refBr = 119, .cGma = gma2p15, .rTbl = rtbl77nit, .cTbl = ctbl77nit, .aid = aid77, .elvAcl = elv91, .elv = elv91},
-	{.br = 82, .refBr = 126, .cGma = gma2p15, .rTbl = rtbl82nit, .cTbl = ctbl82nit, .aid = aid77, .elvAcl = elv91, .elv = elv91},
-	{.br = 87, .refBr = 132, .cGma = gma2p15, .rTbl = rtbl87nit, .cTbl = ctbl87nit, .aid = aid77, .elvAcl = elv91, .elv = elv91},
-	{.br = 93, .refBr = 142, .cGma = gma2p15, .rTbl = rtbl93nit, .cTbl = ctbl93nit, .aid = aid77, .elvAcl = elv90, .elv = elv90},
-	{.br = 98, .refBr = 149, .cGma = gma2p15, .rTbl = rtbl98nit, .cTbl = ctbl98nit, .aid = aid77, .elvAcl = elv90, .elv = elv90},
-	{.br = 105, .refBr = 157, .cGma = gma2p15, .rTbl = rtbl105nit, .cTbl = ctbl105nit, .aid = aid77, .elvAcl = elv90, .elv = elv90},
-	{.br = 111, .refBr = 167, .cGma = gma2p15, .rTbl = rtbl111nit, .cTbl = ctbl111nit, .aid = aid77, .elvAcl = elv8f, .elv = elv8f},
-	{.br = 119, .refBr = 176, .cGma = gma2p15, .rTbl = rtbl119nit, .cTbl = ctbl119nit, .aid = aid77, .elvAcl = elv8f, .elv = elv8f},
-	{.br = 126, .refBr = 186, .cGma = gma2p15, .rTbl = rtbl126nit, .cTbl = ctbl126nit, .aid = aid77, .elvAcl = elv8e, .elv = elv8e},
-	{.br = 134, .refBr = 198, .cGma = gma2p15, .rTbl = rtbl134nit, .cTbl = ctbl134nit, .aid = aid77, .elvAcl = elv8e, .elv = elv8e},
-	{.br = 143, .refBr = 209, .cGma = gma2p15, .rTbl = rtbl143nit, .cTbl = ctbl143nit, .aid = aid77, .elvAcl = elv8d, .elv = elv8d},
-	{.br = 152, .refBr = 221, .cGma = gma2p15, .rTbl = rtbl152nit, .cTbl = ctbl152nit, .aid = aid77, .elvAcl = elv8c, .elv = elv8c},
-	{.br = 162, .refBr = 235, .cGma = gma2p15, .rTbl = rtbl162nit, .cTbl = ctbl162nit, .aid = aid77, .elvAcl = elv8c, .elv = elv8c},
-	{.br = 172, .refBr = 250, .cGma = gma2p15, .rTbl = rtbl172nit, .cTbl = ctbl172nit, .aid = aid77, .elvAcl = elv8c, .elv = elv8c},
-	{.br = 183, .refBr = 250, .cGma = gma2p15, .rTbl = rtbl183nit, .cTbl = ctbl183nit, .aid = aid183, .elvAcl = elv8c, .elv = elv8c},
-	{.br = 195, .refBr = 250, .cGma = gma2p15, .rTbl = rtbl195nit, .cTbl = ctbl195nit, .aid = aid195, .elvAcl = elv8b, .elv = elv8b},
-	{.br = 207, .refBr = 250, .cGma = gma2p15, .rTbl = rtbl207nit, .cTbl = ctbl207nit, .aid = aid207, .elvAcl = elv8a, .elv = elv8a},
-	{.br = 220, .refBr = 250, .cGma = gma2p15, .rTbl = rtbl220nit, .cTbl = ctbl220nit, .aid = aid220, .elvAcl = elv8a, .elv = elv8a},
-	{.br = 234, .refBr = 250, .cGma = gma2p15, .rTbl = rtbl234nit, .cTbl = ctbl234nit, .aid = aid234, .elvAcl = elv8a, .elv = elv8a},
-	{.br = 249, .refBr = 250, .cGma = gma2p15, .rTbl = rtbl249nit, .cTbl = ctbl249nit, .aid = aid249, .elvAcl = elv89, .elv = elv89},
-	{.br = 265, .refBr = 269, .cGma = gma2p15, .rTbl = rtbl265nit, .cTbl = ctbl265nit, .aid = aid249, .elvAcl = elv88, .elv = elv88},
-	{.br = 282, .refBr = 284, .cGma = gma2p15, .rTbl = rtbl282nit, .cTbl = ctbl282nit, .aid = aid249, .elvAcl = elv87, .elv = elv87},
-	{.br = 300, .refBr = 300, .cGma = gma2p15, .rTbl = rtbl300nit, .cTbl = ctbl300nit, .aid = aid249, .elvAcl = elv86, .elv = elv86},
-	{.br = 316, .refBr = 319, .cGma = gma2p15, .rTbl = rtbl316nit, .cTbl = ctbl316nit, .aid = aid249, .elvAcl = elv86, .elv = elv86},
-	{.br = 333, .refBr = 335, .cGma = gma2p15, .rTbl = rtbl333nit, .cTbl = ctbl333nit, .aid = aid249, .elvAcl = elv85, .elv = elv85},
-	{.br = 360, .refBr = 350, .cGma = gma2p20, .rTbl = rtbl350nit, .cTbl = ctbl350nit, .aid = aid249, .elvAcl = elv84, .elv = elv84},
-	{.br = 360, .refBr = 350, .cGma = gma2p20, .rTbl = rtbl350nit, .cTbl = ctbl350nit, .aid = aid249, .elvAcl = elv84, .elv = elv84},
+	{.br = 5, .cTbl = ctbl5nit, .aid = aid5, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_005},
+	{.br = 6, .cTbl = ctbl6nit, .aid = aid6, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_006},
+	{.br = 7, .cTbl = ctbl7nit, .aid = aid7, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_007},
+	{.br = 8, .cTbl = ctbl8nit, .aid = aid8, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_008},
+	{.br = 9, .cTbl = ctbl9nit, .aid = aid9, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_009},
+	{.br = 10, .cTbl = ctbl10nit, .aid = aid10, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_010},
+	{.br = 11, .cTbl = ctbl11nit, .aid = aid11, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_011},
+	{.br = 12, .cTbl = ctbl12nit, .aid = aid12, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_012},
+	{.br = 13, .cTbl = ctbl13nit, .aid = aid13, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_013},
+	{.br = 14, .cTbl = ctbl14nit, .aid = aid14, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_014},
+	{.br = 15, .cTbl = ctbl15nit, .aid = aid15, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_015},
+	{.br = 16, .cTbl = ctbl16nit, .aid = aid16, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_016},
+	{.br = 17, .cTbl = ctbl17nit, .aid = aid17, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_017},
+	{.br = 19, .cTbl = ctbl19nit, .aid = aid19, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_019},
+	{.br = 20, .cTbl = ctbl20nit, .aid = aid20, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_020},
+	{.br = 21, .cTbl = ctbl21nit, .aid = aid21, .elvAcl = elv86, .elv = elv86, .m_gray = m_gray_021},
+	{.br = 22, .cTbl = ctbl22nit, .aid = aid22, .elvAcl = elv88, .elv = elv88, .m_gray = m_gray_022},
+	{.br = 24, .cTbl = ctbl24nit, .aid = aid24, .elvAcl = elv8a, .elv = elv8a, .m_gray = m_gray_024},
+	{.br = 25, .cTbl = ctbl25nit, .aid = aid25, .elvAcl = elv8c, .elv = elv8c, .m_gray = m_gray_025},
+	{.br = 27, .cTbl = ctbl27nit, .aid = aid27, .elvAcl = elv8e, .elv = elv8e, .m_gray = m_gray_027},
+	{.br = 29, .cTbl = ctbl29nit, .aid = aid29, .elvAcl = elv90, .elv = elv90, .m_gray = m_gray_029},
+	{.br = 30, .cTbl = ctbl30nit, .aid = aid30, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_030},
+	{.br = 32, .cTbl = ctbl32nit, .aid = aid32, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_032},
+	{.br = 34, .cTbl = ctbl34nit, .aid = aid34, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_034},
+	{.br = 37, .cTbl = ctbl37nit, .aid = aid37, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_037},
+	{.br = 39, .cTbl = ctbl39nit, .aid = aid39, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_039},
+	{.br = 41, .cTbl = ctbl41nit, .aid = aid41, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_041},
+	{.br = 44, .cTbl = ctbl44nit, .aid = aid44, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_044},
+	{.br = 47, .cTbl = ctbl47nit, .aid = aid47, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_047},
+	{.br = 50, .cTbl = ctbl50nit, .aid = aid50, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_050},
+	{.br = 53, .cTbl = ctbl53nit, .aid = aid53, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_053},
+	{.br = 56, .cTbl = ctbl56nit, .aid = aid56, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_056},
+	{.br = 60, .cTbl = ctbl60nit, .aid = aid60, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_060},
+	{.br = 64, .cTbl = ctbl64nit, .aid = aid64, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_064},
+	{.br = 68, .cTbl = ctbl68nit, .aid = aid68, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_068},
+	{.br = 72, .cTbl = ctbl72nit, .aid = aid72, .elvAcl = elv92, .elv = elv92, .m_gray = m_gray_072},
+	{.br = 77, .cTbl = ctbl77nit, .aid = aid77, .elvAcl = elv91, .elv = elv91, .m_gray = m_gray_077},
+	{.br = 82, .cTbl = ctbl82nit, .aid = aid77, .elvAcl = elv91, .elv = elv91, .m_gray = m_gray_082},
+	{.br = 87, .cTbl = ctbl87nit, .aid = aid77, .elvAcl = elv91, .elv = elv91, .m_gray = m_gray_087},
+	{.br = 93, .cTbl = ctbl93nit, .aid = aid77, .elvAcl = elv90, .elv = elv90, .m_gray = m_gray_093},
+	{.br = 98, .cTbl = ctbl98nit, .aid = aid77, .elvAcl = elv90, .elv = elv90, .m_gray = m_gray_098},
+	{.br = 105, .cTbl = ctbl105nit, .aid = aid77, .elvAcl = elv90, .elv = elv90, .m_gray = m_gray_105},
+	{.br = 111, .cTbl = ctbl111nit, .aid = aid77, .elvAcl = elv8f, .elv = elv8f, .m_gray = m_gray_111},
+	{.br = 119, .cTbl = ctbl119nit, .aid = aid77, .elvAcl = elv8f, .elv = elv8f, .m_gray = m_gray_119},
+	{.br = 126, .cTbl = ctbl126nit, .aid = aid77, .elvAcl = elv8e, .elv = elv8e, .m_gray = m_gray_126},
+	{.br = 134, .cTbl = ctbl134nit, .aid = aid77, .elvAcl = elv8e, .elv = elv8e, .m_gray = m_gray_134},
+	{.br = 143, .cTbl = ctbl143nit, .aid = aid77, .elvAcl = elv8d, .elv = elv8d, .m_gray = m_gray_143},
+	{.br = 152, .cTbl = ctbl152nit, .aid = aid77, .elvAcl = elv8c, .elv = elv8c, .m_gray = m_gray_152},
+	{.br = 162, .cTbl = ctbl162nit, .aid = aid77, .elvAcl = elv8c, .elv = elv8c, .m_gray = m_gray_162},
+	{.br = 172, .cTbl = ctbl172nit, .aid = aid77, .elvAcl = elv8c, .elv = elv8c, .m_gray = m_gray_172},
+	{.br = 183, .cTbl = ctbl183nit, .aid = aid183, .elvAcl = elv8c, .elv = elv8c, .m_gray = m_gray_183},
+	{.br = 195, .cTbl = ctbl195nit, .aid = aid195, .elvAcl = elv8b, .elv = elv8b, .m_gray = m_gray_195},
+	{.br = 207, .cTbl = ctbl207nit, .aid = aid207, .elvAcl = elv8a, .elv = elv8a, .m_gray = m_gray_207},
+	{.br = 220, .cTbl = ctbl220nit, .aid = aid220, .elvAcl = elv8a, .elv = elv8a, .m_gray = m_gray_220},
+	{.br = 234, .cTbl = ctbl234nit, .aid = aid234, .elvAcl = elv8a, .elv = elv8a, .m_gray = m_gray_234},
+	{.br = 249, .cTbl = ctbl249nit, .aid = aid249, .elvAcl = elv89, .elv = elv89, .m_gray = m_gray_249},
+	{.br = 265, .cTbl = ctbl265nit, .aid = aid249, .elvAcl = elv88, .elv = elv88, .m_gray = m_gray_265},
+	{.br = 282, .cTbl = ctbl282nit, .aid = aid249, .elvAcl = elv87, .elv = elv87, .m_gray = m_gray_282},
+	{.br = 300, .cTbl = ctbl300nit, .aid = aid249, .elvAcl = elv86, .elv = elv86, .m_gray = m_gray_300},
+	{.br = 316, .cTbl = ctbl316nit, .aid = aid249, .elvAcl = elv86, .elv = elv86, .m_gray = m_gray_316},
+	{.br = 333, .cTbl = ctbl333nit, .aid = aid249, .elvAcl = elv85, .elv = elv85, .m_gray = m_gray_333},
+	{.br = 360, .cTbl = ctbl350nit, .aid = aid249, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_360},
+	{.br = 360, .cTbl = ctbl350nit, .aid = aid249, .elvAcl = elv84, .elv = elv84, .m_gray = m_gray_360},
 };
 
-unsigned char lookup_tbl_350[351] = { /*for max 350 nit */
-	0, 18, 24, 29, 33, 37, 40, 43, 46, 48, 51, 53, 55, 57, 59, 61, 63, 64, 66, 68, 69,
-	71, 72, 74, 75, 77, 78, 80, 81, 82, 83, 85, 86, 87, 88, 90, 91, 92, 93, 94, 95, 96,
-	97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113,
-	114, 114, 115, 116, 117, 118, 119, 119, 120, 121, 122, 123, 123, 124, 125, 126, 127,
-	127, 128, 129, 130, 130, 131, 132, 133, 133, 134, 135, 135, 136, 137, 138, 138, 139,
-	140, 140, 141, 142, 142, 143, 144, 144, 145, 146, 146, 147, 148, 148, 149, 149, 150,
-	151, 151, 152, 153, 153, 154, 154, 155, 156, 156, 157, 157, 158, 159, 159, 160, 160,
-	161, 161, 162, 163, 163, 164, 164, 165, 165, 166, 166, 167, 168, 168, 169, 169, 170,
-	170, 171, 171, 172, 172, 173, 173, 174, 175, 175, 176, 176, 177, 177, 178, 178, 179,
-	179, 180, 180, 181, 181, 182, 182, 183, 183, 184, 184, 185, 185, 186, 186, 187, 187,
-	188, 188, 188, 189, 189, 190, 190, 191, 191, 192, 192, 193, 193, 194, 194, 195, 195,
-	195, 196, 196, 197, 197, 198, 198, 199, 199, 200, 200, 200, 201, 201, 202, 202, 203,
-	203, 203, 204, 204, 205, 205, 206, 206, 206, 207, 207, 208, 208, 209, 209, 209, 210,
-	210, 211, 211, 212, 212, 212, 213, 213, 214, 214, 214, 215, 215, 216, 216, 216, 217,
-	217, 218, 218, 218, 219, 219, 220, 220, 220, 221, 221, 222, 222, 222, 223, 223, 224,
-	224, 224, 225, 225, 225, 226, 226, 227, 227, 227, 228, 228, 229, 229, 229, 230, 230,
-	230, 231, 231, 232, 232, 232, 233, 233, 233, 234, 234, 234, 235, 235, 236, 236, 236,
-	237, 237, 237, 238, 238, 238, 239, 239, 240, 240, 240, 241, 241, 241, 242, 242, 242,
-	243, 243, 243, 244, 244, 244, 245, 245, 246, 246, 246, 247, 247, 247, 248, 248, 248,
-	249, 249, 249, 250, 250, 250, 251, 251, 251, 252, 252, 252, 253, 253, 253, 254, 254,
-	254, 255, 255,
-};
-
-unsigned int gamma_multi_tbl_350[256] = { /*for max 350 nit */
-	0,		2,		9,		20,		39,		63,		93,		131,
-	177,		228,		289,		356,		431,		513,		605,		704,
-	811,		927,		1051,		1184,		1325,		1475,		1634,		1803,
-	1979,		2165,		2360,		2565,		2778,		3001,		3234,		3475,
-	3727,		3988,		4258,		4538,		4829,		5128,		5439,		5758,
-	6088,		6428,		6778,		7139,		7508,		7890,		8280,		8682,
-	9093,		9515,		9948,		10390,		10844,		11308,		11782,		12268,
-	12764,		13271,		13789,		14317,		14857,		15407,		15968,		16539,
-	17123,		17717,		18323,		18939,		19566,		20205,		20854,		21515,
-	22188,		22872,		23567,		24273,		24990,		25719,		26460,		27212,
-	27976,		28751,		29537,		30335,		31145,		31967,		32800,		33645,
-	34502,		35370,		36250,		37143,		38046,		38962,		39889,		40829,
-	41780,		42744,		43720,		44708,		45707,		46718,		47742,		48777,
-	49825,		50886,		51958,		53043,		54139,		55248,		56369,		57503,
-	58649,		59807,		60978,		62161,		63356,		64563,		65784,		67016,
-	68262,		69520,		70789,		72073,		73368,		74676,		75997,		77330,
-	78676,		80034,		81406,		82790,		84187,		85596,		87018,		88454,
-	89901,		91362,		92836,		94322,		95821,		97333,		98858,		100397,
-	101947,		103512,		105088,		106679,		108282,		109898,		111528,		113170,
-	114824,		116494,		118175,		119870,		121577,		123299,		125034,		126781,
-	128541,		130316,		132103,		133903,		135717,		137545,		139386,		141240,
-	143107,		144988,		146881,		148789,		150710,		152645,		154592,		156554,
-	158529,		160517,		162519,		164534,		166563,		168606,		170662,		172732,
-	174815,		176912,		179023,		181147,		183285,		185437,		187602,		189781,
-	191974,		194181,		196401,		198635,		200883,		203145,		205420,		207709,
-	210013,		212329,		214661,		217006,		219364,		221737,		224123,		226524,
-	228939,		231368,		233810,		236266,		238736,		241221,		243720,		246232,
-	248759,		251299,		253854,		256423,		259006,		261603,		264214,		266840,
-	269480,		272133,		274801,		277483,		280180,		282890,		285615,		288354,
-	291108,		293875,		296657,		299453,		302264,		305088,		307928,		310782,
-	313650,		316531,		319428,		322339,		325265,		328205,		331159,		334128,
-	337111,		340109,		343122,		346148,		349189,		352245,		355315,		358400,
-};
-
-unsigned char lookup_tbl_360[361] = { /*for max 360 nit */
-	0,		18,		24,		29,		33,		36,		40,		43,
-	45,		48,		50,		52,		54,		56,		58,		60,
-	62,		64,		65,		67,		69,		70,		72,		73,
-	74,		76,		77,		79,		80,		81,		82,		84,
-	85,		86,		87,		88,		90,		91,		92,		93,
-	94,		95,		96,		97,		98,		99,		100,		101,
-	102,		103,		104,		105,		106,		107,		108,		109,
-	109,		110,		111,		112,		113,		114,		115,		115,
-	116,		117,		118,		119,		120,		120,		121,		122,
-	123,		123,		124,		125,		126,		126,		127,		128,
-	129,		129,		130,		131,		132,		132,		133,		134,
-	134,		135,		136,		136,		137,		138,		139,		139,
-	140,		140,		141,		142,		142,		143,		144,		144,
-	145,		146,		146,		147,		148,		148,		149,		149,
-	150,		151,		151,		152,		152,		153,		154,		154,
-	155,		155,		156,		157,		157,		158,		158,		159,
-	159,		160,		160,		161,		162,		162,		163,		163,
-	164,		164,		165,		165,		166,		167,		167,		168,
-	168,		169,		169,		170,		170,		171,		171,		172,
-	172,		173,		173,		174,		174,		175,		175,		176,
-	176,		177,		177,		178,		178,		179,		179,		180,
-	180,		181,		181,		182,		182,		183,		183,		184,
-	184,		185,		185,		186,		186,		187,		187,		187,
-	188,		188,		189,		189,		190,		190,		191,		191,
-	192,		192,		193,		193,		193,		194,		194,		195,
-	195,		196,		196,		197,		197,		197,		198,		198,
-	199,		199,		200,		200,		200,		201,		201,		202,
-	202,		203,		203,		203,		204,		204,		205,		205,
-	206,		206,		206,		207,		207,		208,		208,		208,
-	209,		209,		210,		210,		210,		211,		211,		212,
-	212,		212,		213,		213,		214,		214,		214,		215,
-	215,		216,		216,		216,		217,		217,		218,		218,
-	218,		219,		219,		220,		220,		220,		221,		221,
-	221,		222,		222,		223,		223,		223,		224,		224,
-	224,		225,		225,		226,		226,		226,		227,		227,
-	227,		228,		228,		229,		229,		229,		230,		230,
-	230,		231,		231,		231,		232,		232,		233,		233,
-	233,		234,		234,		234,		235,		235,		235,		236,
-	236,		236,		237,		237,		238,		238,		238,		239,
-	239,		239,		240,		240,		240,		241,		241,		241,
-	242,		242,		242,		243,		243,		243,		244,		244,
-	244,		245,		245,		245,		246,		246,		246,		247,
-	247,		247,		248,		248,		248,		249,		249,		249,
-	250,		250,		250,		251,		251,		251,		252,		252,
-	252,		253,		253,		253,		254,		254,		254,		255,
-	255
-};
-
-unsigned int gamma_multi_tbl_360[256] = { /*for max 360 nit */
-	0,		2,		9,		21,		40,		65,		96,		135,
-	182,		235,		297,		366,		443,		528,		622,		724,
-	834,		953,		1081,		1218,		1363,		1517,		1681,		1854,
-	2036,		2227,		2427,		2638,		2857,		3087,		3326,		3574,
-	3833,		4102,		4380,		4668,		4967,		5275,		5594,		5923,
-	6262,		6612,		6972,		7343,		7723,		8115,		8517,		8930,
-	9353,		9787,		10232,		10687,		11154,		11631,		12119,		12619,
-	13129,		13650,		14183,		14726,		15281,		15847,		16424,		17012,
-	17612,		18223,		18846,		19480,		20125,		20782,		21450,		22130,
-	22822,		23525,		24240,		24966,		25704,		26454,		27216,		27989,
-	28775,		29572,		30381,		31202,		32035,		32880,		33737,		34606,
-	35488,		36381,		37286,		38204,		39133,		40075,		41029,		41996,
-	42974,		43965,		44969,		45985,		47013,		48053,		49106,		50171,
-	51249,		52340,		53443,		54558,		55686,		56827,		57980,		59146,
-	60325,		61516,		62720,		63937,		65166,		66408,		67664,		68931,
-	70212,		71506,		72812,		74132,		75464,		76810,		78168,		79539,
-	80924,		82321,		83732,		85155,		86592,		88042,		89504,		90981,
-	92470,		93972,		95488,		97017,		98559,		100114,		101683,		103265,
-	104860,		106469,		108091,		109727,		111376,		113038,		114714,		116403,
-	118105,		119822,		121551,		123295,		125051,		126822,		128606,		130403,
-	132214,		134039,		135877,		137729,		139595,		141475,		143368,		145275,
-	147196,		149130,		151078,		153040,		155016,		157006,		159009,		161027,
-	163058,		165103,		167162,		169235,		171322,		173423,		175538,		177667,
-	179810,		181967,		184138,		186323,		188522,		190735,		192962,		195203,
-	197459,		199729,		202012,		204310,		206622,		208949,		211289,		213644,
-	216013,		218396,		220794,		223206,		225632,		228072,		230527,		232996,
-	235480,		237978,		240490,		243016,		245557,		248113,		250683,		253267,
-	255866,		258479,		261107,		263749,		266406,		269077,		271763,		274464,
-	277179,		279908,		282652,		285411,		288185,		290973,		293775,		296593,
-	299425,		302271,		305133,		308009,		310900,		313805,		316726,		319661,
-	322611,		325575,		328555,		331549,		334558,		337582,		340621,		343675,
-	346743,		349826,		352925,		356038,		359166,		362309,		365467,		368640,
-};
-
-
-unsigned int *gamma_multi_tbl;
-unsigned char *lookup_tbl;
-
-static int init_dimming(struct dsim_device *dsim, u8 *mtp)
+static int init_dimming(struct lcd_info *lcd, u8 *mtp)
 {
 	int i, j;
 	int pos = 0;
 	int ret = 0;
 	short temp;
 	struct dim_data *dimming;
-	struct panel_private *panel = &dsim->priv;
 	struct SmtDimInfo *diminfo = NULL;
 
 	dimming = kzalloc(sizeof(struct dim_data), GFP_KERNEL);
 	if (!dimming) {
-		dsim_err("failed to allocate memory for dim data\n");
+		dev_err(&lcd->ld->dev, "failed to allocate memory for dim data\n");
 		ret = -ENOMEM;
 		goto error;
 	}
 
-	if (dsim->priv.id[2] >= 0x02) {
+	if (lcd->id[2] >= 0x02)
 		diminfo = lily_dimming_info;
-
-		gamma_multi_tbl = gamma_multi_tbl_360;
-		lookup_tbl = lookup_tbl_360;
-	} else {
+	else
 		diminfo = daisy_dimming_info;
 
-		gamma_multi_tbl = gamma_multi_tbl_350;
-		lookup_tbl = lookup_tbl_350;
-	}
+	lcd->dim_data = (void *)dimming;
+	lcd->dim_info = (void *)diminfo;
 
-	panel->dim_data = (void *)dimming;
-	panel->dim_info = (void *)diminfo;
-
-	panel->br_tbl = (unsigned int *)br_tbl;
-	panel->hbm_tbl = (unsigned char **)HBM_TABLE;
-	panel->acl_cutoff_tbl = (unsigned char **)ACL_CUTOFF_TABLE;
-	panel->acl_opr_tbl = (unsigned char **)ACL_OPR_TABLE;
+	lcd->br_tbl = (unsigned int *)br_tbl;
+	lcd->hbm_tbl = (unsigned char **)HBM_TABLE;
+	lcd->acl_cutoff_tbl = (unsigned char **)ACL_CUTOFF_TABLE;
+	lcd->acl_opr_tbl = (unsigned char **)ACL_OPR_TABLE;
 
 	for (j = 0; j < CI_MAX; j++) {
 		temp = ((mtp[pos] & 0x01) ? -1 : 1) * mtp[pos+1];
@@ -1489,7 +654,7 @@ static int init_dimming(struct dsim_device *dsim, u8 *mtp)
 #ifdef SMART_DIMMING_DEBUG
 	dimm_info("Center Gamma Info :\n");
 	for (i = 0; i < VMAX; i++) {
-		dsim_info("Gamma : %3d %3d %3d : %3x %3x %3x\n",
+		dev_info(&lcd->ld->dev, "Gamma : %3d %3d %3d : %3x %3x %3x\n",
 			dimming->t_gamma[i][CI_RED], dimming->t_gamma[i][CI_GREEN], dimming->t_gamma[i][CI_BLUE],
 			dimming->t_gamma[i][CI_RED], dimming->t_gamma[i][CI_GREEN], dimming->t_gamma[i][CI_BLUE]);
 	}
@@ -1515,7 +680,7 @@ static int init_dimming(struct dsim_device *dsim, u8 *mtp)
 	for (i = 0; i < MAX_BR_INFO - 1; i++) {
 		ret = cal_gamma_from_index(dimming, &diminfo[i]);
 		if (ret) {
-			dsim_err("failed to calculate gamma : index : %d\n", i);
+			dev_err(&lcd->ld->dev, "failed to calculate gamma : index : %d\n", i);
 			goto error;
 		}
 	}
@@ -1526,71 +691,71 @@ error:
 }
 #endif
 
-static int ea8064g_read_init_info(struct dsim_device *dsim, unsigned char *mtp)
+static int ea8064g_read_init_info(struct lcd_info *lcd, unsigned char *mtp)
 {
 	int i = 0;
 	int ret;
-	struct panel_private *panel = &dsim->priv;
+	struct panel_private *priv = &lcd->dsim->priv;
 	unsigned char bufForCoordi[EA8064G_COORDINATE_LEN] = {0,};
 	unsigned char buf[EA8064G_MTP_DATE_SIZE] = {0, };
 
-	dsim_info("MDD : %s was called\n", __func__);
+	dev_info(&lcd->ld->dev, "MDD : %s was called\n", __func__);
 
-	ret = dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
 	if (ret < 0)
-		dsim_err("%s : fail to write CMD : SEQ_TEST_KEY_ON_F0\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to write CMD : SEQ_TEST_KEY_ON_F0\n", __func__);
 
 	/* id */
-	ret = dsim_read_hl_data(dsim, EA8064G_ID_REG, EA8064G_ID_LEN, dsim->priv.id);
+	ret = dsim_read_hl_data(lcd->dsim, EA8064G_ID_REG, EA8064G_ID_LEN, lcd->id);
 	if (ret != EA8064G_ID_LEN) {
-		dsim_err("%s : can't find connected panel. check panel connection\n", __func__);
-		panel->lcdConnected = PANEL_DISCONNEDTED;
+		dev_err(&lcd->ld->dev, "%s : can't find connected panel. check panel connection\n", __func__);
+		priv->lcdConnected = PANEL_DISCONNEDTED;
 		goto read_exit;
 	}
 
-	dsim_info("READ ID : ");
+	dev_info(&lcd->ld->dev, "READ ID : ");
 	for (i = 0; i < EA8064G_ID_LEN; i++)
-		dsim_info("%02x, ", dsim->priv.id[i]);
-	dsim_info("\n");
+		dev_info(&lcd->ld->dev, "%02x, ", lcd->id[i]);
+	dev_info(&lcd->ld->dev, "\n");
 
 	/* mtp */
-	ret = dsim_read_hl_data(dsim, EA8064G_MTP_ADDR, EA8064G_MTP_DATE_SIZE, buf);
+	ret = dsim_read_hl_data(lcd->dsim, EA8064G_MTP_ADDR, EA8064G_MTP_DATE_SIZE, buf);
 	if (ret != EA8064G_MTP_DATE_SIZE) {
-		dsim_err("failed to read mtp, check panel connection\n");
+		dev_err(&lcd->ld->dev, "failed to read mtp, check panel connection\n");
 		goto read_fail;
 	}
 	memcpy(mtp, buf, EA8064G_MTP_SIZE);
-	dsim_info("READ MTP SIZE : %d\n", EA8064G_MTP_SIZE);
-	dsim_info("=========== MTP INFO ===========\n");
+	dev_info(&lcd->ld->dev, "READ MTP SIZE : %d\n", EA8064G_MTP_SIZE);
+	dev_info(&lcd->ld->dev, "=========== MTP INFO ===========\n");
 	for (i = 0; i < EA8064G_MTP_SIZE; i++)
-		dsim_info("MTP[%2d] : %2d : %2x\n", i, mtp[i], mtp[i]);
+		dev_info(&lcd->ld->dev, "MTP[%2d] : %2d : %2x\n", i, mtp[i], mtp[i]);
 
 	/* elvss */
-	ret = dsim_read_hl_data(dsim, ELVSS_REG, ELVSS_LEN, dsim->priv.elvss);
+	ret = dsim_read_hl_data(lcd->dsim, ELVSS_REG, ELVSS_LEN, lcd->elvss);
 	if (ret != ELVSS_LEN) {
-		dsim_err("failed to read mtp, check panel connection\n");
+		dev_err(&lcd->ld->dev, "failed to read mtp, check panel connection\n");
 		goto read_fail;
 	}
 
 	/* coordinate */
-	ret = dsim_read_hl_data(dsim, EA8064G_COORDINATE_REG, EA8064G_COORDINATE_LEN, bufForCoordi);
+	ret = dsim_read_hl_data(lcd->dsim, EA8064G_COORDINATE_REG, EA8064G_COORDINATE_LEN, bufForCoordi);
 	if (ret != EA8064G_COORDINATE_LEN) {
-		dsim_err("fail to read coordinate on command.\n");
+		dev_err(&lcd->ld->dev, "failed to read coordinate on command.\n");
 		goto read_fail;
 	}
-	dsim->priv.coordinate[0] = bufForCoordi[0] << 8 | bufForCoordi[1];	/* X */
-	dsim->priv.coordinate[1] = bufForCoordi[2] << 8 | bufForCoordi[3];	/* Y */
-	dsim->priv.date[0] = bufForCoordi[4];  /* year, month */
-	dsim->priv.date[1] = bufForCoordi[5];  /* day */
+	lcd->coordinate[0] = bufForCoordi[0] << 8 | bufForCoordi[1];	/* X */
+	lcd->coordinate[1] = bufForCoordi[2] << 8 | bufForCoordi[3];	/* Y */
+	lcd->date[0] = bufForCoordi[4];  /* year, month */
+	lcd->date[1] = bufForCoordi[5];  /* day */
 
-	dsim_info("READ coordi : ");
+	dev_info(&lcd->ld->dev, "READ coordi : ");
 	for (i = 0; i < 2; i++)
-		dsim_info("%d, ", dsim->priv.coordinate[i]);
-	dsim_info("\n");
+		dev_info(&lcd->ld->dev, "%d, ", lcd->coordinate[i]);
+	dev_info(&lcd->ld->dev, "\n");
 
-	ret = dsim_write_hl_data(dsim, SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
 	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_TEST_KEY_OFF_F0\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to write CMD : SEQ_TEST_KEY_OFF_F0\n", __func__);
 		goto read_fail;
 	}
 read_exit:
@@ -1604,25 +769,35 @@ read_fail:
 static int ea8064g_probe(struct dsim_device *dsim)
 {
 	int ret = 0;
-	struct panel_private *panel = &dsim->priv;
+	struct panel_private *priv = &dsim->priv;
+	struct lcd_info *lcd = dsim->priv.par;
 	unsigned char mtp[EA8064G_MTP_SIZE] = {0, };
 
-	dsim_info("MDD : %s was called\n", __func__);
+	dev_info(&lcd->ld->dev, "MDD : %s was called\n", __func__);
 
-	panel->dim_data = (void *)NULL;
-	panel->lcdConnected = PANEL_CONNECTED;
-	panel->panel_type = 0;
+	priv->lcdConnected = PANEL_CONNECTED;
+	lcd->bd->props.max_brightness = UI_MAX_BRIGHTNESS;
+	lcd->bd->props.brightness = UI_DEFAULT_BRIGHTNESS;
+	lcd->dsim = dsim;
+	lcd->state = PANEL_STATE_RESUMED;
+	lcd->temperature = NORMAL_TEMPERATURE;
+	lcd->acl_enable = 0;
+	lcd->current_acl = 0;
+	lcd->auto_brightness = 0;
+	lcd->siop_enable = 0;
+	lcd->current_hbm = 0;
+	lcd->dim_data = (void *)NULL;
 
-	ret = ea8064g_read_init_info(dsim, mtp);
-	if (panel->lcdConnected == PANEL_DISCONNEDTED) {
-		dsim_err("dsim : %s lcd was not connected\n", __func__);
+	ret = ea8064g_read_init_info(lcd, mtp);
+	if (priv->lcdConnected == PANEL_DISCONNEDTED) {
+		dev_err(&lcd->ld->dev, "dsim : %s lcd was not connected\n", __func__);
 		goto probe_exit;
 	}
 
 #ifdef CONFIG_PANEL_AID_DIMMING
-	ret = init_dimming(dsim, mtp);
+	ret = init_dimming(lcd, mtp);
 	if (ret)
-		dsim_err("%s : failed to generate gamma table\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to generate gamma table\n", __func__);
 #endif
 probe_exit:
 	return ret;
@@ -1630,15 +805,15 @@ probe_exit:
 }
 
 
-static int ea8064g_displayon(struct dsim_device *dsim)
+static int ea8064g_displayon(struct lcd_info *lcd)
 {
 	int ret = 0;
 
-	dsim_info("MDD : %s was called\n", __func__);
+	dev_info(&lcd->ld->dev, "MDD : %s was called\n", __func__);
 
-	ret = dsim_write_hl_data(dsim, SEQ_DISPLAY_ON, ARRAY_SIZE(SEQ_DISPLAY_ON));
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_DISPLAY_ON, ARRAY_SIZE(SEQ_DISPLAY_ON));
 	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : DISPLAY_ON\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to write CMD : DISPLAY_ON\n", __func__);
 		goto displayon_err;
 	}
 
@@ -1647,21 +822,22 @@ displayon_err:
 
 }
 
-static int ea8064g_exit(struct dsim_device *dsim)
+static int ea8064g_exit(struct lcd_info *lcd)
 {
 	int ret = 0;
-	dsim_info("MDD : %s was called\n", __func__);
-	ret = dsim_write_hl_data(dsim, SEQ_DISPLAY_OFF, ARRAY_SIZE(SEQ_DISPLAY_OFF));
+
+	dev_info(&lcd->ld->dev, "MDD : %s was called\n", __func__);
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_DISPLAY_OFF, ARRAY_SIZE(SEQ_DISPLAY_OFF));
 	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : DISPLAY_OFF\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to write CMD : DISPLAY_OFF\n", __func__);
 		goto exit_err;
 	}
 
 	msleep(35);
 
-	ret = dsim_write_hl_data(dsim, SEQ_SLEEP_IN, ARRAY_SIZE(SEQ_SLEEP_IN));
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_SLEEP_IN, ARRAY_SIZE(SEQ_SLEEP_IN));
 	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SLEEP_IN\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to write CMD : SLEEP_IN\n", __func__);
 		goto exit_err;
 	}
 
@@ -1671,77 +847,77 @@ exit_err:
 	return ret;
 }
 
-static int ea8064g_init(struct dsim_device *dsim)
+static int ea8064g_init(struct lcd_info *lcd)
 {
 	int ret = 0;
 
-	dsim_info("MDD : %s was called\n", __func__);
+	dev_info(&lcd->ld->dev, "MDD : %s was called\n", __func__);
 
-	ret = dsim_panel_set_brightness(dsim, 1);
+	ret = dsim_panel_set_brightness(lcd, 1);
 	if (ret)
-		dsim_err("%s : fail to set brightness\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to set brightness\n", __func__);
 
-	ret = dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
 	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_TEST_KEY_ON_F0\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to write CMD : SEQ_TEST_KEY_ON_F0\n", __func__);
 		goto init_exit;
 	}
 
-	ret = dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC));
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC));
 	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_TEST_KEY_ON_FC\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to write CMD : SEQ_TEST_KEY_ON_FC\n", __func__);
 		goto init_exit;
 	}
 
-	ret = dsim_write_hl_data(dsim, SEQ_SLEEP_OUT, ARRAY_SIZE(SEQ_SLEEP_OUT));
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_SLEEP_OUT, ARRAY_SIZE(SEQ_SLEEP_OUT));
 	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_SLEEP_OUT\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to write CMD : SEQ_SLEEP_OUT\n", __func__);
 		goto init_exit;
 	}
 
 	msleep(25);
 
-	ret = dsim_write_hl_data(dsim, SEQ_DCDC1_GP, ARRAY_SIZE(SEQ_DCDC1_GP));
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_DCDC1_GP, ARRAY_SIZE(SEQ_DCDC1_GP));
 	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_SOURCE_CONTROL\n", __func__);
+		dev_err(&lcd->ld->dev, "%s: failed to write CMD : SEQ_SOURCE_CONTROL\n", __func__);
 		goto init_exit;
 	}
 
-	ret = dsim_write_hl_data(dsim, SEQ_DCDC1_SET, ARRAY_SIZE(SEQ_DCDC1_SET));
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_DCDC1_SET, ARRAY_SIZE(SEQ_DCDC1_SET));
 	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_SOURCE_CONTROL\n", __func__);
+		dev_err(&lcd->ld->dev, "%s: failed to write CMD : SEQ_SOURCE_CONTROL\n", __func__);
 		goto init_exit;
 	}
 
-	ret = dsim_write_hl_data(dsim, SEQ_SOURCE_CONTROL, ARRAY_SIZE(SEQ_SOURCE_CONTROL));
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_SOURCE_CONTROL, ARRAY_SIZE(SEQ_SOURCE_CONTROL));
 	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_SOURCE_CONTROL\n", __func__);
+		dev_err(&lcd->ld->dev, "%s: failed to write CMD : SEQ_SOURCE_CONTROL\n", __func__);
 		goto init_exit;
 	}
 
-	ret = dsim_write_hl_data(dsim, SEQ_PCD_CONTROL, ARRAY_SIZE(SEQ_PCD_CONTROL));
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_PCD_CONTROL, ARRAY_SIZE(SEQ_PCD_CONTROL));
 	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_PCD_CONTROL\n", __func__);
+		dev_err(&lcd->ld->dev, "%s: failed to write CMD : SEQ_PCD_CONTROL\n", __func__);
 		goto init_exit;
 	}
 
-	ret = dsim_write_hl_data(dsim, SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC));
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC));
 	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_TEST_KEY_OFF_FC\n", __func__);
+		dev_err(&lcd->ld->dev, "%s: failed to write CMD : SEQ_TEST_KEY_OFF_FC\n", __func__);
 		goto init_exit;
 	}
 
 	msleep(120);
 
-	ret = dsim_write_hl_data(dsim, SEQ_TE_OUT, ARRAY_SIZE(SEQ_TE_OUT));
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_TE_OUT, ARRAY_SIZE(SEQ_TE_OUT));
 	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_TE_OUT\n", __func__);
+		dev_err(&lcd->ld->dev, "%s: failed to write CMD : SEQ_TE_OUT\n", __func__);
 		goto init_exit;
 	}
 
-	ret = dsim_write_hl_data(dsim, SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
+	ret = dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
 	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_TEST_KEY_OFF_F0\n", __func__);
+		dev_err(&lcd->ld->dev, "%s : failed to write CMD : SEQ_TEST_KEY_OFF_F0\n", __func__);
 		goto init_exit;
 	}
 
@@ -1750,11 +926,585 @@ init_exit:
 }
 
 
-struct dsim_panel_ops ea8064g_panel_ops = {
-	.early_probe = NULL,
-	.probe		= ea8064g_probe,
-	.displayon	= ea8064g_displayon,
-	.exit		= ea8064g_exit,
-	.init		= ea8064g_init,
+static ssize_t lcd_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "SDC_%02X%02X%02X\n", lcd->id[0], lcd->id[1], lcd->id[2]);
+
+	return strlen(buf);
+}
+
+static ssize_t window_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%x %x %x\n", lcd->id[0], lcd->id[1], lcd->id[2]);
+
+	return strlen(buf);
+}
+
+static ssize_t brightness_table_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	char *pos = buf;
+	int nit, i, br_index;
+
+	if (IS_ERR_OR_NULL(lcd->br_tbl))
+		return strlen(buf);
+
+	for (i = 0; i <= UI_MAX_BRIGHTNESS; i++) {
+		nit = lcd->br_tbl[i];
+		br_index = get_acutal_br_index(lcd, nit);
+		nit = get_actual_br_value(lcd, br_index);
+		pos += sprintf(pos, "%3d %3d\n", i, nit);
+	}
+	return pos - buf;
+}
+
+static ssize_t auto_brightness_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%u\n", lcd->auto_brightness);
+
+	return strlen(buf);
+}
+
+static ssize_t auto_brightness_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	int value;
+	int rc;
+
+	rc = kstrtoul(buf, (unsigned int)0, (unsigned long *)&value);
+	if (rc < 0)
+		return rc;
+	else {
+		if (lcd->auto_brightness != value) {
+			dev_info(dev, "%s: %d, %d\n", __func__, lcd->auto_brightness, value);
+			mutex_lock(&lcd->lock);
+			lcd->auto_brightness = value;
+			mutex_unlock(&lcd->lock);
+			dsim_panel_set_brightness(lcd, 0);
+		}
+	}
+	return size;
+}
+
+static ssize_t siop_enable_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%u\n", lcd->siop_enable);
+
+	return strlen(buf);
+}
+
+static ssize_t siop_enable_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	int value;
+	int rc;
+
+	rc = kstrtoul(buf, (unsigned int)0, (unsigned long *)&value);
+	if (rc < 0)
+		return rc;
+	else {
+		if (lcd->siop_enable != value) {
+			dev_info(dev, "%s: %d, %d\n", __func__, lcd->siop_enable, value);
+			mutex_lock(&lcd->lock);
+			lcd->siop_enable = value;
+			mutex_unlock(&lcd->lock);
+
+			dsim_panel_set_brightness(lcd, 1);
+		}
+	}
+	return size;
+}
+
+static ssize_t power_reduce_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%u\n", lcd->acl_enable);
+
+	return strlen(buf);
+}
+
+static ssize_t power_reduce_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	int value;
+	int rc;
+
+	rc = kstrtoul(buf, (unsigned int)0, (unsigned long *)&value);
+
+	if (rc < 0)
+		return rc;
+	else {
+		if (lcd->acl_enable != value) {
+			dev_info(dev, "%s: %d, %d\n", __func__, lcd->acl_enable, value);
+			mutex_lock(&lcd->lock);
+			lcd->acl_enable = value;
+			mutex_unlock(&lcd->lock);
+			dsim_panel_set_brightness(lcd, 1);
+		}
+	}
+	return size;
+}
+
+
+static ssize_t temperature_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	char temp[] = "-20, -19, 0, 1\n";
+
+	strcat(buf, temp);
+	return strlen(buf);
+}
+
+static ssize_t temperature_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	int value;
+	int rc;
+
+	rc = kstrtoint(buf, 10, &value);
+
+	if (rc < 0)
+		return rc;
+	else {
+		mutex_lock(&lcd->lock);
+		lcd->temperature = value;
+		mutex_unlock(&lcd->lock);
+
+		dsim_panel_set_brightness(lcd, 1);
+		dev_info(dev, "%s: %d, %d\n", __func__, value, lcd->temperature);
+	}
+
+	return size;
+}
+
+static ssize_t color_coordinate_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%u, %u\n", lcd->coordinate[0], lcd->coordinate[1]);
+	return strlen(buf);
+}
+
+static ssize_t manufacture_date_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	u16 year;
+	u8 month, day, hour, min;
+
+	year = ((lcd->date[0] & 0xF0) >> 4) + 2011;
+	month = lcd->date[0] & 0xF;
+	day = lcd->date[1] & 0x1F;
+	hour = lcd->date[2] & 0x1F;
+	min = lcd->date[3] & 0x3F;
+
+	sprintf(buf, "%d, %d, %d, %d:%d\n", year, month, day, hour, min);
+	return strlen(buf);
+}
+
+#ifdef CONFIG_PANEL_AID_DIMMING
+static void show_aid_log(struct lcd_info *lcd)
+{
+	int i, j, k;
+	struct dim_data *dim_data = NULL;
+	struct SmtDimInfo *dimming_info = NULL;
+	u8 temp[256];
+
+
+	dim_data = (struct dim_data *)(lcd->dim_data);
+	if (dim_data == NULL) {
+		dev_info(&lcd->ld->dev, "%s:dimming is NULL\n", __func__);
+		return;
+	}
+
+	dimming_info = (struct SmtDimInfo *)(lcd->dim_info);
+	if (dimming_info == NULL) {
+		dev_info(&lcd->ld->dev, "%s:dimming is NULL\n", __func__);
+		return;
+	}
+
+	dev_info(&lcd->ld->dev, "MTP VT : %d %d %d\n",
+			dim_data->vt_mtp[CI_RED], dim_data->vt_mtp[CI_GREEN], dim_data->vt_mtp[CI_BLUE]);
+
+	for (i = 0; i < VMAX; i++) {
+		dev_info(&lcd->ld->dev, "MTP V%d : %4d %4d %4d\n",
+			vref_index[i], dim_data->mtp[i][CI_RED], dim_data->mtp[i][CI_GREEN], dim_data->mtp[i][CI_BLUE]);
+	}
+
+	for (i = 0; i < MAX_BR_INFO; i++) {
+		memset(temp, 0, sizeof(temp));
+		for (j = 1; j < OLED_CMD_GAMMA_CNT; j++) {
+			if (j == 1 || j == 3 || j == 5)
+				k = dimming_info[i].gamma[j++] * 256;
+			else
+				k = 0;
+			snprintf(temp + strnlen(temp, 256), 256, " %d", dimming_info[i].gamma[j] + k);
+		}
+		dev_info(&lcd->ld->dev, "nit :%3d %s\n", dimming_info[i].br, temp);
+	}
+}
+
+static ssize_t aid_log_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	show_aid_log(lcd);
+	return strlen(buf);
+}
+#endif
+
+static ssize_t manufacture_code_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%02X%02X%02X%02X%02X\n",
+		lcd->code[0], lcd->code[1], lcd->code[2], lcd->code[3], lcd->code[4]);
+
+	return strlen(buf);
+}
+
+static ssize_t cell_id_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
+		lcd->date[0], lcd->date[1], lcd->date[2], lcd->date[3], lcd->date[4],
+		lcd->date[5], lcd->date[6], (lcd->coordinate[0] & 0xFF00) >> 8, lcd->coordinate[0] & 0x00FF,
+		(lcd->coordinate[1]&0xFF00)>>8, lcd->coordinate[1]&0x00FF);
+
+	return strlen(buf);
+}
+
+static int dsim_read_hl_data_offset(struct lcd_info *lcd, u8 addr, u32 size, u8 *buf, u32 offset)
+{
+	unsigned char wbuf[] = {0xB0, 0};
+	int ret = 0;
+
+	wbuf[1] = offset;
+
+	ret = dsim_write_hl_data(lcd->dsim, wbuf, ARRAY_SIZE(wbuf));
+	if (ret < 0)
+		dev_err(&lcd->ld->dev, "%s: failed to write wbuf\n", __func__);
+
+	ret = dsim_read_hl_data(lcd->dsim, addr, size, buf);
+	if (ret < 1)
+		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
+
+	return ret;
+}
+
+static ssize_t dump_register_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	char *pos = buf;
+	u8 reg, len, offset;
+	int ret, i;
+	u8 *dump = NULL;
+
+	reg = lcd->dump_info[0];
+	len = lcd->dump_info[1];
+	offset = lcd->dump_info[2];
+
+	if (!reg || !len || reg > 0xff || len > 255 || offset > 255)
+		goto exit;
+
+	dump = kcalloc(len, sizeof(u8), GFP_KERNEL);
+
+	if (lcd->state == PANEL_STATE_RESUMED) {
+		if (dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0)) < 0)
+			dev_err(&lcd->ld->dev, "failed to write test on f0 command.\n");
+		if (dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC)) < 0)
+			dev_err(&lcd->ld->dev, "failed to write test on fc command.\n");
+
+		if (offset)
+			ret = dsim_read_hl_data_offset(lcd, reg, len, dump, offset);
+		else
+			ret = dsim_read_hl_data(lcd->dsim, reg, len, dump);
+
+		if (dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC)) < 0)
+			dev_err(&lcd->ld->dev, "failed to write test off fc command.\n");
+		if (dsim_write_hl_data(lcd->dsim, SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0)) < 0)
+			dev_err(&lcd->ld->dev, "failed to write test off f0 command.\n");
+	}
+
+	pos += sprintf(pos, "+ [%02X]\n", reg);
+	for (i = 0; i < len; i++)
+		pos += sprintf(pos, "%2d: %02x\n", i + offset + 1, dump[i]);
+	pos += sprintf(pos, "- [%02X]\n", reg);
+
+	dev_info(&lcd->ld->dev, "+ [%02X]\n", reg);
+	for (i = 0; i < len; i++)
+		dev_info(&lcd->ld->dev, "%2d: %02x\n", i + offset + 1, dump[i]);
+	dev_info(&lcd->ld->dev, "- [%02X]\n", reg);
+
+	kfree(dump);
+exit:
+	return pos - buf;
+}
+
+static ssize_t dump_register_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	unsigned int reg, len, offset;
+	int ret;
+
+	ret = sscanf(buf, "%x %d %d", &reg, &len, &offset);
+
+	if (ret == 2)
+		offset = 0;
+
+	dev_info(dev, "%s: %x %d %d\n", __func__, reg, len, offset);
+
+	if (ret < 0)
+		return ret;
+	else {
+		if (!reg || !len || reg > 0xff || len > 255 || offset > 255)
+			return -EINVAL;
+
+		lcd->dump_info[0] = reg;
+		lcd->dump_info[1] = len;
+		lcd->dump_info[2] = offset;
+	}
+
+	return size;
+}
+
+static DEVICE_ATTR(lcd_type, 0444, lcd_type_show, NULL);
+static DEVICE_ATTR(window_type, 0444, window_type_show, NULL);
+static DEVICE_ATTR(manufacture_code, 0444, manufacture_code_show, NULL);
+static DEVICE_ATTR(cell_id, 0444, cell_id_show, NULL);
+static DEVICE_ATTR(brightness_table, 0444, brightness_table_show, NULL);
+static DEVICE_ATTR(auto_brightness, 0644, auto_brightness_show, auto_brightness_store);
+static DEVICE_ATTR(siop_enable, 0664, siop_enable_show, siop_enable_store);
+static DEVICE_ATTR(power_reduce, 0664, power_reduce_show, power_reduce_store);
+static DEVICE_ATTR(temperature, 0664, temperature_show, temperature_store);
+static DEVICE_ATTR(color_coordinate, 0444, color_coordinate_show, NULL);
+static DEVICE_ATTR(manufacture_date, 0444, manufacture_date_show, NULL);
+#ifdef CONFIG_PANEL_AID_DIMMING
+static DEVICE_ATTR(aid_log, 0444, aid_log_show, NULL);
+#endif
+static DEVICE_ATTR(dump_register, 0644, dump_register_show, dump_register_store);
+
+static struct attribute *lcd_sysfs_attributes[] = {
+	&dev_attr_lcd_type.attr,
+	&dev_attr_window_type.attr,
+	&dev_attr_manufacture_code.attr,
+	&dev_attr_cell_id.attr,
+	&dev_attr_brightness_table.attr,
+	&dev_attr_siop_enable.attr,
+	&dev_attr_power_reduce.attr,
+	&dev_attr_temperature.attr,
+	&dev_attr_color_coordinate.attr,
+	&dev_attr_manufacture_date.attr,
+	&dev_attr_aid_log.attr,
+	&dev_attr_dump_register.attr,
+	NULL,
+};
+
+static struct attribute *backlight_sysfs_attributes[] = {
+	&dev_attr_auto_brightness.attr,
+	NULL,
+};
+
+static const struct attribute_group lcd_sysfs_attr_group = {
+	.attrs = lcd_sysfs_attributes,
+};
+
+static const struct attribute_group backlight_sysfs_attr_group = {
+	.attrs = backlight_sysfs_attributes,
+};
+
+static void lcd_init_sysfs(struct lcd_info *lcd)
+{
+	int ret = 0;
+
+	ret = sysfs_create_group(&lcd->ld->dev.kobj, &lcd_sysfs_attr_group);
+	if (ret < 0)
+		dev_err(&lcd->ld->dev, "failed to add lcd sysfs\n");
+
+	ret = sysfs_create_group(&lcd->bd->dev.kobj, &backlight_sysfs_attr_group);
+	if (ret < 0)
+		dev_err(&lcd->ld->dev, "failed to add backlight sysfs\n");
+}
+
+
+#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
+static int mdnie_lite_write_set(struct lcd_info *lcd, struct lcd_seq_info *seq, u32 num)
+{
+	int ret = 0, i;
+
+	for (i = 0; i < num; i++) {
+		if (seq[i].cmd) {
+			ret = dsim_write_hl_data(lcd->dsim, seq[i].cmd, seq[i].len);
+			if (ret != 0) {
+				dev_info(&lcd->ld->dev, "%s: %dth fail\n", __func__, i);
+				return ret;
+			}
+		}
+		if (seq[i].sleep)
+			usleep_range(seq[i].sleep * 1000, seq[i].sleep * 1000);
+	}
+	return ret;
+}
+
+int mdnie_lite_send_seq(struct lcd_info *lcd, struct lcd_seq_info *seq, u32 num)
+{
+	int ret = 0;
+
+	if (lcd->state != PANEL_STATE_RESUMED) {
+		dev_info(&lcd->ld->dev, "%s : panel is not active\n", __func__);
+		return -EIO;
+	}
+
+	mutex_lock(&lcd->lock);
+	ret = mdnie_lite_write_set(lcd, seq, num);
+	mutex_unlock(&lcd->lock);
+
+	return ret;
+}
+
+int mdnie_lite_read(struct lcd_info *lcd, u8 addr, u8 *buf, u32 size)
+{
+	int ret = 0;
+
+	if (lcd->state != PANEL_STATE_RESUMED) {
+		dev_info(&lcd->ld->dev, "%s : panel is not active\n", __func__);
+		return -EIO;
+	}
+
+	mutex_lock(&lcd->lock);
+	ret = dsim_read_hl_data(lcd->dsim, addr, size, buf);
+	mutex_unlock(&lcd->lock);
+
+	return ret;
+}
+#endif
+
+
+static int dsim_panel_probe(struct dsim_device *dsim)
+{
+	int ret = 0;
+	struct lcd_info *lcd;
+
+	dsim->priv.par = lcd = kzalloc(sizeof(struct lcd_info), GFP_KERNEL);
+	if (!lcd) {
+		pr_err("%s : failed to allocate for lcd\n", __func__);
+		ret = -ENOMEM;
+		goto probe_err;
+	}
+
+	dsim->lcd = lcd->ld = lcd_device_register("panel", dsim->dev, lcd, NULL);
+	if (IS_ERR(lcd->ld)) {
+		pr_err("%s : failed to register lcd device\n", __func__);
+		ret = PTR_ERR(lcd->ld);
+		goto probe_err;
+	}
+
+	lcd->bd = backlight_device_register("panel", dsim->dev, lcd, &panel_backlight_ops, NULL);
+	if (IS_ERR(lcd->bd)) {
+		pr_err("%s : failed to register backlight device\n", __func__);
+		ret = PTR_ERR(lcd->bd);
+		goto probe_err;
+	}
+
+	mutex_init(&lcd->lock);
+
+	ret = ea8064g_probe(dsim);
+	if (ret) {
+		dev_err(&lcd->ld->dev, "%s : failed to probe panel\n", __func__);
+		goto probe_err;
+	}
+
+#if defined(CONFIG_EXYNOS_DECON_LCD_SYSFS)
+	lcd_init_sysfs(lcd);
+#endif
+
+#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
+	mdnie_register(&lcd->ld->dev, lcd, (mdnie_w)mdnie_lite_send_seq, (mdnie_r)mdnie_lite_read, lcd->coordinate, &tune_info);
+#endif
+	dev_info(&lcd->ld->dev, "%s: %s: done\n", kbasename(__FILE__), __func__);
+probe_err:
+	return ret;
+}
+
+static int dsim_panel_displayon(struct dsim_device *dsim)
+{
+	struct lcd_info *lcd = dsim->priv.par;
+	int ret = 0;
+
+	if (lcd->state == PANEL_STATE_SUSPENED) {
+		lcd->state = PANEL_STATE_RESUMED;
+		ret = ea8064g_init(lcd);
+		if (ret) {
+			dev_err(&lcd->ld->dev, "%s : failed to panel init\n", __func__);
+			lcd->state = PANEL_STATE_SUSPENED;
+			goto displayon_err;
+		}
+	}
+
+	dsim_panel_set_brightness(lcd, 1);
+
+	ret = ea8064g_displayon(lcd);
+	if (ret) {
+		dev_err(&lcd->ld->dev, "%s : failed to panel display on\n", __func__);
+		goto displayon_err;
+	}
+
+displayon_err:
+	return ret;
+}
+
+static int dsim_panel_suspend(struct dsim_device *dsim)
+{
+	struct lcd_info *lcd = dsim->priv.par;
+	int ret = 0;
+
+	if (lcd->state == PANEL_STATE_SUSPENED)
+		goto suspend_err;
+
+	lcd->state = PANEL_STATE_SUSPENDING;
+
+	ret = ea8064g_exit(lcd);
+	if (ret) {
+		dev_err(&lcd->ld->dev, "%s : failed to panel exit\n", __func__);
+		goto suspend_err;
+	}
+
+	lcd->state = PANEL_STATE_SUSPENED;
+
+suspend_err:
+	return ret;
+}
+
+struct mipi_dsim_lcd_driver ea8064g_mipi_lcd_driver = {
+	.probe		= dsim_panel_probe,
+	.displayon	= dsim_panel_displayon,
+	.suspend	= dsim_panel_suspend,
 };
 

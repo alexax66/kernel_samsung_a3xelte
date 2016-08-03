@@ -185,6 +185,16 @@ static bool sm5705_CHG_get_INT_STATUS(struct sm5705_charger_data *charger,
 	return reg_val;
 }
 
+static int sm5705_CHG_set_TOPOFF_TMR(struct sm5705_charger_data *charger,
+				unsigned char topoff_timer)
+{
+	sm5705_update_reg(charger->i2c,
+		SM5705_REG_CHGCNTL8, ((topoff_timer & 0x3) << 3), (0x3 << 3));
+	pr_info("TOPOFF_TMR set (timer=%d)\n", topoff_timer);
+
+	return 0;
+}
+
 static int sm5705_CHG_enable_AUTOSTOP(struct sm5705_charger_data *charger,
 				bool enable)
 {
@@ -1779,6 +1789,20 @@ static irqreturn_t sm5705_chg_otgfail_isr(int irq, void *data)
 }
 #endif /*EN_OTGFAIL_IRQ*/
 
+static irqreturn_t sm5705_chg_done_isr(int irq, void *data)
+{
+	struct sm5705_charger_data *charger = data;
+
+	pr_info("%s: start.\n", __func__);
+
+	/* nCHG pin toggle */
+	gpio_direction_output(charger->pdata->chg_gpio_en, charger->is_charging);
+	msleep(10);
+	gpio_direction_output(charger->pdata->chg_gpio_en, !(charger->is_charging));
+
+	return IRQ_HANDLED;
+}
+
 #if defined(SM5705_USED_WIRELESS_CHARGER)
 static irqreturn_t sm5705_chg_wpcin_pok_isr(int irq, void *data)
 {
@@ -2138,6 +2162,7 @@ static int _init_sm5705_charger_info(struct platform_device *pdev,
 #if EN_OTGFAIL_IRQ
 	charger->irq_otgfail = pdata->irq_base + SM5705_OTGFAIL_IRQ;
 #endif
+	charger->irq_done = pdata->irq_base + SM5705_DONE_IRQ;
 
 	pr_info("init process done..\n");
 
@@ -2149,10 +2174,12 @@ static void sm5705_charger_initialize(struct sm5705_charger_data *charger)
 	pr_info("charger initial hardware condition process start. (float_voltage=%d)\n",
 		charger->pdata->chg_float_voltage);
 
-	sm5705_CHG_enable_AUTOSTOP(charger, 0);
-	sm5705_CHG_set_BATREG(charger, charger->pdata->chg_float_voltage);
-
+	/* Auto-Stop configuration for Emergency status */
 	sm5705_CHG_set_TOPOFF(charger, 300);
+	sm5705_CHG_set_TOPOFF_TMR(charger, SM5705_TOPOFF_TIMER_45m);
+	sm5705_CHG_enable_AUTOSTOP(charger, 1);
+
+	sm5705_CHG_set_BATREG(charger, charger->pdata->chg_float_voltage);
 
 	sm5705_CHG_set_AICLTH(charger, 4500);
 	sm5705_CHG_enable_AICL(charger, 1);
@@ -2273,6 +2300,12 @@ static int sm5705_charger_probe(struct platform_device *pdev)
 		goto err_power_supply_register_otg;
 	}
 #endif
+	ret = request_threaded_irq(charger->irq_done, NULL,
+			sm5705_chg_done_isr, 0, "done-irq", charger);
+	if (ret < 0) {
+		pr_err("fail to request chgin IRQ: %d: %d\n", charger->irq_done, ret);
+		goto err_power_supply_register_otg;
+	}
 
 	ret = sm5705_chg_create_attrs(charger->psy_chg.dev);
 	if (ret){

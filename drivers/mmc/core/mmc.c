@@ -1217,13 +1217,13 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		if (card->ext_csd.hs_max_dtr > 52000000 &&
 			(host->caps2 & MMC_CAP2_HS200 ||
 			 host->caps2 & MMC_CAP2_HS200_DDR)) {
+			/*
+			 * Device output driver strength
+			 */
+			driver_type = host->dev_drv_str << 4;
 			if (en_strobe_enhanced) {
 				err = mmc_select_hs(card);
 			} else {
-				/*
-				 * Device output driver strength
-				 */
-				driver_type = host->dev_drv_str << 4;
 				err = mmc_select_hs200(card, driver_type);
 			}
 		} else if (host->caps & MMC_CAP_MMC_HIGHSPEED)

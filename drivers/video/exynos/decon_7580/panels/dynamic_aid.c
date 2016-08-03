@@ -36,16 +36,12 @@ struct dynamic_aid_info {
 	int			iv_top;
 	int			*ibr_tbl;
 	int			ibr_max;
-	int			ibr_top;
 	int			 *mtp;
 	int			vreg;
 	int			vref_h;
 
 	struct rgb64_t *point_voltages;
 	struct rgb64_t *output_voltages;
-	int			*l_value;
-	int			*l_lookup_table;
-	int			*m_gray;
 	struct rgb64_t *m_voltage;
 };
 
@@ -181,112 +177,6 @@ static int calc_voltage_table(struct dynamic_aid_info d_aid)
 	return 0;
 }
 
-static int init_l_lookup_table(struct dynamic_aid_info d_aid)
-{
-	int iv;
-	int *gamma_curve;
-	int *l_lookup_table;
-
-	gamma_curve = (int *)d_aid.param.gc_lut;
-	l_lookup_table = d_aid.l_lookup_table;
-
-	for (iv = 0; iv <= d_aid.iv_top; iv++)
-		l_lookup_table[iv] = DIV_100(d_aid.ibr_top*gamma_curve[iv]);
-
-#ifdef DYNAMIC_AID_DEBUG
-	for (iv = 0; iv <= d_aid.iv_top; iv++)
-		aid_dbg("L lookup table[%d] = %d\n", iv, l_lookup_table[iv]);
-#endif
-	return 0;
-}
-
-static int min_diff_gray(int in, int *table, int table_cnt)
-{
-	int ret, i, min, temp;
-
-	ret = min = table[table_cnt] + 1;
-
-	for (i = 0; i <= table_cnt; i++) {
-		temp = table[i] - in;
-		if (temp < 0)
-			temp = -temp;
-
-		if (temp <= min) {
-			min = temp;
-			ret = i;
-		}
-
-		if (i && (in >= table[i-1]) && (in <= table[i]))
-			break;
-	}
-
-	return ret;
-}
-
-static int calc_l_values(struct dynamic_aid_info d_aid, int ibr)
-{
-	int iv;
-	int *gamma_curve;
-	int *br_base;
-	int *l_value;
-
-	gamma_curve = (int *)d_aid.param.gc_tbls[ibr];
-	br_base = (int *)d_aid.param.br_base;
-	l_value = d_aid.l_value;
-	iv = d_aid.iv_max - 1;
-
-	/* iv == (IV_MAX - 1) ~ 0; */
-	for (; iv >= 0; iv--) {
-		if (iv == d_aid.iv_max - 1)
-			l_value[iv] = MUL_10000(br_base[ibr]);
-		else
-			l_value[iv] = DIV_100(br_base[ibr]*gamma_curve[d_aid.iv_tbl[iv]]);
-	}
-
-#ifdef DYNAMIC_AID_DEBUG
-	aid_dbg("L value (%d) = ", d_aid.ibr_tbl[ibr]);
-	for (iv = 0; iv < d_aid.iv_max; iv++)
-		aid_dbg("%d ", l_value[iv]);
-	aid_dbg("\n");
-#endif
-	return 0;
-}
-
-static int calc_m_gray_values(struct dynamic_aid_info d_aid, int ibr)
-{
-	int iv;
-	int (*offset_gra)[d_aid.iv_max];
-	int *l_lookup_table;
-	int *l_value;
-	int *m_gray;
-	struct m_gray_limit_t *m_gray_limit;
-
-	offset_gra = (int(*)[])d_aid.param.offset_gra;
-	l_lookup_table = d_aid.l_lookup_table;
-	l_value = d_aid.l_value;
-	m_gray = d_aid.m_gray;
-	iv = d_aid.iv_max - 1;
-
-	/* iv == (IV_MAX - 1) ~ 0; */
-	for (; iv >= 0; iv--) {
-		m_gray_limit = &d_aid.param.m_gray_limit[iv];
-		m_gray[iv] = min_diff_gray(l_value[iv], l_lookup_table, d_aid.iv_top);
-		m_gray[iv] = (m_gray_limit->min < 0) ? m_gray[iv] : max(m_gray[iv], m_gray_limit->min);
-		m_gray[iv] = (m_gray_limit->max < 0) ? m_gray[iv] : min(m_gray[iv], m_gray_limit->max);
-		if (offset_gra)
-			m_gray[iv] += offset_gra[ibr][iv];
-	}
-
-#ifdef DYNAMIC_AID_DEBUG
-	aid_dbg("M-Gray value[%d] = ", d_aid.ibr_tbl[ibr]);
-	for (iv = 0; iv < d_aid.iv_max; iv++)
-		aid_dbg("%d ", d_aid.m_gray[iv]);
-	aid_dbg("\n");
-#endif
-
-	return 0;
-}
-
 static int calc_m_rgb_voltages(struct dynamic_aid_info d_aid, int ibr)
 {
 	int iv, c;
@@ -297,7 +187,7 @@ static int calc_m_rgb_voltages(struct dynamic_aid_info d_aid, int ibr)
 
 	output_voltages = d_aid.output_voltages;
 	point_voltages = d_aid.point_voltages;
-	m_gray = d_aid.m_gray;
+	m_gray = &((int(*)[d_aid.iv_max])d_aid.param.m_gray)[ibr][0];
 	m_voltage = d_aid.m_voltage;
 	iv = d_aid.iv_max - 1;
 
@@ -393,12 +283,8 @@ static int calc_gamma_table(struct dynamic_aid_info d_aid, int **gamma)
 	int iv, c;
 #endif
 
-	init_l_lookup_table(d_aid);
-
 	/* ibr == 0 ~ (IBRIGHTNESS_MAX - 1); */
 	for (ibr = 0; ibr < d_aid.ibr_max; ibr++) {
-		calc_l_values(d_aid, ibr);
-		calc_m_gray_values(d_aid, ibr);
 		calc_m_rgb_voltages(d_aid, ibr);
 		calc_gamma(d_aid, ibr, gamma[ibr]);
 	}
@@ -432,7 +318,6 @@ int dynamic_aid(struct dynamic_aid_param_t param, int **gamma)
 
 	d_aid.ibr_tbl = (int *)param.ibr_tbl;
 	d_aid.ibr_max = param.ibr_max;
-	d_aid.ibr_top = param.ibr_tbl[param.ibr_max-1];
 
 	d_aid.point_voltages = kzalloc(sizeof(struct rgb64_t)*d_aid.iv_max, GFP_KERNEL);
 	if (!d_aid.point_voltages) {
@@ -446,49 +331,25 @@ int dynamic_aid(struct dynamic_aid_param_t param, int **gamma)
 		ret = -ENOMEM;
 		goto error2;
 	}
-	d_aid.l_value = kzalloc(sizeof(int)*d_aid.iv_max, GFP_KERNEL);
-	if (!d_aid.l_value) {
-		pr_err("failed to allocate l_value\n");
-		ret = -ENOMEM;
-		goto error3;
-	}
-	d_aid.l_lookup_table = kzalloc(sizeof(int)*(d_aid.iv_top+1), GFP_KERNEL);
-	if (!d_aid.l_lookup_table) {
-		pr_err("failed to allocate l_lookup_table\n");
-		ret = -ENOMEM;
-		goto error4;
-	}
-	d_aid.m_gray = kzalloc(sizeof(int)*d_aid.iv_max, GFP_KERNEL);
-	if (!d_aid.m_gray) {
-		pr_err("failed to allocate m_gray\n");
-		ret = -ENOMEM;
-		goto error5;
-	}
 	d_aid.m_voltage = kzalloc(sizeof(struct rgb64_t)*d_aid.iv_max, GFP_KERNEL);
 	if (!d_aid.m_voltage) {
 		pr_err("failed to allocate m_voltage\n");
 		ret = -ENOMEM;
-		goto error6;
+		goto error3;
 	}
 
 	ret = calc_voltage_table(d_aid);
 	if (ret)
-		goto error7;
+		goto error4;
 
 	ret = calc_gamma_table(d_aid, gamma);
 	if (ret)
-		goto error7;
+		goto error4;
 
 	pr_info("Dynamic Aid Finished !\n");
 
-error7:
-	kfree(d_aid.m_voltage);
-error6:
-	kfree(d_aid.m_gray);
-error5:
-	kfree(d_aid.l_lookup_table);
 error4:
-	kfree(d_aid.l_value);
+	kfree(d_aid.m_voltage);
 error3:
 	kfree(d_aid.output_voltages);
 error2:

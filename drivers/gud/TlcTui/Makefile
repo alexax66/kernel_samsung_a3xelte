@@ -7,6 +7,8 @@ ifeq ($(CONFIG_SOC_EXYNOS5433),y)
 PLATFORM := exynos5433
 else ifeq ($(CONFIG_SOC_EXYNOS7420),y)
 PLATFORM := exynos7420
+else ifeq ($(CONFIG_SOC_EXYNOS7580),y)
+PLATFORM := exynos7580
 endif
 
 obj-y += TlcTui.o
@@ -24,6 +26,7 @@ ccflags-y += -Idrivers/gud/gud-$(PLATFORM)/MobiCoreKernelApi/include
 ccflags-y += -Idrivers/video/exynos/decon_display
 ccflags-y += -Idrivers/gud/TlcTui/
 ccflags-y += -Idrivers/gud/TlcTui/inc
+ccflags-y += -Idrivers/gud/TlcTui/public
 
 ifdef MOBICORE_CFLAGS
     ccflags-y += $(MOBICORE_CFLAGS)

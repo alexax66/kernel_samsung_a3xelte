@@ -171,6 +171,13 @@ config MUIC_SM5705
 	help
 	  If you say yes here you will get support for the SM5705 MUIC chip.
 
+config MUIC_S2MU005
+	bool "S2MU005 MUIC"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for the S2MU005 MUIC chip.
+	
 config MUIC_SM5705_AFC
         bool "SM5705 AFC MUIC"
         depends on MUIC_SM5705
