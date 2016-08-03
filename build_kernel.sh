@@ -8,8 +8,7 @@ if [ ! -d $(pwd)/output ];
         mkdir $(pwd)/output;
     fi
 
-#make -C $(pwd) O=output ARCH=arm64 alexax-exynos7580-a3xelte_defconfig
-make -C $(pwd) O=output ARCH=arm64 a3xelte_defconfig
+make -C $(pwd) O=output ARCH=arm64 alexax_a3xelte_defconfig
 make -j5 -C $(pwd) O=output ARCH=arm64
 
 $(pwd)/dtbtool  -o $(pwd)/output/arch/arm64/boot/dt.img -s 2048 -p $(pwd)/output/scripts/dtc/ $(pwd)/output/arch/arm64/boot/dts/ -v
