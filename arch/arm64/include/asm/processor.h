@@ -164,6 +164,4 @@ static inline void spin_lock_prefetch(const void *x)
 
 #endif
 
-#include <asm-generic/processor.h>
-
 #endif /* __ASM_PROCESSOR_H */
