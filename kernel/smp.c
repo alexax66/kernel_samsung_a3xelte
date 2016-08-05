@@ -16,7 +16,6 @@
 #include <asm/relaxed.h>
 #define CREATE_TRACE_POINTS
 #include <trace/events/smp.h>
-#include <asm/relaxed.h>
 
 #include "smpboot.h"
 
