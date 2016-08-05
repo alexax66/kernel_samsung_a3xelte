@@ -3,6 +3,7 @@
  *
  * Copyright (C) 1995-1999 Russell King
  * Copyright (C) 2012 ARM Ltd.
+ * Copyright (c) 2014, NVIDIA CORPORATION.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -33,6 +34,7 @@
 #include <asm/hw_breakpoint.h>
 #include <asm/ptrace.h>
 #include <asm/types.h>
+#include <asm/atomic.h>
 
 #ifdef __KERNEL__
 #define STACK_TOP_MAX		TASK_SIZE_64
@@ -131,6 +133,10 @@ static inline void cpu_relax(void)
 {
 	asm volatile("yield" ::: "memory");
 }
+
+#define cpu_relaxed_read(p)		ldax32(p)
+#define cpu_relaxed_read_long(p)	ldax64((u64 *)p)
+#define cpu_read_relax()		wfe()
 
 /* Thread switching */
 extern struct task_struct *cpu_switch_to(struct task_struct *prev,
