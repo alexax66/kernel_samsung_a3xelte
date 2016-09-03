@@ -1152,6 +1152,18 @@ void del_random_ready_callback(struct random_ready_callback *rdy)
 EXPORT_SYMBOL(del_random_ready_callback);
 
 /*
+ * Equivalent function to get_random_bytes with the difference that this
+ * function blocks the request until the nonblocking_pool is initialized.
+ */
+void get_blocking_random_bytes(void *buf, int nbytes)
+{
+	if (unlikely(nonblocking_pool.initialized == 0))
+		wait_event(urandom_init_wait, nonblocking_pool.initialized);
+	extract_entropy(&nonblocking_pool, buf, nbytes, 0, 0);
+}
+EXPORT_SYMBOL(get_blocking_random_bytes);
+
+/*
  * This function will use the architecture-specific hardware random
  * number generator if it is available.  The arch-specific hw RNG will
  * almost certainly be faster than what we can do in software, but it
