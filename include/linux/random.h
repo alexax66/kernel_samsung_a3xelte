@@ -24,14 +24,16 @@ extern const struct file_operations random_fops, urandom_fops;
 #endif
 
 unsigned int get_random_int(void);
+unsigned long get_random_long(void);
 unsigned long randomize_range(unsigned long start, unsigned long end, unsigned long len);
 
 u32 prandom_u32(void);
-void prandom_bytes(void *buf, int nbytes);
+void prandom_bytes(void *buf, size_t nbytes);
 void prandom_seed(u32 seed);
+void prandom_reseed_late(void);
 
-u32 prandom_u32_state(struct rnd_state *);
-void prandom_bytes_state(struct rnd_state *state, void *buf, int nbytes);
+u32 prandom_u32_state(struct rnd_state *state);
+void prandom_bytes_state(struct rnd_state *state, void *buf, size_t nbytes);
 
 /**
  * prandom_u32_max - returns a random number in interval [0, ep_ro), the
@@ -68,9 +70,10 @@ static inline void prandom_seed_state(struct rnd_state *state, u64 seed)
 {
 	u32 i = (seed >> 32) ^ (seed << 10) ^ seed;
 
-	state->s1 = __seed(i, 2);
-	state->s2 = __seed(i, 8);
-	state->s3 = __seed(i, 16);
+	state->s1 = __seed(i,   2U);
+	state->s2 = __seed(i,   8U);
+	state->s3 = __seed(i,  16U);
+	state->s4 = __seed(i, 128U);
 }
 
 #ifdef CONFIG_ARCH_RANDOM
@@ -81,6 +84,22 @@ static inline int arch_get_random_long(unsigned long *v)
 	return 0;
 }
 static inline int arch_get_random_int(unsigned int *v)
+{
+	return 0;
+}
+static inline int arch_has_random(void)
+{
+	return 0;
+}
+static inline int arch_get_random_seed_long(unsigned long *v)
+{
+	return 0;
+}
+static inline int arch_get_random_seed_int(unsigned int *v)
+{
+	return 0;
+}
+static inline int arch_has_random_seed(void)
 {
 	return 0;
 }

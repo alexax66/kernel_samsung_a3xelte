@@ -76,6 +76,7 @@
 #include <linux/elevator.h>
 #include <linux/random.h>
 #include <linux/sched_clock.h>
+#include <linux/random.h>
 
 #include <asm/io.h>
 #include <asm/bugs.h>
