@@ -404,6 +404,7 @@ static struct poolinfo {
  */
 static DECLARE_WAIT_QUEUE_HEAD(random_read_wait);
 static DECLARE_WAIT_QUEUE_HEAD(random_write_wait);
+static DECLARE_WAIT_QUEUE_HEAD(urandom_init_wait);
 static struct fasync_struct *fasync;
 
 static bool debug;
@@ -615,8 +616,11 @@ retry:
 		r->entropy_total += nbits;
 		if (r->entropy_total > 128) {
 			r->initialized = 1;
-			if (r == &nonblocking_pool)
+			if (r == &nonblocking_pool) {
 				prandom_reseed_late();
+				wake_up_all(&urandom_init_wait);
+				pr_notice("random: %s pool is initialized\n", r->name);
+			}
 		}
 	}
 
