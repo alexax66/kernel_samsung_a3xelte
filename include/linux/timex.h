@@ -55,15 +55,6 @@
 
 #include <uapi/linux/timex.h>
 
-#define ADJ_ADJTIME		0x8000	/* switch between adjtime/adjtimex modes */
-#define ADJ_OFFSET_SINGLESHOT	0x0001	/* old-fashioned adjtime */
-#define ADJ_OFFSET_READONLY	0x2000	/* read-only adjtime */
-#include <linux/compiler.h>
-#include <linux/types.h>
-#include <linux/param.h>
-
-#include <asm/timex.h>
-
 #ifndef random_get_entropy
 /*
  * The random_get_entropy() function is used by the /dev/random driver
@@ -77,6 +68,15 @@
  */
 #define random_get_entropy()	get_cycles()
 #endif
+
+#define ADJ_ADJTIME		0x8000	/* switch between adjtime/adjtimex modes */
+#define ADJ_OFFSET_SINGLESHOT	0x0001	/* old-fashioned adjtime */
+#define ADJ_OFFSET_READONLY	0x2000	/* read-only adjtime */
+#include <linux/compiler.h>
+#include <linux/types.h>
+#include <linux/param.h>
+
+#include <asm/timex.h>
 
 /*
  * SHIFT_PLL is used as a dampening factor to define how much we
