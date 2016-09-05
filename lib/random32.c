@@ -181,7 +181,7 @@ void prandom_seed(u32 entropy)
 	 * No locking on the CPUs, but then somewhat random results are, well,
 	 * expected.
 	 */
-	for_each_possible_cpu (i) {
+	for_each_possible_cpu(i) {
 		struct rnd_state *state = &per_cpu(net_rand_state, i);
 
 		state->s1 = __seed(state->s1 ^ entropy, 2U);
@@ -201,7 +201,7 @@ static int __init prandom_init(void)
 	prandom_state_selftest();
 
 	for_each_possible_cpu(i) {
-		struct rnd_state *state = &per_cpu(net_rand_state,i);
+		struct rnd_state *state = &per_cpu(net_rand_state, i);
 		u32 weak_seed = (i + jiffies) ^ random_get_entropy();
 
 		prandom_seed_early(state, weak_seed, true);
