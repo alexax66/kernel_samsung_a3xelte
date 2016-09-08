@@ -35,13 +35,15 @@ extern u8 rkp_started;
 
 #define PGD_SIZE	(PTRS_PER_PGD * sizeof(pgd_t))
 
+static struct kmem_cache *pgd_cache;
+
 #ifndef CONFIG_TIMA_RKP
 pgd_t *pgd_alloc(struct mm_struct *mm)
 {
 	if (PGD_SIZE == PAGE_SIZE)
-		return (pgd_t *)get_zeroed_page(GFP_KERNEL);
+		return (pgd_t *)__get_free_page(PGALLOC_GFP);
 	else
-		return kzalloc(PGD_SIZE, GFP_KERNEL);
+		return kmem_cache_alloc(pgd_cache, PGALLOC_GFP);
 }
 #else
 pgd_t *pgd_alloc(struct mm_struct *mm)
@@ -53,9 +55,9 @@ pgd_t *pgd_alloc(struct mm_struct *mm)
 		ret = (pgd_t *) rkp_ro_alloc();
 	if (!ret) {
 		if (PGD_SIZE == PAGE_SIZE)
-			ret = (pgd_t *)get_zeroed_page(GFP_KERNEL);
+			ret = (pgd_t *)__get_free_page(PGALLOC_GFP);
 		else
-			ret = kzalloc(PGD_SIZE, GFP_KERNEL);
+			ret = kmem_cache_alloc(pgd_cache, PGALLOC_GFP);
 	}
 #ifdef CONFIG_KNOX_KAP
 	if (boot_mode_security && rkp_started)
@@ -70,7 +72,7 @@ void pgd_free(struct mm_struct *mm, pgd_t *pgd)
 	if (PGD_SIZE == PAGE_SIZE)
 		free_page((unsigned long)pgd);
 	else
-		kfree(pgd);
+		kmem_cache_free(pgd_cache, pgd);
 }
 #else
 void pgd_free(struct mm_struct *mm, pgd_t *pgd)
@@ -91,7 +93,19 @@ void pgd_free(struct mm_struct *mm, pgd_t *pgd)
 		if (PGD_SIZE == PAGE_SIZE)
 			free_page((unsigned long)pgd);
 		else
-			kfree(pgd);
+		kmem_cache_free(pgd_cache, pgd);
 	}
 }
 #endif
+
+static int __init pgd_cache_init(void)
+{
+    /*
+     * Naturally aligned pgds required by the architecture.
+     */
+    if (PGD_SIZE != PAGE_SIZE)
+	pgd_cache = kmem_cache_create("pgd_cache", PGD_SIZE, PGD_SIZE,
+		          SLAB_PANIC, NULL);
+    return 0;
+}
+core_initcall(pgd_cache_init);

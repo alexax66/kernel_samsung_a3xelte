@@ -26,12 +26,14 @@
 
 #define check_pgt_cache()		do { } while (0)
 
+#define PGALLOC_GFP	(GFP_KERNEL | __GFP_NOTRACK | __GFP_REPEAT | __GFP_ZERO)
+
 #ifndef CONFIG_ARM64_64K_PAGES
 
 #ifndef CONFIG_TIMA_RKP
 static inline pmd_t *pmd_alloc_one(struct mm_struct *mm, unsigned long addr)
 {
-	return (pmd_t *)get_zeroed_page(GFP_KERNEL | __GFP_REPEAT);
+	return (pmd_t *)__get_free_page(PGALLOC_GFP);
 }
 #else
 static inline pmd_t *pmd_alloc_one(struct mm_struct *mm, unsigned long addr)
@@ -48,7 +50,7 @@ static inline pmd_t *pmd_alloc_one(struct mm_struct *mm, unsigned long addr)
 	if (rkp_ropage)
 		return rkp_ropage;
 	else
-		return (pmd_t *)get_zeroed_page(GFP_KERNEL | __GFP_REPEAT);
+		return (pud_t *)__get_free_page(PGALLOC_GFP);
 }
 #endif
 
@@ -84,8 +86,6 @@ static inline void pud_populate(struct mm_struct *mm, pud_t *pud, pmd_t *pmd)
 
 extern pgd_t *pgd_alloc(struct mm_struct *mm);
 extern void pgd_free(struct mm_struct *mm, pgd_t *pgd);
-
-#define PGALLOC_GFP	(GFP_KERNEL | __GFP_NOTRACK | __GFP_REPEAT | __GFP_ZERO)
 
 static inline pte_t *
 pte_alloc_one_kernel(struct mm_struct *mm, unsigned long addr)
