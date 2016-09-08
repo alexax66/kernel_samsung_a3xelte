@@ -33,8 +33,6 @@
 extern u8 rkp_started;
 #endif /* CONFIG_TIMA_RKP */
 
-#define PGD_SIZE	(PTRS_PER_PGD * sizeof(pgd_t))
-
 static struct kmem_cache *pgd_cache;
 
 #ifndef CONFIG_TIMA_RKP
