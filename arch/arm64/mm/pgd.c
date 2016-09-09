@@ -96,14 +96,14 @@ void pgd_free(struct mm_struct *mm, pgd_t *pgd)
 }
 #endif
 
-static int __init pgd_cache_init(void)
+void __init pgd_cache_init(void)
 {
+	if (PGD_SIZE == PAGE_SIZE)
+		return;
+
     /*
      * Naturally aligned pgds required by the architecture.
      */
-    if (PGD_SIZE != PAGE_SIZE)
 	pgd_cache = kmem_cache_create("pgd_cache", PGD_SIZE, PGD_SIZE,
-		          SLAB_PANIC, NULL);
-    return 0;
+				      SLAB_PANIC, NULL);
 }
-core_initcall(pgd_cache_init);

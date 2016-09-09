@@ -483,7 +483,8 @@ extern int kern_addr_valid(unsigned long addr);
 #define io_remap_pfn_range(vma,from,pfn,size,prot) \
 		remap_pfn_range(vma, from, pfn, size, prot)
 
-#define pgtable_cache_init() do { } while (0)
+void pgd_cache_init(void);
+#define pgtable_cache_init	pgd_cache_init
 
 #endif /* !__ASSEMBLY__ */
 
