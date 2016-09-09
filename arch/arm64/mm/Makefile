@@ -3,6 +3,3 @@ obj-y				:= dma-mapping.o extable.o fault.o init.o \
 				   ioremap.o iomap.o mmap.o pgd.o mmu.o \
 				   context.o tlb.o proc.o
 obj-$(CONFIG_HUGETLB_PAGE)	+= hugetlbpage.o
-
-obj-$(CONFIG_KASAN)		+= kasan_init.o
-KASAN_SANITIZE_kasan_init.o	:= n

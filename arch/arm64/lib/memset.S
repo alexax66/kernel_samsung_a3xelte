@@ -54,8 +54,6 @@ dst		.req	x8
 tmp3w		.req	w9
 tmp3		.req	x9
 
-	.weak memset
-ENTRY(__memset)
 ENTRY(memset)
 	mov	dst, dstin	/* Preserve return value.  */
 	and	A_lw, val, #255
@@ -96,7 +94,6 @@ ENTRY(memset)
 	add	dst, dst, tmp2
 
 .Laligned:
-	cbz	A_l, .Lzero_mem
 
 .Ltail_maybe_long:
 	cmp	count, #64
@@ -216,4 +213,3 @@ ENTRY(memset)
 	b.ne	.Ltail_maybe_long
 	ret
 ENDPIPROC(memset)
-ENDPROC(__memset)

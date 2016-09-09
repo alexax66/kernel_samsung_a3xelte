@@ -35,30 +35,18 @@ extern __kernel_size_t strlen(const char *);
 extern __kernel_size_t strnlen(const char *, __kernel_size_t);
 
 #define __HAVE_ARCH_MEMCPY
-extern void *__memcpy(void *, const void *, __kernel_size_t);
+extern void *memcpy(void *, const void *, __kernel_size_t);
 
 #define __HAVE_ARCH_MEMMOVE
-extern void *__memmove(void *, const void *, __kernel_size_t);
+extern void *memmove(void *, const void *, __kernel_size_t);
 
 #define __HAVE_ARCH_MEMCHR
 extern void *memchr(const void *, int, __kernel_size_t);
 
 #define __HAVE_ARCH_MEMSET
-extern void *__memset(void *, int, __kernel_size_t);
+extern void *memset(void *, int, __kernel_size_t);
 
 #define __HAVE_ARCH_MEMCMP
 extern int memcmp(const void *, const void *, size_t);
-
-#if defined(CONFIG_KASAN) && !defined(__SANITIZE_ADDRESS__)
-
-/*
- * For files that are not instrumented (e.g. mm/slub.c) we
- * should use not instrumented version of mem* functions.
- */
-
-#define memcpy(dst, src, len) __memcpy(dst, src, len)
-#define memmove(dst, src, len) __memmove(dst, src, len)
-#define memset(s, c, n) __memset(s, c, n)
-#endif
 
 #endif

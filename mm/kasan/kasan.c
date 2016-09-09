@@ -22,18 +22,15 @@
 #include <linux/memblock.h>
 #include <linux/memory.h>
 #include <linux/mm.h>
-#include <linux/module.h>
 #include <linux/printk.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/stacktrace.h>
 #include <linux/string.h>
 #include <linux/types.h>
-#include <linux/vmalloc.h>
 #include <linux/kasan.h>
 
 #include "kasan.h"
-#include "../slab.h"
 
 /*
  * Poisons the shadow memory for 'size' bytes starting from 'addr'.
@@ -135,11 +132,12 @@ static __always_inline bool memory_is_poisoned_16(unsigned long addr)
 
 	if (unlikely(*shadow_addr)) {
 		u16 shadow_first_bytes = *(u16 *)shadow_addr;
+		s8 last_byte = (addr + 15) & KASAN_SHADOW_MASK;
 
 		if (unlikely(shadow_first_bytes))
 			return true;
 
-		if (likely(IS_ALIGNED(addr, 8)))
+		if (likely(!last_byte))
 			return false;
 
 		return memory_is_poisoned_1(addr + 15);
@@ -256,35 +254,6 @@ static __always_inline void check_memory_region(unsigned long addr,
 	kasan_report(addr, size, write, _RET_IP_);
 }
 
-void __asan_loadN(unsigned long addr, size_t size);
-void __asan_storeN(unsigned long addr, size_t size);
-
-#undef memset
-void *memset(void *addr, int c, size_t len)
-{
-	__asan_storeN((unsigned long)addr, len);
-
-	return __memset(addr, c, len);
-}
-
-#undef memmove
-void *memmove(void *dest, const void *src, size_t len)
-{
-	__asan_loadN((unsigned long)src, len);
-	__asan_storeN((unsigned long)dest, len);
-
-	return __memmove(dest, src, len);
-}
-
-#undef memcpy
-void *memcpy(void *dest, const void *src, size_t len)
-{
-	__asan_loadN((unsigned long)src, len);
-	__asan_storeN((unsigned long)dest, len);
-
-	return __memcpy(dest, src, len);
-}
-
 void kasan_alloc_pages(struct page *page, unsigned int order)
 {
 	if (likely(!PageHighMem(page)))
@@ -298,174 +267,6 @@ void kasan_free_pages(struct page *page, unsigned int order)
 				PAGE_SIZE << order,
 				KASAN_FREE_PAGE);
 }
-
-void kasan_poison_slab(struct page *page)
-{
-	kasan_poison_shadow(page_address(page),
-			PAGE_SIZE << compound_order(page),
-			KASAN_KMALLOC_REDZONE);
-}
-
-void kasan_unpoison_object_data(struct kmem_cache *cache, void *object)
-{
-	kasan_unpoison_shadow(object, cache->object_size);
-}
-
-void kasan_poison_object_data(struct kmem_cache *cache, void *object)
-{
-	kasan_poison_shadow(object,
-			round_up(cache->object_size, KASAN_SHADOW_SCALE_SIZE),
-			KASAN_KMALLOC_REDZONE);
-}
-
-void kasan_slab_alloc(struct kmem_cache *cache, void *object)
-{
-	kasan_kmalloc(cache, object, cache->object_size);
-}
-
-void kasan_slab_free(struct kmem_cache *cache, void *object)
-{
-	unsigned long size = cache->object_size;
-	unsigned long rounded_up_size = round_up(size, KASAN_SHADOW_SCALE_SIZE);
-
-	/* RCU slabs could be legally used after free within the RCU period */
-	if (unlikely(cache->flags & SLAB_DESTROY_BY_RCU))
-		return;
-
-	kasan_poison_shadow(object, rounded_up_size, KASAN_KMALLOC_FREE);
-}
-
-void kasan_kmalloc(struct kmem_cache *cache, const void *object, size_t size)
-{
-	unsigned long redzone_start;
-	unsigned long redzone_end;
-
-	if (unlikely(object == NULL))
-		return;
-
-	redzone_start = round_up((unsigned long)(object + size),
-				KASAN_SHADOW_SCALE_SIZE);
-	redzone_end = round_up((unsigned long)object + cache->object_size,
-				KASAN_SHADOW_SCALE_SIZE);
-
-	kasan_unpoison_shadow(object, size);
-	kasan_poison_shadow((void *)redzone_start, redzone_end - redzone_start,
-		KASAN_KMALLOC_REDZONE);
-}
-EXPORT_SYMBOL(kasan_kmalloc);
-
-void kasan_kmalloc_large(const void *ptr, size_t size)
-{
-	struct page *page;
-	unsigned long redzone_start;
-	unsigned long redzone_end;
-
-	if (unlikely(ptr == NULL))
-		return;
-
-	page = virt_to_page(ptr);
-	redzone_start = round_up((unsigned long)(ptr + size),
-				KASAN_SHADOW_SCALE_SIZE);
-	redzone_end = (unsigned long)ptr + (PAGE_SIZE << compound_order(page));
-
-	kasan_unpoison_shadow(ptr, size);
-	kasan_poison_shadow((void *)redzone_start, redzone_end - redzone_start,
-		KASAN_PAGE_REDZONE);
-}
-
-void kasan_krealloc(const void *object, size_t size)
-{
-	struct page *page;
-
-	if (unlikely(object == ZERO_SIZE_PTR))
-		return;
-
-	page = virt_to_head_page(object);
-
-	if (unlikely(!PageSlab(page)))
-		kasan_kmalloc_large(object, size);
-	else
-		kasan_kmalloc(page->slab_cache, object, size);
-}
-
-void kasan_kfree(void *ptr)
-{
-	struct page *page;
-
-	page = virt_to_head_page(ptr);
-
-	if (unlikely(!PageSlab(page)))
-		kasan_poison_shadow(ptr, PAGE_SIZE << compound_order(page),
-				KASAN_FREE_PAGE);
-	else
-		kasan_slab_free(page->slab_cache, ptr);
-}
-
-void kasan_kfree_large(const void *ptr)
-{
-	struct page *page = virt_to_page(ptr);
-
-	kasan_poison_shadow(ptr, PAGE_SIZE << compound_order(page),
-			KASAN_FREE_PAGE);
-}
-
-int kasan_module_alloc(void *addr, size_t size)
-{
-	void *ret;
-	size_t shadow_size;
-	unsigned long shadow_start;
-
-	shadow_start = (unsigned long)kasan_mem_to_shadow(addr);
-	shadow_size = round_up(size >> KASAN_SHADOW_SCALE_SHIFT,
-			PAGE_SIZE);
-
-	if (WARN_ON(!PAGE_ALIGNED(shadow_start)))
-		return -EINVAL;
-
-	ret = __vmalloc_node_range(shadow_size, 1, shadow_start,
-			shadow_start + shadow_size,
-			GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO,
-			PAGE_KERNEL, VM_NO_GUARD, NUMA_NO_NODE,
-			__builtin_return_address(0));
-
-	if (ret) {
-		find_vm_area(addr)->flags |= VM_KASAN;
-		return 0;
-	}
-
-	return -ENOMEM;
-}
-
-void kasan_free_shadow(const struct vm_struct *vm)
-{
-	if (vm->flags & VM_KASAN)
-		vfree(kasan_mem_to_shadow(vm->addr));
-}
-
-static void register_global(struct kasan_global *global)
-{
-	size_t aligned_size = round_up(global->size, KASAN_SHADOW_SCALE_SIZE);
-
-	kasan_unpoison_shadow(global->beg, global->size);
-
-	kasan_poison_shadow(global->beg + aligned_size,
-		global->size_with_redzone - aligned_size,
-		KASAN_GLOBAL_REDZONE);
-}
-
-void __asan_register_globals(struct kasan_global *globals, size_t size)
-{
-	int i;
-
-	for (i = 0; i < size; i++)
-		register_global(&globals[i]);
-}
-EXPORT_SYMBOL(__asan_register_globals);
-
-void __asan_unregister_globals(struct kasan_global *globals, size_t size)
-{
-}
-EXPORT_SYMBOL(__asan_unregister_globals);
 
 #define DEFINE_ASAN_LOAD_STORE(size)				\
 	void __asan_load##size(unsigned long addr)		\
