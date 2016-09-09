@@ -10,12 +10,12 @@
 struct vm_area_struct;		/* vma defining user mapping in mm_types.h */
 
 /* bits in flags of vmalloc's vm_struct below */
-#define VM_IOREMAP	0x00000001	/* ioremap() and friends */
-#define VM_ALLOC	0x00000002	/* vmalloc() */
-#define VM_MAP		0x00000004	/* vmap()ed pages */
-#define VM_USERMAP	0x00000008	/* suitable for remap_vmalloc_range */
-#define VM_VPAGES	0x00000010	/* buffer for pages was vmalloc'ed */
-#define VM_UNLIST	0x00000020	/* vm_struct is not listed in vmlist */
+#define VM_IOREMAP		0x00000001	/* ioremap() and friends */
+#define VM_ALLOC		0x00000002	/* vmalloc() */
+#define VM_MAP			0x00000004	/* vmap()ed pages */
+#define VM_USERMAP		0x00000008	/* suitable for remap_vmalloc_range */
+#define VM_VPAGES		0x00000010	/* buffer for pages was vmalloc'ed */
+#define VM_UNLIST		0x00000020	/* vm_struct is not listed in vmlist */
 /* bits [20..32] reserved for arch specific ioremap internals */
 
 /*
@@ -75,7 +75,9 @@ extern void *vmalloc_32_user(unsigned long size);
 extern void *__vmalloc(unsigned long size, gfp_t gfp_mask, pgprot_t prot);
 extern void *__vmalloc_node_range(unsigned long size, unsigned long align,
 			unsigned long start, unsigned long end, gfp_t gfp_mask,
-			pgprot_t prot, int node, const void *caller);
+			pgprot_t prot, unsigned long vm_flags, int node,
+			const void *caller);
+
 extern void vfree(const void *addr);
 
 extern void *vmap(struct page **pages, unsigned int count,
