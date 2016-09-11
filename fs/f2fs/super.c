@@ -987,6 +987,7 @@ static int f2fs_remount(struct super_block *sb, int *flags, char *data)
 	bool need_restart_gc = false;
 	bool need_stop_gc = false;
 	bool no_extent_cache = !test_opt(sbi, EXTENT_CACHE);
+	bool no_discard = !test_opt(sbi, DISCARD);
 
 	/*
 	 * Save the old mount options in case we
@@ -1064,6 +1065,15 @@ static int f2fs_remount(struct super_block *sb, int *flags, char *data)
 		err = create_flush_cmd_control(sbi);
 		if (err)
 			goto restore_gc;
+	}
+
+	/* initialize discard map structure */
+	if (no_discard && test_opt(sbi, DISCARD)) {
+		err = build_discard_map(sbi);
+		if (err)
+			goto restore_gc;
+	} else if (!no_discard && !test_opt(sbi, DISCARD)) {
+		destroy_discard_map(sbi);
 	}
 skip:
 	/* Update the POSIXACL Flag */

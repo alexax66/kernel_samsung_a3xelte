@@ -2098,6 +2098,8 @@ int lookup_journal_in_cursum(struct f2fs_journal *, int, unsigned int, int);
 void flush_sit_entries(struct f2fs_sb_info *, struct cp_control *);
 int build_segment_manager(struct f2fs_sb_info *);
 void destroy_segment_manager(struct f2fs_sb_info *);
+int build_discard_map(struct f2fs_sb_info *);
+void destroy_discard_map(struct f2fs_sb_info *);
 int __init create_segment_manager_caches(void);
 void destroy_segment_manager_caches(void);
 

@@ -716,11 +716,11 @@ static void add_discard_addrs(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	bool force = (cpc->reason == CP_DISCARD);
 	int i;
 
-	if (se->valid_blocks == max_blocks)
+	if (se->valid_blocks == max_blocks || !test_opt(sbi, DISCARD))
 		return;
 
 	if (!force) {
-		if (!test_opt(sbi, DISCARD) || !se->valid_blocks ||
+		if (!se->valid_blocks ||
 		    SM_I(sbi)->nr_discards >= SM_I(sbi)->max_discards)
 			return;
 	}
@@ -874,12 +874,14 @@ static void update_sit_entry(struct f2fs_sb_info *sbi, block_t blkaddr, int del)
 	if (del > 0) {
 		if (f2fs_test_and_set_bit(offset, se->cur_valid_map))
 			f2fs_bug_on(sbi, 1);
-		if (!f2fs_test_and_set_bit(offset, se->discard_map))
+		if (test_opt(sbi, DISCARD) &&
+			!f2fs_test_and_set_bit(offset, se->discard_map))
 			sbi->discard_blks--;
 	} else {
 		if (!f2fs_test_and_clear_bit(offset, se->cur_valid_map))
 			f2fs_bug_on(sbi, 1);
-		if (f2fs_test_and_clear_bit(offset, se->discard_map))
+		if (test_opt(sbi, DISCARD) &&
+			f2fs_test_and_clear_bit(offset, se->discard_map))
 			sbi->discard_blks++;
 	}
 	if (!f2fs_test_bit(offset, se->ckpt_valid_map))
@@ -2151,6 +2153,55 @@ out:
 	set_prefree_as_free_segments(sbi);
 }
 
+static int __init_discard_map(struct f2fs_sb_info *sbi)
+{
+	struct sit_info *sit_i;
+	unsigned int start;
+
+	if (!test_opt(sbi, DISCARD))
+		return 0;
+
+	sit_i = SIT_I(sbi);
+
+	for (start = 0; start < MAIN_SEGS(sbi); start++) {
+		sit_i->sentries[start].discard_map
+				= kzalloc(SIT_VBLOCK_MAP_SIZE, GFP_KERNEL);
+		if (!sit_i->sentries[start].discard_map)
+			return -ENOMEM;
+	}
+	return 0;
+}
+
+static void __build_discard_map(struct f2fs_sb_info *sbi)
+{
+	struct sit_info *sit_i;
+	unsigned int start;
+
+	if (!test_opt(sbi, DISCARD))
+		return;
+
+	sit_i = SIT_I(sbi);
+
+	for (start = 0; start < MAIN_SEGS(sbi); start++) {
+		struct seg_entry *se = &sit_i->sentries[start];
+
+		memcpy(se->discard_map, se->cur_valid_map, SIT_VBLOCK_MAP_SIZE);
+		sbi->discard_blks += sbi->blocks_per_seg - se->valid_blocks;
+	}
+}
+
+int build_discard_map(struct f2fs_sb_info *sbi)
+{
+	int err;
+
+	err = __init_discard_map(sbi);
+	if (err)
+		return err;
+
+	__build_discard_map(sbi);
+	return 0;
+}
+
 static int build_sit_info(struct f2fs_sb_info *sbi)
 {
 	struct f2fs_super_block *raw_super = F2FS_RAW_SUPER(sbi);
@@ -2182,13 +2233,13 @@ static int build_sit_info(struct f2fs_sb_info *sbi)
 			= kzalloc(SIT_VBLOCK_MAP_SIZE, GFP_KERNEL);
 		sit_i->sentries[start].ckpt_valid_map
 			= kzalloc(SIT_VBLOCK_MAP_SIZE, GFP_KERNEL);
-		sit_i->sentries[start].discard_map
-			= kzalloc(SIT_VBLOCK_MAP_SIZE, GFP_KERNEL);
 		if (!sit_i->sentries[start].cur_valid_map ||
-				!sit_i->sentries[start].ckpt_valid_map ||
-				!sit_i->sentries[start].discard_map)
+				!sit_i->sentries[start].ckpt_valid_map)
 			return -ENOMEM;
 	}
+
+	if (__init_discard_map(sbi))
+		return -ENOMEM;
 
 	sit_i->tmp_map = kzalloc(SIT_VBLOCK_MAP_SIZE, GFP_KERNEL);
 	if (!sit_i->tmp_map)
@@ -2330,10 +2381,6 @@ got_it:
 			check_block_count(sbi, start, &sit);
 			seg_info_from_raw_sit(se, &sit);
 
-			/* build discard map only one time */
-			memcpy(se->discard_map, se->cur_valid_map, SIT_VBLOCK_MAP_SIZE);
-			sbi->discard_blks += sbi->blocks_per_seg - se->valid_blocks;
-
 			if (sbi->segs_per_sec > 1) {
 				struct sec_entry *e = get_sec_entry(sbi, start);
 				e->valid_blocks += se->valid_blocks;
@@ -2341,6 +2388,9 @@ got_it:
 		}
 		start_blk += readed;
 	} while (start_blk < sit_blk_cnt);
+
+	/* build discard map only one time */
+	__build_discard_map(sbi);
 }
 
 static void init_free_segmap(struct f2fs_sb_info *sbi)
@@ -2577,6 +2627,17 @@ static void destroy_free_segmap(struct f2fs_sb_info *sbi)
 	kfree(free_i);
 }
 
+void destroy_discard_map(struct f2fs_sb_info *sbi)
+{
+	struct sit_info *sit_i = SIT_I(sbi);
+	unsigned int start;
+
+	for (start = 0; start < MAIN_SEGS(sbi); start++) {
+		kfree(sit_i->sentries[start].discard_map);
+		sit_i->sentries[start].discard_map = NULL;
+	}
+}
+
 static void destroy_sit_info(struct f2fs_sb_info *sbi)
 {
 	struct sit_info *sit_i = SIT_I(sbi);
@@ -2589,8 +2650,8 @@ static void destroy_sit_info(struct f2fs_sb_info *sbi)
 		for (start = 0; start < MAIN_SEGS(sbi); start++) {
 			kfree(sit_i->sentries[start].cur_valid_map);
 			kfree(sit_i->sentries[start].ckpt_valid_map);
-			kfree(sit_i->sentries[start].discard_map);
 		}
+		destroy_discard_map(sbi);
 	}
 	kfree(sit_i->tmp_map);
 
