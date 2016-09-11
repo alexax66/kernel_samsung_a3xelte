@@ -1455,6 +1455,10 @@ static int f2fs_release_file(struct inode *inode, struct file *filp)
 		filemap_fdatawrite(inode->i_mapping);
 		clear_inode_flag(inode, FI_DROP_CACHE);
 	}
+
+	/* deactivate written inode page */
+	invalidate_mapping_pages(NODE_MAPPING(F2FS_I_SB(inode)),
+					inode->i_ino, inode->i_ino);
 	return 0;
 }
 
