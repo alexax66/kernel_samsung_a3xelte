@@ -71,18 +71,14 @@ static struct fsync_inode_entry *get_fsync_inode(struct list_head *head,
 static struct fsync_inode_entry *add_fsync_inode(struct f2fs_sb_info *sbi,
 					struct list_head *head, nid_t ino)
 {
-	struct inode *inode = f2fs_iget(sbi->sb, ino);
+	struct inode *inode;
 	struct fsync_inode_entry *entry;
 
+	inode = f2fs_iget_retry(sbi->sb, ino);
 	if (IS_ERR(inode))
 		return ERR_CAST(inode);
 
-	entry = kmem_cache_alloc(fsync_entry_slab, GFP_F2FS_ZERO);
-	if (!entry) {
-		iput(inode);
-		return ERR_PTR(-ENOMEM);
-	}
-
+	entry = f2fs_kmem_cache_alloc(fsync_entry_slab, GFP_F2FS_ZERO);
 	entry->inode = inode;
 	list_add_tail(&entry->list, head);
 
@@ -137,7 +133,7 @@ retry:
 		goto out_unmap_put;
 
 	if (de) {
-		einode = f2fs_iget(inode->i_sb, le32_to_cpu(de->ino));
+		einode = f2fs_iget_retry(inode->i_sb, le32_to_cpu(de->ino));
 		if (IS_ERR(einode)) {
 			WARN_ON(1);
 			err = PTR_ERR(einode);
@@ -159,6 +155,8 @@ retry:
 		err = __f2fs_add_link(dir, &name, inode,
 					inode->i_ino, inode->i_mode);
 	}
+	if (err == -ENOMEM)
+		goto retry;
 	goto out;
 
 out_unmap_put:
@@ -269,7 +267,6 @@ static int find_fsync_dnodes(struct f2fs_sb_info *sbi, struct list_head *head)
 					err = 0;
 					goto next;
 				}
-				break;
 			}
 		}
 		entry->blkaddr = blkaddr;
@@ -354,7 +351,7 @@ got_it:
 
 	if (ino != dn->inode->i_ino) {
 		/* Deallocate previous index in the node page */
-		inode = f2fs_iget(sbi->sb, ino);
+		inode = f2fs_iget_retry(sbi->sb, ino);
 		if (IS_ERR(inode))
 			return PTR_ERR(inode);
 	} else {
@@ -422,10 +419,15 @@ static int do_recover_data(struct f2fs_sb_info *sbi, struct inode *inode,
 	end = start + ADDRS_PER_PAGE(page, inode);
 
 	set_new_dnode(&dn, inode, NULL, NULL, 0);
-
+retry_dn:
 	err = get_dnode_of_data(&dn, start, ALLOC_NODE);
-	if (err)
+	if (err) {
+		if (err == -ENOMEM) {
+			congestion_wait(BLK_RW_ASYNC, HZ/50);
+			goto retry_dn;
+		}
 		goto out;
+	}
 
 	f2fs_wait_on_page_writeback(dn.node_page, NODE, true);
 
@@ -476,11 +478,16 @@ static int do_recover_data(struct f2fs_sb_info *sbi, struct inode *inode,
 				if (err)
 					goto err;
 			}
-
+retry_prev:
 			/* Check the previous node page having this index */
 			err = check_index_in_prev_nodes(sbi, dest, &dn);
-			if (err)
+			if (err) {
+				if (err == -ENOMEM) {
+					congestion_wait(BLK_RW_ASYNC, HZ/50);
+					goto retry_prev;
+				}
 				goto err;
+			}
 
 			/* write dummy data page */
 			f2fs_replace_block(sbi, &dn, src, dest,
