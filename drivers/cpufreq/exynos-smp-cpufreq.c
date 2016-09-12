@@ -921,14 +921,10 @@ static int exynos_cpufreq_init(struct cpufreq_policy *policy)
 		if (!support_full_frequency())
 			policy->cpuinfo.max_freq = 800000;
 		else
-			policy->cpuinfo.max_freq = 1400000;
+			policy->cpuinfo.max_freq = 1600000;
 	} else if (soc_is_exynos7580_v1()) {
-		policy->cpuinfo.max_freq = 1500000;
-		freq_table[cur_cluster][0].frequency = CPUFREQ_ENTRY_INVALID;
+		policy->cpuinfo.max_freq = 1600000;
 	}
-
-	if (soc_is_exynos7580_v1())
-		policy->cpuinfo.max_freq = 1500000;
 
 	cpumask_copy(policy->cpus, topology_core_cpumask(policy->cpu));
 
@@ -940,6 +936,11 @@ static int exynos_cpufreq_init(struct cpufreq_policy *policy)
 	} else {
 		sync_frequency = exynos_cpufreq_get(0);
 	}
+
+	if (cur_cluster == CL_ONE)
+		policy->max = 1400000;
+	else
+		policy->max = 1500000;
 
 	dev_info(cpu_dev, "%s: CPU %d initialized\n", __func__, policy->cpu);
 	return 0;
@@ -1288,7 +1289,10 @@ static int exynos_max_cluster1_notifier(struct notifier_block *notifier,
 	if (freq <= val)
 		goto out;
 
-	freq = val;
+	if (val > 1400000)
+		freq = 1400000;
+	else
+		freq = val;
 
 	if (disable_c3_idle)
 		disable_c3_idle(true);
@@ -1357,17 +1361,17 @@ static int exynos_smp_probe(struct platform_device *pdev)
 
 	if (soc_is_exynos7580_v1()) {
 		pm_qos_add_request(&pm_qos_mif, PM_QOS_BUS_THROUGHPUT, exynos_bus_table[ARRAY_SIZE(apll_freq) - 2]);
-		pm_qos_add_request(&cluster_qos_max[CL_ZERO], PM_QOS_CLUSTER0_FREQ_MAX, apll_freq[1].freq / 1000);
+		pm_qos_add_request(&cluster_qos_max[CL_ZERO], PM_QOS_CLUSTER0_FREQ_MAX, apll_freq[0].freq / 1000);
 #ifndef CONFIG_EXYNOS7580_QUAD
-		pm_qos_add_request(&cluster_qos_max[CL_ONE], PM_QOS_CLUSTER1_FREQ_MAX, apll_freq[1].freq / 1000);
-		maxlock_freq = apll_freq[1].freq / 1000;
+		pm_qos_add_request(&cluster_qos_max[CL_ONE], PM_QOS_CLUSTER1_FREQ_MAX, apll_freq[2].freq / 1000);
+		maxlock_freq = apll_freq[2].freq / 1000;
 #endif
 	} else {
 		pm_qos_add_request(&pm_qos_mif, PM_QOS_BUS_THROUGHPUT, exynos_bus_table[ARRAY_SIZE(apll_freq) - 1]);
 		pm_qos_add_request(&cluster_qos_max[CL_ZERO], PM_QOS_CLUSTER0_FREQ_MAX, apll_freq[0].freq / 1000);
 #ifndef CONFIG_EXYNOS7580_QUAD
-		pm_qos_add_request(&cluster_qos_max[CL_ONE], PM_QOS_CLUSTER1_FREQ_MAX, apll_freq[0].freq / 1000);
-		maxlock_freq = apll_freq[0].freq / 1000;
+		pm_qos_add_request(&cluster_qos_max[CL_ONE], PM_QOS_CLUSTER1_FREQ_MAX, apll_freq[2].freq / 1000);
+		maxlock_freq = apll_freq[2].freq / 1000;
 #endif
 	}
 
