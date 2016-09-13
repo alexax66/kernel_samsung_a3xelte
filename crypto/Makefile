@@ -2,12 +2,18 @@
 # Cryptographic API
 #
 
+# memneq MUST be built with -Os or -O0 to prevent early-return optimizations
+# that will defeat memneq's actual purpose to prevent timing attacks.
+CFLAGS_REMOVE_memneq.o := -O1 -O2 -O3
+CFLAGS_memneq.o := -Os
+
+#Keep this on the top
+obj-$(CONFIG_CRYPTO_FIPS) += fips.o
+
 obj-$(CONFIG_CRYPTO) += crypto.o
-crypto-y := api.o cipher.o compress.o
+crypto-y := api.o cipher.o compress.o memneq.o
 
 obj-$(CONFIG_CRYPTO_WORKQUEUE) += crypto_wq.o
-
-obj-$(CONFIG_CRYPTO_FIPS) += fips.o
 
 crypto_algapi-$(CONFIG_PROC_FS) += proc.o
 crypto_algapi-y := algapi.o scatterwalk.o $(crypto_algapi-y)
