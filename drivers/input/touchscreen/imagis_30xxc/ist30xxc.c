@@ -26,6 +26,9 @@
 #include <linux/device.h>
 #include <linux/mutex.h>
 #include <linux/input/mt.h>
+#ifdef CONFIG_POWERSUSPEND
+#include <linux/powersuspend.h>
+#endif
 
 #include "ist30xxc.h"
 #include "ist30xxc_update.h"
@@ -422,7 +425,9 @@ inline u64 get_last_input_time() {
 /* dt2wake */
 DEFINE_MUTEX(dt2w_lock);
 u32 last_x,last_y;
+#ifndef CONFIG_POWERSUSPEND
 bool screen_is_off;
+#endif
 u32 distance_between(u32 x1, u32 x2, u32 y1, u32 y2) {
        u32 distance = int_sqrt(((x2 - x1) * (x2 - x1)) + ((y2 - y1) * (y2 - y1)));
        tsp_noti("distance between points (%u,%u) and (%u,%u) is %u\n", x1, x2, y1, y2, distance);
@@ -457,7 +462,11 @@ void print_tsp_event(struct ist30xx_data *data, finger_info *finger, u32 z_value
 #else
 			tsp_noti("%s%d fw:%x\n", TOUCH_DOWN_MESSAGE, finger->bit_field.id, data->fw.cur.fw_ver);
 #endif
+#ifdef CONFIG_POWERSUSPEND
+			if (data->dt2w_enable && power_suspend_active && finger->bit_field.id == 1) {
+#else
 			if (data->dt2w_enable && screen_is_off && finger->bit_field.id == 1) {
+#endif
 				if (current_time - last_input_time > 350000) {
 					data->dt2w_count = 0;
 				}
@@ -984,7 +993,11 @@ static int ist30xx_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct ist30xx_data *data = i2c_get_clientdata(client);
+#ifdef CONFIG_POWERSUSPEND
+	power_suspend_active = true;
+#else
 	screen_is_off = true;
+#endif
 
 	if(!data->dt2w_enable) {
 		del_timer(&event_timer);
@@ -1016,7 +1029,11 @@ static int ist30xx_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct ist30xx_data *data = i2c_get_clientdata(client);
+#ifdef CONFIG_POWERSUSPEND
+	power_suspend_active = false;
+#else
 	screen_is_off = false;
+#endif
 
 	data->noise_mode |= (1 << NOISE_MODE_POWER);
 
