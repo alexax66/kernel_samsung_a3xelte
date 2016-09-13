@@ -1358,6 +1358,34 @@ ssize_t intr_debug3_show(struct device *dev, struct device_attribute *attr,
 	return count;
 }
 
+/* sysfs: /sys/class/touch/sys/ist30xx_dt2wake_enable */
+ssize_t ist30xx_dt2wake_enable_store(struct device *dev, struct device_attribute *attr,
+			const char *buf, size_t size)
+{
+	int dt2w_enable;
+	struct ist30xx_data *data = dev_get_drvdata(dev);
+
+	sscanf(buf, "%d", &dt2w_enable);
+
+	tsp_info("dt2w enable : %s\n", (dt2w_enable == 0) ? "disable" : "enable");
+
+	data->dt2w_enable = (dt2w_enable == 0) ? false : true;
+
+	return size;
+}
+
+ssize_t ist30xx_dt2wake_enable_show(struct device *dev, struct device_attribute *attr,
+			  char *buf)
+{
+	ssize_t count;
+	struct ist30xx_data *data = dev_get_drvdata(dev);
+	tsp_info("%u", data->dt2w_enable);
+	count = sprintf(buf, "%u\n", data->dt2w_enable);
+	return count;
+}
+
+
+
 /* sysfs : node */
 static DEVICE_ATTR(refresh, S_IRUGO, ist30xx_frame_refresh, NULL);
 static DEVICE_ATTR(nocp, S_IRUGO, ist30xx_frame_nocp, NULL);
@@ -1403,6 +1431,7 @@ static DEVICE_ATTR(algorithm, S_IRUGO | S_IWUSR | S_IWGRP, ist30xx_algr_show, is
 static DEVICE_ATTR(intr_debug, S_IRUGO | S_IWUSR | S_IWGRP, intr_debug_show, intr_debug_store);
 static DEVICE_ATTR(intr_debug2, S_IRUGO | S_IWUSR | S_IWGRP, intr_debug2_show, intr_debug2_store);
 static DEVICE_ATTR(intr_debug3, S_IRUGO | S_IWUSR | S_IWGRP, intr_debug3_show, intr_debug3_store);
+static DEVICE_ATTR(ist30xx_dt2wake_enable, S_IRUGO | S_IWUSR | S_IWGRP, ist30xx_dt2wake_enable_show, ist30xx_dt2wake_enable_store);
 
 static struct attribute *node_attributes[] = {
 	&dev_attr_refresh.attr,
@@ -1438,6 +1467,7 @@ static struct attribute *sys_attributes[] = {
 	&dev_attr_mode_call.attr,
 	&dev_attr_mode_cover.attr,
 	&dev_attr_ic_inform.attr,
+	&dev_attr_ist30xx_dt2wake_enable.attr,
 	NULL,
 };
 
