@@ -1807,7 +1807,7 @@ static int ist30xx_probe(struct i2c_client *client,
 	data->max_irq_err_cnt = MAX_ERR_CNT;
 	data->report_rate = -1;
 	data->idle_rate = -1;
-	data->dt2w_enable = true;
+	data->dt2w_enable = false;
 #ifdef CONFIG_SEC_FACTORY
 	data->jig_mode = 1;
 #endif

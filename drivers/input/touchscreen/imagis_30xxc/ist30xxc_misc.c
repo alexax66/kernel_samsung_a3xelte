@@ -35,6 +35,8 @@ static u32 *ist30xx_frame_buf;
 static u32 *ist30xx_frame_rawbuf;
 static u32 *ist30xx_frame_fltbuf;
 
+static struct ist30xx_data *device_data;
+
 int ist30xx_check_valid_ch(struct ist30xx_data *data, int ch_tx, int ch_rx)
 {
 	int i;
@@ -1358,33 +1360,55 @@ ssize_t intr_debug3_show(struct device *dev, struct device_attribute *attr,
 	return count;
 }
 
+ssize_t show_dt2wake(char* buf, struct ist30xx_data* data) {
+	ssize_t count;
+	tsp_info("%u", data->dt2w_enable);
+	count = sprintf(buf, "%u\n", data->dt2w_enable);
+	return count;
+}
+
+int store_dt2wake(const char *buf, struct ist30xx_data *data) {
+	int dt2w_enable;
+	sscanf(buf, "%d", &dt2w_enable);
+	tsp_info("dt2w enable : %s\n", (dt2w_enable == 0) ? "disable" : "enable");
+	data->dt2w_enable = (dt2w_enable == 0) ? false : true;
+
+	return 0;
+}
+
 /* sysfs: /sys/class/touch/sys/ist30xx_dt2wake_enable */
 ssize_t ist30xx_dt2wake_enable_store(struct device *dev, struct device_attribute *attr,
 			const char *buf, size_t size)
 {
-	int dt2w_enable;
 	struct ist30xx_data *data = dev_get_drvdata(dev);
-
-	sscanf(buf, "%d", &dt2w_enable);
-
-	tsp_info("dt2w enable : %s\n", (dt2w_enable == 0) ? "disable" : "enable");
-
-	data->dt2w_enable = (dt2w_enable == 0) ? false : true;
-
+	store_dt2wake(buf, data);
 	return size;
 }
 
 ssize_t ist30xx_dt2wake_enable_show(struct device *dev, struct device_attribute *attr,
 			  char *buf)
 {
-	ssize_t count;
 	struct ist30xx_data *data = dev_get_drvdata(dev);
-	tsp_info("%u", data->dt2w_enable);
-	count = sprintf(buf, "%u\n", data->dt2w_enable);
+	return show_dt2wake(buf, data);
+}
+
+/* sysfs: /sys/android_touch/doubletap2wake */
+ssize_t android_touch_dt2wake_enable_store(struct kobject *kobj, struct kobj_attribute *attr,
+		const char *buf, size_t count)
+{
+	store_dt2wake(buf, device_data);
 	return count;
 }
 
+ssize_t android_touch_dt2wake_enable_show(struct kobject *kobj, struct kobj_attribute *attr,
+			char *buf)
+{
+	return show_dt2wake(buf, device_data);
+}
 
+#define IST30XX_ATTR(_name, _func_show, _func_store) \
+        struct kobj_attribute _name##_attr = \
+                __ATTR(_name, 0644, _func_show, _func_store)
 
 /* sysfs : node */
 static DEVICE_ATTR(refresh, S_IRUGO, ist30xx_frame_refresh, NULL);
@@ -1432,6 +1456,9 @@ static DEVICE_ATTR(intr_debug, S_IRUGO | S_IWUSR | S_IWGRP, intr_debug_show, int
 static DEVICE_ATTR(intr_debug2, S_IRUGO | S_IWUSR | S_IWGRP, intr_debug2_show, intr_debug2_store);
 static DEVICE_ATTR(intr_debug3, S_IRUGO | S_IWUSR | S_IWGRP, intr_debug3_show, intr_debug3_store);
 static DEVICE_ATTR(ist30xx_dt2wake_enable, S_IRUGO | S_IWUSR | S_IWGRP, ist30xx_dt2wake_enable_show, ist30xx_dt2wake_enable_store);
+
+/* double to wake */
+static IST30XX_ATTR(doubletap2wake, android_touch_dt2wake_enable_show, android_touch_dt2wake_enable_store);
 
 static struct attribute *node_attributes[] = {
 	&dev_attr_refresh.attr,
@@ -1485,6 +1512,11 @@ static struct attribute *tunes_attributes[] = {
 	NULL,
 };
 
+static struct attribute *dt2w_attributes[] = {
+	&doubletap2wake_attr.attr,
+	NULL,
+};
+
 static struct attribute_group node_attr_group = {
 	.attrs	= node_attributes,
 };
@@ -1497,14 +1529,24 @@ static struct attribute_group tunes_attr_group = {
 	.attrs	= tunes_attributes,
 };
 
+static struct attribute_group dt2w_attr_group = {
+	.attrs	= dt2w_attributes,
+};
+
+
 extern struct class *ist30xx_class;
 struct device *ist30xx_sys_dev;
 struct device *ist30xx_tunes_dev;
 struct device *ist30xx_node_dev;
 
+struct kobject *android_touch_kobj;
+
 int ist30xx_init_misc_sysfs(struct ist30xx_data *data)
 {
 	int frame_buf_size = IST30XX_NODE_TOTAL_NUM * IST30XX_DATA_LEN;
+	int error;
+
+	device_data = data;
 
 	/* /sys/class/touch/sys */
 	ist30xx_sys_dev = device_create(ist30xx_class, NULL, 0, data, "sys");
@@ -1536,5 +1578,12 @@ int ist30xx_init_misc_sysfs(struct ist30xx_data *data)
 	if (!ist30xx_frame_buf || !ist30xx_frame_rawbuf || !ist30xx_frame_fltbuf)
 		return -ENOMEM;
 
+	/* double tap 2 wake */
+	android_touch_kobj = kobject_create_and_add("android_touch", NULL);
+	if (!android_touch_kobj)
+		return -ENOMEM;
+	error = sysfs_create_group(android_touch_kobj, &dt2w_attr_group);
+	if (error)
+		return error;
 	return 0;
 }
