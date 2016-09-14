@@ -61,12 +61,12 @@
 	.endm
 
 end	.req	x5
-ENTRY(__arch_copy_to_user)
+ENTRY(__copy_to_user)
 	add	end, x0, x2
 #include "copy_template.S"
 	mov	x0, #0
 	ret
-ENDPROC(__arch_copy_to_user)
+ENDPROC(__copy_to_user)
 
 	.section .fixup,"ax"
 	.align	2
