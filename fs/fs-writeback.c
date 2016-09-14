@@ -480,7 +480,8 @@ __writeback_single_inode(struct inode *inode, struct writeback_control *wbc)
 	inode->i_state &= ~(I_DIRTY_SYNC | I_DIRTY_DATASYNC);
 	spin_unlock(&inode->i_lock);
 	/* Don't write the inode if only I_DIRTY_PAGES was set */
-	if (dirty & (I_DIRTY_SYNC | I_DIRTY_DATASYNC)) {
+	if ((dirty & (I_DIRTY_SYNC | I_DIRTY_DATASYNC)) ||
+		    wbc->sync_mode == WB_SYNC_ALL) {
 		int err = write_inode(inode, wbc);
 		if (ret == 0)
 			ret = err;
