@@ -231,6 +231,14 @@ static void __fput(struct file *file)
 
 	might_sleep();
 
+	/*
+	 * XXX: While avoiding mmap_sem, we've already been written to.
+	 * We must ignore the return value, since we can't reject the
+	 * write.
+	 */
+	if (unlikely(file->f_remove_privs))
+		file_remove_privs(file);
+
 	fsnotify_close(file);
 	/*
 	 * The function eventpoll_release() should be the first called

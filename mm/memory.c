@@ -2891,6 +2891,7 @@ reuse:
 			/* file_update_time outside page_lock */
 			if (vma->vm_file)
 				file_update_time(vma->vm_file);
+			vma->vm_file->f_remove_privs = true;
 		}
 		put_page(dirty_page);
 		if (page_mkwrite) {
