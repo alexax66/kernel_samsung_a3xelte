@@ -423,7 +423,7 @@ xip_file_write(struct file *filp, const char __user *buf, size_t len,
 	if (count == 0)
 		goto out_backing;
 
-	ret = file_remove_suid(filp);
+	ret = file_remove_privs(filp);
 	if (ret)
 		goto out_backing;
 

@@ -2104,7 +2104,7 @@ static ssize_t ntfs_file_aio_write_nolock(struct kiocb *iocb,
 		goto out;
 	if (!count)
 		goto out;
-	err = file_remove_suid(file);
+	err = file_remove_privs(file);
 	if (err)
 		goto out;
 	err = file_update_time(file);

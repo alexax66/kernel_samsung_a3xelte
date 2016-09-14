@@ -1028,7 +1028,7 @@ generic_file_splice_write(struct pipe_inode_info *pipe, struct file *out,
 			break;
 
 		mutex_lock_nested(&inode->i_mutex, I_MUTEX_CHILD);
-		ret = file_remove_suid(out);
+		ret = file_remove_privs(out);
 		if (!ret) {
 			ret = file_update_time(out);
 			if (!ret)

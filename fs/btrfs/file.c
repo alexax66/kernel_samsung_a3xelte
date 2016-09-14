@@ -1539,7 +1539,7 @@ static ssize_t btrfs_file_aio_write(struct kiocb *iocb,
 		goto out;
 	}
 
-	err = file_remove_suid(file);
+	err = file_remove_privs(file);
 	if (err) {
 		mutex_unlock(&inode->i_mutex);
 		goto out;
