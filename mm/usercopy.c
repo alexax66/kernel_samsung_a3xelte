@@ -17,34 +17,31 @@
 #include <linux/mm.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
+#include <linux/signal.h>
 #include <asm/sections.h>
-
-enum {
-	BAD_STACK = -1,
-	NOT_STACK = 0,
-	GOOD_FRAME,
-	GOOD_STACK,
-};
 
 /*
  * Checks if a given pointer and length is contained by the current
  * stack frame (if possible).
  *
- * Returns:
- *	NOT_STACK: not at all on the stack
- *	GOOD_FRAME: fully within a valid stack frame
- *	GOOD_STACK: fully on the stack (when can't do frame-checking)
- *	BAD_STACK: error condition (invalid stack position or bad stack frame)
+ *	0: not at all on the stack
+ *	1: fully on the stack (when can't do frame-checking)
+ *	2: fully inside the current stack frame
+ *	-1: error condition (invalid stack position or bad stack frame)
  */
 static noinline int check_stack_object(const void *obj, unsigned long len)
 {
 	const void * const stack = task_stack_page(current);
 	const void * const stackend = stack + THREAD_SIZE;
-	int ret;
+
+#if defined(CONFIG_FRAME_POINTER) && defined(CONFIG_X86)
+	const void *frame = NULL;
+	const void *oldframe;
+#endif
 
 	/* Object is not on the stack at all. */
 	if (obj + len <= stack || stackend <= obj)
-		return NOT_STACK;
+		return 0;
 
 	/*
 	 * Reject: object partially overlaps the stack (passing the
@@ -52,14 +49,34 @@ static noinline int check_stack_object(const void *obj, unsigned long len)
 	 * so if this check fails, the other end is outside the stack).
 	 */
 	if (obj < stack || stackend < obj + len)
-		return BAD_STACK;
+		return -1;
 
-	/* Check if object is safely within a valid frame. */
-	ret = arch_within_stack_frames(stack, stackend, obj, len);
-	if (ret)
-		return ret;
-
-	return GOOD_STACK;
+#if defined(CONFIG_FRAME_POINTER) && defined(CONFIG_X86)
+	oldframe = __builtin_frame_address(1);
+	if (oldframe)
+		frame = __builtin_frame_address(2);
+	/*
+	 * low ----------------------------------------------> high
+	 * [saved bp][saved ip][args][local vars][saved bp][saved ip]
+	 *		     ^----------------^
+	 *             allow copies only within here
+	 */
+	while (stack <= frame && frame < stackend) {
+		/*
+		 * If obj + len extends past the last frame, this
+		 * check won't pass and the next frame will be 0,
+		 * causing us to bail out and correctly report
+		 * the copy as invalid.
+		 */
+		if (obj + len <= frame)
+			return obj >= oldframe + 2 * sizeof(void *) ? 2 : -1;
+		oldframe = frame;
+		frame = *(const void * const *)frame;
+	}
+	return -1;
+#else
+	return 1;
+#endif
 }
 
 static void report_usercopy(const void *ptr, unsigned long len,
@@ -68,12 +85,8 @@ static void report_usercopy(const void *ptr, unsigned long len,
 	pr_emerg("kernel memory %s attempt detected %s %p (%s) (%lu bytes)\n",
 		to_user ? "exposure" : "overwrite",
 		to_user ? "from" : "to", ptr, type ? : "unknown", len);
-	/*
-	 * For greater effect, it would be nice to do do_group_exit(),
-	 * but BUG() actually hooks all the lock-breaking and per-arch
-	 * Oops code, so that is used here instead.
-	 */
-	BUG();
+	dump_stack();
+	do_group_exit(SIGKILL);
 }
 
 /* Returns true if any portion of [ptr,ptr+n) over laps with [low,high). */
@@ -96,28 +109,16 @@ static inline const char *check_kernel_text_object(const void *ptr,
 {
 	unsigned long textlow = (unsigned long)_stext;
 	unsigned long texthigh = (unsigned long)_etext;
-	unsigned long textlow_linear, texthigh_linear;
 
 	if (overlaps(ptr, n, textlow, texthigh))
 		return "<kernel text>";
 
-	/*
-	 * Some architectures have virtual memory mappings with a secondary
-	 * mapping of the kernel text, i.e. there is more than one virtual
-	 * kernel address that points to the kernel image. It is usually
-	 * when there is a separate linear physical memory mapping, in that
-	 * __pa() is not just the reverse of __va(). This can be detected
-	 * and checked:
-	 */
-	textlow_linear = (unsigned long)__va(__pa(textlow));
-	/* No different mapping: we're done. */
-	if (textlow_linear == textlow)
-		return NULL;
-
-	/* Check the secondary mapping... */
-	texthigh_linear = (unsigned long)__va(__pa(texthigh));
-	if (overlaps(ptr, n, textlow_linear, texthigh_linear))
+#ifdef HAVE_ARCH_LINEAR_KERNEL_MAPPING
+	/* Check against linear mapping as well. */
+	if (overlaps(ptr, n, (unsigned long)__va(__pa(textlow)),
+		     (unsigned long)__va(__pa(texthigh))))
 		return "<linear kernel text>";
+#endif
 
 	return NULL;
 }
@@ -135,20 +136,10 @@ static inline const char *check_bogus_address(const void *ptr, unsigned long n)
 	return NULL;
 }
 
-static inline const char *check_heap_object(const void *ptr, unsigned long n,
-					    bool to_user)
+static inline const char *check_heap_object(const void *ptr, unsigned long n)
 {
 	struct page *page, *endpage;
 	const void *end = ptr + n - 1;
-	bool is_reserved, is_cma;
-
-	/*
-	 * Some architectures (arm64) return true for virt_addr_valid() on
-	 * vmalloced addresses. Work around this by checking for vmalloc
-	 * first.
-	 */
-	if (is_vmalloc_addr(ptr))
-		return NULL;
 
 	if (!virt_addr_valid(ptr))
 		return NULL;
@@ -158,29 +149,6 @@ static inline const char *check_heap_object(const void *ptr, unsigned long n,
 	/* Check slab allocator for flags and size. */
 	if (PageSlab(page))
 		return __check_heap_object(ptr, n, page);
-
-	/*
-	 * Sometimes the kernel data regions are not marked Reserved (see
-	 * check below). And sometimes [_sdata,_edata) does not cover
-	 * rodata and/or bss, so check each range explicitly.
-	 */
-
-	/* Allow reads of kernel rodata region (if not marked as Reserved). */
-	if (ptr >= (const void *)__start_rodata &&
-	    end <= (const void *)__end_rodata) {
-		if (!to_user)
-			return "<rodata>";
-		return NULL;
-	}
-
-	/* Allow kernel data region (if not marked as Reserved). */
-	if (ptr >= (const void *)_sdata && end <= (const void *)_edata)
-		return NULL;
-
-	/* Allow kernel bss region (if not marked as Reserved). */
-	if (ptr >= (const void *)__bss_start &&
-	    end <= (const void *)__bss_stop)
-		return NULL;
 
 	/* Is the object wholly within one base page? */
 	if (likely(((unsigned long)ptr & (unsigned long)PAGE_MASK) ==
@@ -192,34 +160,38 @@ static inline const char *check_heap_object(const void *ptr, unsigned long n,
 	if (likely(endpage == page))
 		return NULL;
 
+	/* Allow special areas, device memory, and sometimes kernel data. */
+	if (PageReserved(page) && PageReserved(endpage))
+		return NULL;
+
 	/*
-	 * Reject if range is entirely either Reserved (i.e. special or
-	 * device memory), or CMA. Otherwise, reject since the object spans
-	 * several independently allocated pages.
+	 * Sometimes the kernel data regions are not marked Reserved. And
+	 * sometimes [_sdata,_edata) does not cover rodata and/or bss,
+	 * so check each range explicitly.
 	 */
-	is_reserved = PageReserved(page);
-	is_cma = is_migrate_cma_page(page);
-	if (!is_reserved && !is_cma)
-		goto reject;
 
-	for (ptr += PAGE_SIZE; ptr <= end; ptr += PAGE_SIZE) {
-		page = virt_to_head_page(ptr);
-		if (is_reserved && !PageReserved(page))
-			goto reject;
-		if (is_cma && !is_migrate_cma_page(page))
-			goto reject;
-	}
+	/* Allow kernel data region (if not marked as Reserved). */
+	if (ptr >= (const void *)_sdata && end <= (const void *)_edata)
+		return NULL;
 
-	return NULL;
+	/* Allow kernel rodata region (if not marked as Reserved). */
+	if (ptr >= (const void *)__start_rodata &&
+	    end <= (const void *)__end_rodata)
+		return NULL;
 
-reject:
+	/* Allow kernel bss region (if not marked as Reserved). */
+	if (ptr >= (const void *)__bss_start &&
+	    end <= (const void *)__bss_stop)
+		return NULL;
+
+	/* Uh oh. The "object" spans several independently allocated pages. */
 	return "<spans multiple pages>";
 }
 
 /*
- * Validates that the given object is:
- * - not bogus address
- * - known-safe heap or stack object
+ * Validates that the given object is one of:
+ * - known safe heap object
+ * - known safe stack object
  * - not in kernel text
  */
 void __check_object_size(const void *ptr, unsigned long n, bool to_user)
@@ -236,17 +208,17 @@ void __check_object_size(const void *ptr, unsigned long n, bool to_user)
 		goto report;
 
 	/* Check for bad heap object. */
-	err = check_heap_object(ptr, n, to_user);
+	err = check_heap_object(ptr, n);
 	if (err)
 		goto report;
 
 	/* Check for bad stack object. */
 	switch (check_stack_object(ptr, n)) {
-	case NOT_STACK:
+	case 0:
 		/* Object is not touching the current process stack. */
 		break;
-	case GOOD_FRAME:
-	case GOOD_STACK:
+	case 1:
+	case 2:
 		/*
 		 * Object is either in the correct frame (when it
 		 * is possible to check) or just generally on the
