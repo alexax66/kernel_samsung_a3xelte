@@ -3440,33 +3440,6 @@ void *__kmalloc_node(size_t size, gfp_t flags, int node)
 EXPORT_SYMBOL(__kmalloc_node);
 #endif
 
-#ifdef CONFIG_HARDENED_USERCOPY
-/*
- * Rejects objects that are incorrectly sized.
- *
- * Returns NULL if check passes, otherwise const char * to name of cache
- * to indicate an error.
- */
-const char *__check_heap_object(const void *ptr, unsigned long n,
-				struct page *page)
-{
-	struct kmem_cache *s;
-	unsigned long offset;
-
-	/* Find object. */
-	s = page->slab_cache;
-
-	/* Find offset within object. */
-	offset = (ptr - page_address(page)) % s->size;
-
-	/* Allow address range falling entirely within object size. */
-	if (offset <= s->object_size && n <= s->object_size - offset)
-		return NULL;
-
-	return s->name;
-}
-#endif /* CONFIG_HARDENED_USERCOPY */
-
 size_t ksize(const void *object)
 {
 	struct page *page;
