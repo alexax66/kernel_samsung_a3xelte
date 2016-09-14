@@ -1621,7 +1621,7 @@ EXPORT_SYMBOL(should_remove_suid);
 int file_needs_remove_privs(struct file *file)
 {
 	struct dentry *dentry = file->f_path.dentry;
-	struct inode *inode = d_inode(dentry);
+	struct inode *inode = dentry->d_inode;
 	int mask = 0;
 	int ret;
 
