@@ -257,6 +257,9 @@ int ping_init_sock(struct sock *sk)
 	kgid_t low, high;
 	int ret = 0;
 
+	if (sk->sk_family == AF_INET6)
+		inet6_sk(sk)->ipv6only = 1;
+
 	inet_get_ping_group_range_net(net, &low, &high);
 	if (gid_lte(low, group) && gid_lte(group, high))
 		return 0;
@@ -304,8 +307,8 @@ int ping_check_bind_addr(struct sock *sk, struct inet_sock *isk,
 			return -EINVAL;
 
 		if (addr->sin_family != AF_INET &&
-			!(addr->sin_family == AF_UNSPEC &&
-				addr->sin_addr.s_addr == htonl(INADDR_ANY)))
+		    !(addr->sin_family == AF_UNSPEC &&
+		      addr->sin_addr.s_addr == htonl(INADDR_ANY)))
 			return -EAFNOSUPPORT;
 
 		pr_debug("ping_check_bind_addr(sk=%p,addr=%pI4,port=%d)\n",
@@ -974,6 +977,7 @@ void ping_rcv(struct sk_buff *skb)
 	sk = ping_lookup(net, skb, ntohs(icmph->un.echo.id));
 	if (sk != NULL) {
 		struct sk_buff *skb2 = skb_clone(skb, GFP_ATOMIC);
+
 		pr_debug("rcv on socket %p\n", sk);
 		if (skb2)
 			ping_queue_rcv_skb(sk, skb2);
@@ -1088,7 +1092,7 @@ static void ping_seq_stop(struct seq_file *seq, void *v)
 }
 
 static void ping_format_sock(struct sock *sp, struct seq_file *f,
-		int bucket, int *len)
+		int bucket)
 {
 	struct inet_sock *inet = inet_sk(sp);
 	__be32 dest = inet->inet_daddr;
@@ -1097,7 +1101,7 @@ static void ping_format_sock(struct sock *sp, struct seq_file *f,
 	__u16 srcp = ntohs(inet->inet_sport);
 
 	seq_printf(f, "%5d: %08X:%04X %08X:%04X"
-		" %02X %08X:%08X %02X:%08lX %08X %5d %8d %lu %d %pK %d%n",
+		" %02X %08X:%08X %02X:%08lX %08X %5d %8d %lu %d %pK %d",
 		bucket, src, srcp, dest, destp, sp->sk_state,
 		sk_wmem_alloc_get(sp),
 		sk_rmem_alloc_get(sp),
@@ -1105,23 +1109,22 @@ static void ping_format_sock(struct sock *sp, struct seq_file *f,
 		from_kuid_munged(seq_user_ns(f), sock_i_uid(sp)),
 		0, sock_i_ino(sp),
 		atomic_read(&sp->sk_refcnt), sp,
-		atomic_read(&sp->sk_drops), len);
+		atomic_read(&sp->sk_drops));
 }
 
 static int ping_seq_show(struct seq_file *seq, void *v)
 {
+	seq_setwidth(seq, 127);
 	if (v == SEQ_START_TOKEN)
-		seq_printf(seq, "%-127s\n",
-			   "  sl  local_address rem_address   st tx_queue "
+		seq_puts(seq, "  sl  local_address rem_address   st tx_queue "
 			   "rx_queue tr tm->when retrnsmt   uid  timeout "
 			   "inode ref pointer drops");
 	else {
 		struct ping_iter_state *state = seq->private;
-		int len;
 
-		ping_format_sock(v, seq, state->bucket, &len);
-		seq_printf(seq, "%*s\n", 127 - len, "");
+		ping_format_sock(v, seq, state->bucket);
 	}
+	seq_pad(seq, '\n');
 	return 0;
 }
 

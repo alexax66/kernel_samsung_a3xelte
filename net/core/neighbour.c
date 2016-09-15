@@ -310,7 +310,7 @@ out_entries:
 
 static void neigh_get_hash_rnd(u32 *x)
 {
-	prandom_bytes(x, sizeof(*x));
+	get_random_bytes(x, sizeof(*x));
 	*x |= 1;
 }
 
@@ -826,7 +826,7 @@ out:
 	 * ARP entry timeouts range from 1/2 base_reachable_time to 3/2
 	 * base_reachable_time.
 	 */
-	schedule_delayed_work(&tbl->gc_work,
+	queue_delayed_work(system_power_efficient_wq, &tbl->gc_work,
 			      tbl->parms.base_reachable_time >> 1);
 	write_unlock_bh(&tbl->lock);
 }
@@ -928,6 +928,7 @@ static void neigh_timer_handler(unsigned long arg)
 			neigh->nud_state = NUD_PROBE;
 			neigh->updated = jiffies;
 			atomic_set(&neigh->probes, 0);
+			notify = 1;
 			next = now + neigh->parms->retrans_time;
 		}
 	} else {
@@ -1155,6 +1156,8 @@ int neigh_update(struct neighbour *neigh, const u8 *lladdr, u8 new,
 
 	if (new != old) {
 		neigh_del_timer(neigh);
+		if (new & NUD_PROBE)
+			atomic_set(&neigh->probes, 0);
 		if (new & NUD_IN_TIMER)
 			neigh_add_timer(neigh, (jiffies +
 						((new & NUD_REACHABLE) ?
@@ -1541,7 +1544,8 @@ static void neigh_table_init_no_netlink(struct neigh_table *tbl)
 
 	rwlock_init(&tbl->lock);
 	INIT_DEFERRABLE_WORK(&tbl->gc_work, neigh_periodic_work);
-	schedule_delayed_work(&tbl->gc_work, tbl->parms.reachable_time);
+	queue_delayed_work(system_power_efficient_wq, &tbl->gc_work,
+			tbl->parms.reachable_time);
 	setup_timer(&tbl->proxy_timer, neigh_proxy_process, (unsigned long)tbl);
 	skb_queue_head_init_class(&tbl->proxy_queue,
 			&neigh_table_proxy_queue_class);

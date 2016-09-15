@@ -24,6 +24,9 @@
 #include <linux/fcntl.h>	/* For O_CLOEXEC and O_NONBLOCK */
 #include <linux/kmemcheck.h>
 #include <linux/rcupdate.h>
+#include <linux/jump_label.h>
+#include <linux/once.h>
+
 #include <uapi/linux/net.h>
 
 struct poll_table_struct;
@@ -250,6 +253,9 @@ do {								\
 
 #define net_random()		prandom_u32()
 #define net_srandom(seed)	prandom_seed((__force u32)(seed))
+
+#define net_get_random_once(buf, nbytes)			\
+	get_random_once((buf), (nbytes))
 
 extern int   	     kernel_sendmsg(struct socket *sock, struct msghdr *msg,
 				    struct kvec *vec, size_t num, size_t len);

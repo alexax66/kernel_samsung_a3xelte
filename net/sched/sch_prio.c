@@ -114,6 +114,7 @@ static struct sk_buff *prio_dequeue(struct Qdisc *sch)
 	int prio;
 	if (!q->enable_flow)
 		return NULL;
+
 	for (prio = 0; prio < q->bands; prio++) {
 		struct Qdisc *qdisc = q->queues[prio];
 		struct sk_buff *skb = qdisc_dequeue_peeked(qdisc);

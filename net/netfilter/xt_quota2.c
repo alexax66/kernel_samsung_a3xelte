@@ -308,7 +308,7 @@ quota_mt2(const struct sk_buff *skb, struct xt_action_param *par)
 				e->quota -= (q->flags & XT_QUOTA_PACKET) ? 1 : skb->len;
 
 			if (!e->quota) {
-			  	quota2_log(par->hooknum,
+				quota2_log(par->hooknum,
 					   skb,
 					   par->in,
 					   par->out,

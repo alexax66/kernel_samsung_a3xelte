@@ -927,7 +927,7 @@ bool dev_valid_name(const char *name)
 		return false;
 
 	while (*name) {
-		if (*name == '/' || isspace(*name))
+		if (*name == '/' || *name == ':' || isspace(*name))
 			return false;
 		name++;
 	}
@@ -1312,7 +1312,7 @@ static int __dev_close_many(struct list_head *head)
 		 * dev->stop() will invoke napi_disable() on all of it's
 		 * napi_struct instances on this device.
 		 */
-		smp_mb__after_clear_bit(); /* Commit netif_running(). */
+		smp_mb__after_atomic(); /* Commit netif_running(). */
 	}
 
 	dev_deactivate_many(head);
@@ -3255,7 +3255,7 @@ static void net_tx_action(struct softirq_action *h)
 
 			root_lock = qdisc_lock(q);
 			if (spin_trylock(root_lock)) {
-				smp_mb__before_clear_bit();
+				smp_mb__before_atomic();
 				clear_bit(__QDISC_STATE_SCHED,
 					  &q->state);
 				qdisc_run(q);
@@ -3265,7 +3265,7 @@ static void net_tx_action(struct softirq_action *h)
 					      &q->state)) {
 					__netif_reschedule(q);
 				} else {
-					smp_mb__before_clear_bit();
+					smp_mb__before_atomic();
 					clear_bit(__QDISC_STATE_SCHED,
 						  &q->state);
 				}
@@ -3443,8 +3443,6 @@ static int __netif_receive_skb_core(struct sk_buff *skb, bool pfmemalloc)
 
 	pt_prev = NULL;
 
-	rcu_read_lock();
-
 another_round:
 	skb->skb_iif = skb->dev->ifindex;
 
@@ -3454,7 +3452,7 @@ another_round:
 	    skb->protocol == cpu_to_be16(ETH_P_8021AD)) {
 		skb = vlan_untag(skb);
 		if (unlikely(!skb))
-			goto unlock;
+			goto out;
 	}
 
 #ifdef CONFIG_NET_CLS_ACT
@@ -3479,7 +3477,7 @@ skip_taps:
 #ifdef CONFIG_NET_CLS_ACT
 	skb = handle_ing(skb, &pt_prev, &ret, orig_dev);
 	if (!skb)
-		goto unlock;
+		goto out;
 ncls:
 #endif
 
@@ -3494,7 +3492,7 @@ ncls:
 		if (vlan_do_receive(&skb))
 			goto another_round;
 		else if (unlikely(!skb))
-			goto unlock;
+			goto out;
 	}
 
 	rx_handler = rcu_dereference(skb->dev->rx_handler);
@@ -3506,7 +3504,7 @@ ncls:
 		switch (rx_handler(&skb)) {
 		case RX_HANDLER_CONSUMED:
 			ret = NET_RX_SUCCESS;
-			goto unlock;
+			goto out;
 		case RX_HANDLER_ANOTHER:
 			goto another_round;
 		case RX_HANDLER_EXACT:
@@ -3558,8 +3556,6 @@ drop:
 		ret = NET_RX_DROP;
 	}
 
-unlock:
-	rcu_read_unlock();
 out:
 	return ret;
 }
@@ -3606,29 +3602,30 @@ static int __netif_receive_skb(struct sk_buff *skb)
  */
 int netif_receive_skb(struct sk_buff *skb)
 {
+	int ret;
+
 	net_timestamp_check(netdev_tstamp_prequeue, skb);
 
 	if (skb_defer_rx_timestamp(skb))
 		return NET_RX_SUCCESS;
 
+	rcu_read_lock();
+
 #ifdef CONFIG_RPS
 	if (static_key_false(&rps_needed)) {
 		struct rps_dev_flow voidflow, *rflow = &voidflow;
-		int cpu, ret;
-
-		rcu_read_lock();
-
-		cpu = get_rps_cpu(skb->dev, skb, &rflow);
+		int cpu = get_rps_cpu(skb->dev, skb, &rflow);
 
 		if (cpu >= 0) {
 			ret = enqueue_to_backlog(skb, cpu, &rflow->last_qtail);
 			rcu_read_unlock();
 			return ret;
 		}
-		rcu_read_unlock();
 	}
 #endif
-	return __netif_receive_skb(skb);
+	ret = __netif_receive_skb(skb);
+	rcu_read_unlock();
+	return ret;
 }
 EXPORT_SYMBOL(netif_receive_skb);
 
@@ -4036,13 +4033,14 @@ static int process_backlog(struct napi_struct *napi, int quota)
 #endif
 	napi->weight = weight_p;
 	local_irq_disable();
-	while (work < quota) {
+	while (1) {
 		struct sk_buff *skb;
-		unsigned int qlen;
 
 		while ((skb = __skb_dequeue(&sd->process_queue))) {
+			rcu_read_lock();
 			local_irq_enable();
 			__netif_receive_skb(skb);
+			rcu_read_unlock();
 			local_irq_disable();
 			input_queue_head_incr(sd);
 			if (++work >= quota) {
@@ -4052,24 +4050,24 @@ static int process_backlog(struct napi_struct *napi, int quota)
 		}
 
 		rps_lock(sd);
-		qlen = skb_queue_len(&sd->input_pkt_queue);
-		if (qlen)
-			skb_queue_splice_tail_init(&sd->input_pkt_queue,
-						   &sd->process_queue);
-
-		if (qlen < quota - work) {
+		if (skb_queue_empty(&sd->input_pkt_queue)) {
 			/*
 			 * Inline a custom version of __napi_complete().
 			 * only current cpu owns and manipulates this napi,
-			 * and NAPI_STATE_SCHED is the only possible flag set on backlog.
-			 * we can use a plain write instead of clear_bit(),
+			 * and NAPI_STATE_SCHED is the only possible flag set
+			 * on backlog.
+			 * We can use a plain write instead of clear_bit(),
 			 * and we dont need an smp_mb() memory barrier.
 			 */
 			list_del(&napi->poll_list);
 			napi->state = 0;
+			rps_unlock(sd);
 
-			quota = work + qlen;
+			break;
 		}
+
+		skb_queue_splice_tail_init(&sd->input_pkt_queue,
+					   &sd->process_queue);
 		rps_unlock(sd);
 	}
 	local_irq_enable();
@@ -4099,7 +4097,7 @@ void __napi_complete(struct napi_struct *n)
 	BUG_ON(n->gro_list);
 
 	list_del(&n->poll_list);
-	smp_mb__before_clear_bit();
+	smp_mb__before_atomic();
 	clear_bit(NAPI_STATE_SCHED, &n->state);
 }
 EXPORT_SYMBOL(__napi_complete);
@@ -4691,7 +4689,11 @@ int __dev_change_flags(struct net_device *dev, unsigned int flags)
 
 	dev->flags = (flags & (IFF_DEBUG | IFF_NOTRAILERS | IFF_NOARP |
 			       IFF_DYNAMIC | IFF_MULTICAST | IFF_PORTSEL |
-			       IFF_AUTOMEDIA)) |
+			       IFF_AUTOMEDIA 
+#ifdef CONFIG_MPTCP
+				   | IFF_NOMULTIPATH | IFF_MPBACKUP
+#endif
+				   )) |
 		     (dev->flags & (IFF_UP | IFF_VOLATILE | IFF_PROMISC |
 				    IFF_ALLMULTI));
 
@@ -6018,10 +6020,20 @@ static int dev_cpu_callback(struct notifier_block *nfb,
 		oldsd->output_queue = NULL;
 		oldsd->output_queue_tailp = &oldsd->output_queue;
 	}
-	/* Append NAPI poll list from offline CPU. */
-	if (!list_empty(&oldsd->poll_list)) {
-		list_splice_init(&oldsd->poll_list, &sd->poll_list);
-		raise_softirq_irqoff(NET_RX_SOFTIRQ);
+	/* Append NAPI poll list from offline CPU, with one exception :
+	 * process_backlog() must be called by cpu owning percpu backlog.
+	 * We properly handle process_queue & input_pkt_queue later.
+	 */
+	while (!list_empty(&oldsd->poll_list)) {
+		struct napi_struct *napi = list_first_entry(&oldsd->poll_list,
+							    struct napi_struct,
+							    poll_list);
+
+		list_del_init(&napi->poll_list);
+		if (napi->poll == process_backlog)
+			napi->state = 0;
+		else
+			____napi_schedule(sd, napi);
 	}
 
 	raise_softirq_irqoff(NET_TX_SOFTIRQ);

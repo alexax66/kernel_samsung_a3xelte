@@ -144,12 +144,13 @@ connmark_tg(struct sk_buff *skb, const struct xt_action_param *par)
 		newmark = (skb->mark & ~info->nfmask) ^
 		          (ct->mark & info->ctmask);
 		skb->mark = newmark;
+
 // ------------- START of KNOX_VPN -----------------//
-		knoxvpn_uidpid(skb, newmark);
+        knoxvpn_uidpid(skb,newmark);
 // ------------- END of KNOX_VPN -------------------//
+
 		break;
 	}
-
 	return XT_CONTINUE;
 }
 
