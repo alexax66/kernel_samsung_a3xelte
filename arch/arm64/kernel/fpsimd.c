@@ -183,7 +183,12 @@ void kernel_neon_begin_partial(u32 num_regs)
 		 */
 		preempt_disable();
 
-		if (current->mm)
+		/*
+		 * Save the userland FPSIMD state if we have one and if we haven't done
+		 * so already. Clear fpsimd_last_state to indicate that there is no
+		 * longer userland FPSIMD state in the registers.
+		 */
+		if (current->mm && !test_and_set_thread_flag(TIF_FOREIGN_FPSTATE))
 			fpsimd_save_state(&current->thread.fpsimd_state);
 	}
 }
@@ -196,8 +201,6 @@ void kernel_neon_end(void)
 				in_irq() ? &hardirq_fpsimdstate : &softirq_fpsimdstate);
 		fpsimd_load_partial_state(s);
 	} else {
-		if (current->mm)
-			fpsimd_load_state(&current->thread.fpsimd_state);
 		preempt_enable();
 	}
 }
@@ -211,12 +214,12 @@ static int fpsimd_cpu_pm_notifier(struct notifier_block *self,
 {
 	switch (cmd) {
 	case CPU_PM_ENTER:
-		if (current->mm)
+		if (current->mm && !test_thread_flag(TIF_FOREIGN_FPSTATE))
 			fpsimd_save_state(&current->thread.fpsimd_state);
 		break;
 	case CPU_PM_EXIT:
 		if (current->mm)
-			fpsimd_load_state(&current->thread.fpsimd_state);
+			set_thread_flag(TIF_FOREIGN_FPSTATE);
 		break;
 	case CPU_PM_ENTER_FAILED:
 	default:
