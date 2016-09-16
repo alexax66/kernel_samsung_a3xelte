@@ -51,6 +51,7 @@ C_h	.req	x12
 D_l	.req	x13
 D_h	.req	x14
 
+	prfm    pldl1strm, [src, #64]
 	mov	dst, dstin
 	cmp	count, #16
 	/*When memory length is less than 16, the accessed are not aligned.*/
