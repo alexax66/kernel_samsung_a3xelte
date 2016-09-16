@@ -427,6 +427,9 @@ extern struct cpufreq_governor cpufreq_gov_interactive;
 #elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_INTEREXTREM)
 extern struct cpufreq_governor cpufreq_gov_interextrem;
 #define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_interextrem)
+#elif defined(CONFIG_CPU_FREQ_DEFAULT__GOV_CHILL)
+extern struct cpufreq_governor cpufreq_gov_chill;
+#define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_chill)
 #endif
 
 

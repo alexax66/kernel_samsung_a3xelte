@@ -11,6 +11,7 @@ obj-$(CONFIG_CPU_FREQ_GOV_ONDEMAND)	+= cpufreq_ondemand.o
 obj-$(CONFIG_CPU_FREQ_GOV_CONSERVATIVE)	+= cpufreq_conservative.o
 obj-$(CONFIG_CPU_FREQ_GOV_INTERACTIVE)	+= cpufreq_interactive.o
 obj-$(CONFIG_CPU_FREQ_GOV_INTEREXTREM)	+= cpufreq_interextrem.o
+obj-$(CONFIG_CPU_FREQ_GOV_CHILL)	+= cpufreq_chill.o
 obj-$(CONFIG_CPU_FREQ_GOV_COMMON)	+= cpufreq_governor.o
 
 # CPUfreq cross-arch helpers
