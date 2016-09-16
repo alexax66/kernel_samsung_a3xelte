@@ -13,6 +13,9 @@
  */
 
 #include <linux/slab.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
+#include <linux/kernel_stat.h>
 #include "cpufreq_governor.h"
 #ifdef CONFIG_POWERSUSPEND
 #include <linux/powersuspend.h>
@@ -65,7 +68,7 @@ static void cs_check_cpu(int cpu, unsigned int load)
 
 #ifdef CONFIG_POWERSUSPEND
 	/* Once min frequency is reached while screen off, stop taking load samples*/
-	if (power_suspended & policy->cur == policy->min)
+	if (power_suspend_active & policy->cur == policy->min)
 		return;
 #endif
 	/*
@@ -84,7 +87,7 @@ static void cs_check_cpu(int cpu, unsigned int load)
 
 #ifdef CONFIG_POWERSUSPEND
 		/* if power is suspended then break out early */
-		if (power_suspended)
+		if (power_suspend_active)
 			return;
 #endif
 
@@ -484,4 +487,3 @@ fs_initcall(cpufreq_gov_dbs_init);
 module_init(cpufreq_gov_dbs_init);
 #endif
 module_exit(cpufreq_gov_dbs_exit);
-
