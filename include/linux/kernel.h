@@ -419,7 +419,7 @@ extern enum system_states {
 
 #define TAINT_PROPRIETARY_MODULE	0
 #define TAINT_FORCED_MODULE		1
-#define TAINT_UNSAFE_SMP		2
+#define TAINT_CPU_OUT_OF_SPEC		2
 #define TAINT_FORCED_RMMOD		3
 #define TAINT_MACHINE_CHECK		4
 #define TAINT_BAD_PAGE			5
@@ -430,6 +430,7 @@ extern enum system_states {
 #define TAINT_CRAP			10
 #define TAINT_FIRMWARE_WORKAROUND	11
 #define TAINT_OOT_MODULE		12
+#define TAINT_UNSAFE_SMP		13
 
 extern const char hex_asc[];
 #define hex_asc_lo(x)	hex_asc[((x) & 0x0f)]
