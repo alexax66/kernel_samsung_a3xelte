@@ -193,9 +193,6 @@ extern int _cond_resched(void);
 		ret;							\
 	}))
 
-/* Deprecated, use abs instead. */
-#define abs64(x) abs((s64)(x))
-
 #ifdef CONFIG_PROVE_LOCKING
 void might_fault(void);
 #else

@@ -156,7 +156,7 @@ static void vblank_disable_and_save(struct drm_device *dev, int crtc)
 	 * available. In that case we can't account for this and just
 	 * hope for the best.
 	 */
-	if ((vblrc > 0) && (abs64(diff_ns) > 1000000)) {
+	if ((vblrc > 0) && (abs(diff_ns) > 1000000)) {
 		atomic_inc(&dev->_vblank_count[crtc]);
 		smp_mb__after_atomic_inc();
 	}
@@ -1393,7 +1393,7 @@ bool drm_handle_vblank(struct drm_device *dev, int crtc)
 	 * e.g., due to spurious vblank interrupts. We need to
 	 * ignore those for accounting.
 	 */
-	if (abs64(diff_ns) > DRM_REDUNDANT_VBLIRQ_THRESH_NS) {
+	if (abs(diff_ns) > DRM_REDUNDANT_VBLIRQ_THRESH_NS) {
 		/* Store new timestamp in ringbuffer. */
 		vblanktimestamp(dev, crtc, vblcount + 1) = tvblank;
 
