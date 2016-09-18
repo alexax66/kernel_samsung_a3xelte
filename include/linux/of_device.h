@@ -1,6 +1,7 @@
 #ifndef _LINUX_OF_DEVICE_H
 #define _LINUX_OF_DEVICE_H
 
+#include <linux/cpu.h>
 #include <linux/platform_device.h>
 #include <linux/of_platform.h> /* temporary until merge */
 
@@ -13,6 +14,15 @@ struct device;
 extern const struct of_device_id *of_match_device(
 	const struct of_device_id *matches, const struct device *dev);
 extern void of_device_make_bus_id(struct device *dev);
+
+static inline struct device_node *of_cpu_device_node_get(int cpu)
+{
+	struct device *cpu_dev;
+	cpu_dev = get_cpu_device(cpu);
+	if (!cpu_dev)
+		return NULL;
+	return of_node_get(cpu_dev->of_node);
+}
 
 /**
  * of_driver_match_device - Tell if a driver's of_match_table matches a device.
@@ -64,6 +74,11 @@ static inline void of_device_node_put(struct device *dev) { }
 
 static inline const struct of_device_id *of_match_device(
 		const struct of_device_id *matches, const struct device *dev)
+{
+	return NULL;
+}
+
+static inline struct device_node *of_cpu_device_node_get(int cpu)
 {
 	return NULL;
 }
