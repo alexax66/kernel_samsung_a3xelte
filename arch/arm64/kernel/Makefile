@@ -38,9 +38,11 @@ arm64-obj-$(CONFIG_TIMA_RKP)		+= rkp_entry.o
 # from android-3.10
 arm64-obj-$(CONFIG_ARM_CPU_SUSPEND)	+= sleep.o suspend.o
 
-obj-$(CONFIG_SWP_EMULATE)	+= swp_emulate.o
+obj-$(CONFIG_SWP_EMULATE)		+= swp_emulate.o
 
 obj-$(CONFIG_PCI)			+= pcibios.o
+arm64-obj-$(CONFIG_ARMV8_DEPRECATED)	+= armv8_deprecated.o
+
 obj-y					+= $(arm64-obj-y) vdso/
 obj-m					+= $(arm64-obj-m)
 head-y					:= head.o
