@@ -20,6 +20,8 @@
 
 #include <linux/list.h>
 
+struct pt_regs;
+
 struct undef_hook {
 	struct list_head node;
 	u32 instr_mask;
@@ -30,6 +32,7 @@ struct undef_hook {
 };
 
 void register_undef_hook(struct undef_hook *hook);
+void unregister_undef_hook(struct undef_hook *hook);
 
 static inline int in_exception_text(unsigned long ptr)
 {
