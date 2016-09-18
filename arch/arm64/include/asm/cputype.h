@@ -22,6 +22,7 @@
 
 #define MPIDR_SMP_BITMASK	(0x3 << 30)
 #define MPIDR_SMP_VALUE		(0x2 << 30)
+#define MPIDR_UP_BITMASK	(0x1 << 30)
 #define MPIDR_MT_BITMASK	(0x1 << 24)
 
 #define MPIDR_LEVEL_BITS_SHIFT	3
