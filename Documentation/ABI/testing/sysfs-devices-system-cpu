@@ -185,3 +185,13 @@ Description:	address and size of the percpu note.
 		note of cpu#.
 
 		crash_notes_size: size of the note of cpu#.
+
+What:		/sys/devices/system/cpu/cpuX/regs/
+		/sys/devices/system/cpu/cpuX/regs/identification/
+		/sys/devices/system/cpu/cpuX/regs/identification/midr_el1
+		/sys/devices/system/cpu/cpuX/regs/identification/revidr_el1
+Date:		June 2016
+Contact:	Linux ARM Kernel Mailing list <linux-arm-kernel@lists.infradead.org>
+Description:	AArch64 CPU registers
+		'identification' directory exposes the CPU ID registers for
+		 identifying model and revision of the CPU.
