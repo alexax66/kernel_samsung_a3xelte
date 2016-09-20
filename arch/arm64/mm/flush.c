@@ -31,7 +31,7 @@ void flush_cache_range(struct vm_area_struct *vma, unsigned long start,
 		       unsigned long end)
 {
 	if (vma->vm_flags & VM_EXEC)
-		__flush_icache_all();
+		flush_icache_range(start, end);
 }
 
 static void flush_ptrace_access(struct vm_area_struct *vma, struct page *page,
