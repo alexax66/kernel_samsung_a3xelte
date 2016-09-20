@@ -21,18 +21,18 @@ config SND_S3C2412_SOC_I2S
 	select S3C2410_DMA
 
 config SND_SAMSUNG_PCM
-	tristate
+	tristate "Samsung PCM interface support"
 
 config SND_SAMSUNG_AC97
-	tristate
+	tristate "Samsung AC97 controller support"
 	select SND_SOC_AC97_BUS
 
 config SND_SAMSUNG_SPDIF
-	tristate
+	tristate "Samsung SPDIF transmitter support"
 	select SND_SOC_SPDIF
 
 config SND_SAMSUNG_I2S
-	tristate
+	tristate "Samsung I2S interface support"
 
 config SND_SAMSUNG_IDMA
 	tristate
