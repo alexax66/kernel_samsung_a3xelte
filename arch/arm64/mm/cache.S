@@ -202,7 +202,6 @@ ENTRY(__inval_cache_range)
  *	- start   - virtual start address of region
  *	- end     - virtual end address of region
  */
-ENDPROC(__inval_cache_range)
 __dma_inv_range:
 	dcache_line_size x2, x3
 	sub	x3, x2, #1
