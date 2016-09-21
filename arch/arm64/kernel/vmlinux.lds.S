@@ -154,3 +154,8 @@ SECTIONS
 	HEAD_SYMBOLS
 	.comment 0 : { *(.comment) }
 }
+
+/*
+ * If padding is applied before .head.text, virt<->phys conversions will fail.
+ */
+ASSERT(_text == (PAGE_OFFSET + TEXT_OFFSET), "HEAD is misaligned")
