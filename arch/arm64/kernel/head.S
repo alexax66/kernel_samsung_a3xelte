@@ -122,7 +122,7 @@ ENTRY(stext)
 	ands	w7, w8, #0xf
 	bne	secondary_holding_pen
 #endif
-	mov	x21, x0				// x21=FDT
+	bl	preserve_boot_args
 	bl	el2_setup			// Drop to EL1, w20=cpu_boot_mode
 	bl	__calc_phys_offset		// x24=PHYS_OFFSET, x28=PHYS_OFFSET-PAGE_OFFSET
 	bl	set_cpu_boot_mode_flag
@@ -153,6 +153,23 @@ ENTRY(stext)
 	add	x12, x12, x28			// __virt_to_phys
 	br	x12				// initialise processor
 ENDPROC(stext)
+
+/*
+ * Preserve the arguments passed by the bootloader in x0 .. x3
+ */
+preserve_boot_args:
+	mov	x21, x0				// x21=FDT
+
+	adr_l	x0, boot_args			// record the contents of
+	stp	x21, x1, [x0]			// x0 .. x3 at kernel entry
+	stp	x2, x3, [x0, #16]
+
+	dmb	sy				// needed before dc ivac with
+						// MMU off
+
+	add	x1, x0, #0x20			// 4 x 8 bytes
+	b	__inval_cache_range		// tail call
+ENDPROC(preserve_boot_args)
 
 /*
  * Determine validity of the x21 FDT pointer.
@@ -544,7 +561,6 @@ ENDPROC(__calc_phys_offset)
 	.align 3
 1:	.quad	.
 	.quad	PAGE_OFFSET
-
 
 /*
  * Exception handling. Something went wrong and we can't proceed. We ought to
