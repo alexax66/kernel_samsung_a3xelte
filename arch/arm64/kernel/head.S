@@ -155,6 +155,181 @@ ENTRY(stext)
 ENDPROC(stext)
 
 /*
+ * Determine validity of the x21 FDT pointer.
+ * The dtb must be 8-byte aligned and live in the first 512M of memory.
+ */
+__vet_fdt:
+	tst	x21, #0x7
+	b.ne	1f
+	cmp	x21, x24
+	b.lt	1f
+	mov	x0, #(1 << 29)
+	add	x0, x0, x24
+	cmp	x21, x0
+	b.ge	1f
+	ret
+1:
+	mov	x21, #0
+	ret
+ENDPROC(__vet_fdt)
+
+/*
+ * Macro to populate the PGD for the corresponding block entry in the next
+ * level (tbl) for the given virtual address.
+ *
+ * Preserves:	pgd, tbl, virt
+ * Corrupts:	tmp1, tmp2
+ */
+	.macro	create_pgd_entry, pgd, tbl, virt, tmp1, tmp2
+	lsr	\tmp1, \virt, #PGDIR_SHIFT
+	and	\tmp1, \tmp1, #PTRS_PER_PGD - 1	// PGD index
+	orr	\tmp2, \tbl, #3			// PGD entry table type
+	str	\tmp2, [\pgd, \tmp1, lsl #3]
+	.endm
+
+/*
+ * Macro to populate block entries in the page table for the start..end
+ * virtual range (inclusive).
+ *
+ * Preserves:	tbl, flags
+ * Corrupts:	phys, start, end, pstate
+ */
+	.macro	create_block_map, tbl, flags, phys, start, end
+	lsr	\phys, \phys, #BLOCK_SHIFT
+	lsr	\start, \start, #BLOCK_SHIFT
+	and	\start, \start, #PTRS_PER_PTE - 1	// table index
+	orr	\phys, \flags, \phys, lsl #BLOCK_SHIFT	// table entry
+	lsr	\end, \end, #BLOCK_SHIFT
+	and	\end, \end, #PTRS_PER_PTE - 1		// table end index
+9999:	str	\phys, [\tbl, \start, lsl #3]		// store the entry
+	add	\start, \start, #1			// next entry
+	add	\phys, \phys, #BLOCK_SIZE		// next block
+	cmp	\start, \end
+	b.ls	9999b
+	.endm
+
+/*
+ * Setup the initial page tables. We only setup the barest amount which is
+ * required to get the kernel running. The following sections are required:
+ *   - identity mapping to enable the MMU (low address, TTBR0)
+ *   - first few MB of the kernel linear mapping to jump to once the MMU has
+ *     been enabled, including the FDT blob (TTBR1)
+ *   - pgd entry for fixed mappings (TTBR1)
+ */
+__create_page_tables:
+	pgtbl	x25, x26, x28			// idmap_pg_dir and swapper_pg_dir addresses
+	mov	x27, lr
+
+	/*
+	 * Invalidate the idmap and swapper page tables to avoid potential
+	 * dirty cache lines being evicted.
+	 */
+	mov	x0, x25
+	add	x1, x26, #SWAPPER_DIR_SIZE
+	bl	__inval_cache_range
+
+	/*
+	 * Clear the idmap and swapper page tables.
+	 */
+	mov	x0, x25
+	add	x6, x26, #SWAPPER_DIR_SIZE
+1:	stp	xzr, xzr, [x0], #16
+	stp	xzr, xzr, [x0], #16
+	stp	xzr, xzr, [x0], #16
+	stp	xzr, xzr, [x0], #16
+	cmp	x0, x6
+	b.lo	1b
+
+	ldr	x7, =MM_MMUFLAGS
+
+	/*
+	 * Create the identity mapping.
+	 */
+	add	x0, x25, #PAGE_SIZE		// section table address
+	ldr	x3, =KERNEL_START
+	add	x3, x3, x28			// __pa(KERNEL_START)
+	create_pgd_entry x25, x0, x3, x5, x6
+	ldr	x6, =KERNEL_END
+	mov	x5, x3				// __pa(KERNEL_START)
+	add	x6, x6, x28			// __pa(KERNEL_END)
+	create_block_map x0, x7, x3, x5, x6
+
+	/*
+	 * Map the kernel image (starting with PHYS_OFFSET).
+	 */
+	add	x0, x26, #PAGE_SIZE		// section table address
+	mov	x5, #PAGE_OFFSET
+	create_pgd_entry x26, x0, x5, x3, x6
+	ldr	x6, =KERNEL_END
+	mov	x3, x24				// phys offset
+	create_block_map x0, x7, x3, x5, x6
+
+	/*
+	 * Map the FDT blob (maximum 2MB; must be within 512MB of
+	 * PHYS_OFFSET).
+	 */
+	mov	x3, x21				// FDT phys address
+	and	x3, x3, #~((1 << 21) - 1)	// 2MB aligned
+	mov	x6, #PAGE_OFFSET
+	sub	x5, x3, x24			// subtract PHYS_OFFSET
+	tst	x5, #~((1 << 29) - 1)		// within 512MB?
+	csel	x21, xzr, x21, ne		// zero the FDT pointer
+	b.ne	1f
+	add	x5, x5, x6			// __va(FDT blob)
+	add	x6, x5, #1 << 21		// 2MB for the FDT blob
+	sub	x6, x6, #1			// inclusive range
+	create_block_map x0, x7, x3, x5, x6
+1:
+	/*
+	 * Create the pgd entry for the fixed mappings.
+	 */
+	ldr	x5, =FIXADDR_TOP		// Fixed mapping virtual address
+	add	x0, x26, #2 * PAGE_SIZE		// section table address
+	create_pgd_entry x26, x0, x5, x6, x7
+
+	/*
+	 * Since the page tables have been populated with non-cacheable
+	 * accesses (MMU disabled), invalidate the idmap and swapper page
+	 * tables again to remove any speculatively loaded cache lines.
+	 */
+	mov	x0, x25
+	add	x1, x26, #SWAPPER_DIR_SIZE
+	bl	__inval_cache_range
+
+	mov	lr, x27
+	ret
+ENDPROC(__create_page_tables)
+	.ltorg
+
+/*
+ * The following fragment of code is executed with the MMU enabled.
+ */
+	.set	initial_sp, init_thread_union + THREAD_START_SP
+__mmap_switched:
+	adr_l	x6, __bss_start
+	adr_l	x7, __bss_stop
+
+#ifdef CONFIG_TIMA_RKP
+	ldr	x6, =rkp_map_bitmap
+	add	x7, x6, 0x20000
+3:	cmp	x6, x7
+	b.hs	4f
+	str	xzr, [x6], #8			// Clear BSS
+	b	3b
+#endif
+1:	cmp	x6, x7
+	b.hs	2f
+	str	xzr, [x6], #8			// Clear BSS
+	b	1b
+2:
+	adr_l	sp, initial_sp, x4
+	str_l	x21, __fdt_pointer, x5		// Save FDT pointer
+	str_l	x24, memstart_addr, x6		// Save PHYS_OFFSET
+	mov	x29, #0
+	b	start_kernel
+ENDPROC(__mmap_switched)
+
+/*
  * If we're fortunate enough to boot at EL2, ensure that the world is
  * sane before dropping to EL1.
  *
@@ -370,161 +545,6 @@ ENDPROC(__calc_phys_offset)
 1:	.quad	.
 	.quad	PAGE_OFFSET
 
-/*
- * Macro to populate the PGD for the corresponding block entry in the next
- * level (tbl) for the given virtual address.
- *
- * Preserves:	pgd, tbl, virt
- * Corrupts:	tmp1, tmp2
- */
-	.macro	create_pgd_entry, pgd, tbl, virt, tmp1, tmp2
-	lsr	\tmp1, \virt, #PGDIR_SHIFT
-	and	\tmp1, \tmp1, #PTRS_PER_PGD - 1	// PGD index
-	orr	\tmp2, \tbl, #3			// PGD entry table type
-	str	\tmp2, [\pgd, \tmp1, lsl #3]
-	.endm
-
-/*
- * Macro to populate block entries in the page table for the start..end
- * virtual range (inclusive).
- *
- * Preserves:	tbl, flags
- * Corrupts:	phys, start, end, pstate
- */
-	.macro	create_block_map, tbl, flags, phys, start, end
-	lsr	\phys, \phys, #BLOCK_SHIFT
-	lsr	\start, \start, #BLOCK_SHIFT
-	and	\start, \start, #PTRS_PER_PTE - 1	// table index
-	orr	\phys, \flags, \phys, lsl #BLOCK_SHIFT	// table entry
-	lsr	\end, \end, #BLOCK_SHIFT
-	and	\end, \end, #PTRS_PER_PTE - 1		// table end index
-9999:	str	\phys, [\tbl, \start, lsl #3]		// store the entry
-	add	\start, \start, #1			// next entry
-	add	\phys, \phys, #BLOCK_SIZE		// next block
-	cmp	\start, \end
-	b.ls	9999b
-	.endm
-
-/*
- * Setup the initial page tables. We only setup the barest amount which is
- * required to get the kernel running. The following sections are required:
- *   - identity mapping to enable the MMU (low address, TTBR0)
- *   - first few MB of the kernel linear mapping to jump to once the MMU has
- *     been enabled, including the FDT blob (TTBR1)
- *   - pgd entry for fixed mappings (TTBR1)
- */
-__create_page_tables:
-	pgtbl	x25, x26, x28			// idmap_pg_dir and swapper_pg_dir addresses
-	mov	x27, lr
-
-	/*
-	 * Invalidate the idmap and swapper page tables to avoid potential
-	 * dirty cache lines being evicted.
-	 */
-	mov	x0, x25
-	add	x1, x26, #SWAPPER_DIR_SIZE
-	bl	__inval_cache_range
-
-	/*
-	 * Clear the idmap and swapper page tables.
-	 */
-	mov	x0, x25
-	add	x6, x26, #SWAPPER_DIR_SIZE
-1:	stp	xzr, xzr, [x0], #16
-	stp	xzr, xzr, [x0], #16
-	stp	xzr, xzr, [x0], #16
-	stp	xzr, xzr, [x0], #16
-	cmp	x0, x6
-	b.lo	1b
-
-	ldr	x7, =MM_MMUFLAGS
-
-	/*
-	 * Create the identity mapping.
-	 */
-	add	x0, x25, #PAGE_SIZE		// section table address
-	ldr	x3, =KERNEL_START
-	add	x3, x3, x28			// __pa(KERNEL_START)
-	create_pgd_entry x25, x0, x3, x5, x6
-	ldr	x6, =KERNEL_END
-	mov	x5, x3				// __pa(KERNEL_START)
-	add	x6, x6, x28			// __pa(KERNEL_END)
-	create_block_map x0, x7, x3, x5, x6
-
-	/*
-	 * Map the kernel image (starting with PHYS_OFFSET).
-	 */
-	add	x0, x26, #PAGE_SIZE		// section table address
-	mov	x5, #PAGE_OFFSET
-	create_pgd_entry x26, x0, x5, x3, x6
-	ldr	x6, =KERNEL_END
-	mov	x3, x24				// phys offset
-	create_block_map x0, x7, x3, x5, x6
-
-	/*
-	 * Map the FDT blob (maximum 2MB; must be within 512MB of
-	 * PHYS_OFFSET).
-	 */
-	mov	x3, x21				// FDT phys address
-	and	x3, x3, #~((1 << 21) - 1)	// 2MB aligned
-	mov	x6, #PAGE_OFFSET
-	sub	x5, x3, x24			// subtract PHYS_OFFSET
-	tst	x5, #~((1 << 29) - 1)		// within 512MB?
-	csel	x21, xzr, x21, ne		// zero the FDT pointer
-	b.ne	1f
-	add	x5, x5, x6			// __va(FDT blob)
-	add	x6, x5, #1 << 21		// 2MB for the FDT blob
-	sub	x6, x6, #1			// inclusive range
-	create_block_map x0, x7, x3, x5, x6
-1:
-	/*
-	 * Create the pgd entry for the fixed mappings.
-	 */
-	ldr	x5, =FIXADDR_TOP		// Fixed mapping virtual address
-	add	x0, x26, #2 * PAGE_SIZE		// section table address
-	create_pgd_entry x26, x0, x5, x6, x7
-
-	/*
-	 * Since the page tables have been populated with non-cacheable
-	 * accesses (MMU disabled), invalidate the idmap and swapper page
-	 * tables again to remove any speculatively loaded cache lines.
-	 */
-	mov	x0, x25
-	add	x1, x26, #SWAPPER_DIR_SIZE
-	bl	__inval_cache_range
-
-	mov	lr, x27
-	ret
-ENDPROC(__create_page_tables)
-	.ltorg
-
-/*
- * The following fragment of code is executed with the MMU enabled.
- */
-	.set	initial_sp, init_thread_union + THREAD_START_SP
-__mmap_switched:
-	adr_l	x6, __bss_start
-	adr_l	x7, __bss_stop
-
-#ifdef CONFIG_TIMA_RKP
-	ldr	x6, =rkp_map_bitmap
-	add	x7, x6, 0x20000
-3:	cmp	x6, x7
-	b.hs	4f
-	str	xzr, [x6], #8			// Clear BSS
-	b	3b
-#endif
-1:	cmp	x6, x7
-	b.hs	2f
-	str	xzr, [x6], #8			// Clear BSS
-	b	1b
-2:
-	adr_l	sp, initial_sp, x4
-	str_l	x21, __fdt_pointer, x5		// Save FDT pointer
-	str_l	x24, memstart_addr, x6		// Save PHYS_OFFSET
-	mov	x29, #0
-	b	start_kernel
-ENDPROC(__mmap_switched)
 
 /*
  * Exception handling. Something went wrong and we can't proceed. We ought to
@@ -561,21 +581,3 @@ ENTRY(lookup_processor_type)
 	ret
 ENDPROC(lookup_processor_type)
 
-/*
- * Determine validity of the x21 FDT pointer.
- * The dtb must be 8-byte aligned and live in the first 512M of memory.
- */
-__vet_fdt:
-	tst	x21, #0x7
-	b.ne	1f
-	cmp	x21, x24
-	b.lt	1f
-	mov	x0, #(1 << 29)
-	add	x0, x0, x24
-	cmp	x21, x0
-	b.ge	1f
-	ret
-1:
-	mov	x21, #0
-	ret
-ENDPROC(__vet_fdt)
