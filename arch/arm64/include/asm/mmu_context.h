@@ -27,6 +27,7 @@
 #include <asm-generic/mm_hooks.h>
 #include <asm/cputype.h>
 #include <asm/pgtable.h>
+#include <asm/tlbflush.h>
 
 #define MAX_ASID_BITS	16
 
@@ -105,6 +106,30 @@ static inline void cpu_set_idmap_tcr_t0sz(void)
 static inline void cpu_set_default_tcr_t0sz(void)
 {
 	__cpu_set_tcr_t0sz(TCR_T0SZ(VA_BITS));
+}
+
+/*
+ * Remove the idmap from TTBR0_EL1 and install the pgd of the active mm.
+ *
+ * The idmap lives in the same VA range as userspace, but uses global entries
+ * and may use a different TCR_EL1.T0SZ. To avoid issues resulting from
+ * speculative TLB fetches, we must temporarily install the reserved page
+ * tables while we invalidate the TLBs and set up the correct TCR_EL1.T0SZ.
+ *
+ * If current is a not a user task, the mm covers the TTBR1_EL1 page tables,
+ * which should not be installed in TTBR0_EL1. In this case we can leave the
+ * reserved page tables in place.
+ */
+static inline void cpu_uninstall_idmap(void)
+{
+	struct mm_struct *mm = current->active_mm;
+
+	cpu_set_reserved_ttbr0();
+	local_flush_tlb_all();
+	cpu_set_default_tcr_t0sz();
+
+	if (mm != &init_mm)
+		cpu_switch_mm(mm->pgd, mm);
 }
 
 static inline void switch_new_context(struct mm_struct *mm)

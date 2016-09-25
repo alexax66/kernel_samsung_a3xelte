@@ -60,6 +60,7 @@
 #include <asm/memblock.h>
 #include <asm/psci.h>
 #include <asm/early_ioremap.h>
+#include <asm/mmu_context.h>
 
 #include <asm/mach/arch.h>
 extern void paging_init(struct machine_desc *);
