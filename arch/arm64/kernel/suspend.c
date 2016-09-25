@@ -128,8 +128,8 @@ int cpu_suspend(unsigned long arg)
 	return ret;
 }
 
-extern struct sleep_save_sp sleep_save_sp;
-extern phys_addr_t sleep_idmap_phys;
+struct sleep_save_sp sleep_save_sp;
+phys_addr_t sleep_idmap_phys;
 
 static int cpu_suspend_init(void)
 {
