@@ -155,7 +155,7 @@ asmlinkage void __cpuinit secondary_start_kernel(void)
 	 * point to zero page to avoid speculatively fetching new entries.
 	 */
 	cpu_set_reserved_ttbr0();
-	flush_tlb_all();
+	local_flush_tlb_all();
 
 	preempt_disable();
 	trace_hardirqs_off();

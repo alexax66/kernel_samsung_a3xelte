@@ -68,6 +68,14 @@ extern struct cpu_tlb_fns cpu_tlb;
  *		only require the D-TLB to be invalidated.
  *		- kaddr - Kernel virtual memory address
  */
+static inline void local_flush_tlb_all(void)
+{
+	dsb(nshst);
+	asm("tlbi	vmalle1");
+	dsb(nsh);
+	isb();
+}
+
 static inline void flush_tlb_all(void)
 {
 	dsb(ishst);
