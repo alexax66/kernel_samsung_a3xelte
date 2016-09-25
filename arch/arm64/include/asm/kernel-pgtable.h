@@ -35,7 +35,7 @@
 #endif
 
 #define SWAPPER_DIR_SIZE	(2 * PAGE_SIZE)
-#define IDMAP_DIR_SIZE		(2 * PAGE_SIZE)
+#define IDMAP_DIR_SIZE		(3 * PAGE_SIZE)
 
 /* Initial memory map size */
 #ifdef CONFIG_ARM64_64K_PAGES

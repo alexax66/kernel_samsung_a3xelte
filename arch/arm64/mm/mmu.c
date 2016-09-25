@@ -50,6 +50,9 @@ static int iotable_on;
 #ifdef CONFIG_KNOX_KAP
 extern int boot_mode_security;
 #endif
+
+u64 idmap_t0sz = TCR_T0SZ(VA_BITS);
+
 /*
  * Empty_zero_page is a special page that is used for zero-initialized data
  * and COW.
@@ -498,6 +501,7 @@ void __init paging_init(struct machine_desc *mdesc)
 	 */
 	cpu_set_reserved_ttbr0();
 	local_flush_tlb_all();
+	cpu_set_default_tcr_t0sz();
 }
 
 /*
@@ -505,8 +509,10 @@ void __init paging_init(struct machine_desc *mdesc)
  */
 void setup_mm_for_reboot(void)
 {
-	cpu_switch_mm(idmap_pg_dir, &init_mm);
+	cpu_set_reserved_ttbr0();
 	flush_tlb_all();
+	cpu_set_idmap_tcr_t0sz();
+	cpu_switch_mm(idmap_pg_dir, &init_mm);
 }
 
 /*
