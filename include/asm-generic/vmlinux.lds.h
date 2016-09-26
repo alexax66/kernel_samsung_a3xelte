@@ -171,6 +171,14 @@
 #define CLK_OF_TABLES()
 #endif
 
+#ifdef CONFIG_OF_IOMMU
+#define IOMMU_OF_TABLES(). = ALIGN(8);				\
+			VMLINUX_SYMBOL(__iommu_of_table) = .;	\
+			*(__iommu_of_table)
+#else
+#define IOMMU_OF_TABLES()
+#endif
+
 #define DEVFREQ_INIT_OF_TABLES() . = ALIGN(8);				\
 			VMLINUX_SYMBOL(__devfreq_init_of_table) = .;	\
 			*(__devfreq_init_of_table)			\
@@ -539,6 +547,7 @@
 	DEVFREQ_DEINIT_OF_TABLES()					\
 	RESERVEDMEM_OF_TABLES()						\
 	CLKSRC_OF_TABLES()						\
+	IOMMU_OF_TABLES()						\
 	KERNEL_DTB()							\
 	IRQCHIP_OF_MATCH_TABLE()
 
