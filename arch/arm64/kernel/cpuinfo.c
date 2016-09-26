@@ -24,7 +24,7 @@
 #include <linux/bug.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
-#include <linux/preempt.h>
+#include <linux/hardirq.h>
 #include <linux/printk.h>
 #include <linux/smp.h>
 
@@ -318,9 +318,9 @@ static void __cpuinfo_store_cpu(struct cpuinfo_arm64 *info)
 
 	cpuinfo_detect_icache_policy(info);
 
-	update_cpu_features(info);
-
 	check_local_cpu_errata();
+	check_local_cpu_features();
+	update_cpu_features(info);
 }
 
 void cpuinfo_store_cpu(void)
