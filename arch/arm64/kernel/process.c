@@ -45,6 +45,7 @@
 #include <linux/hw_breakpoint.h>
 #include <linux/personality.h>
 #include <linux/notifier.h>
+#include <trace/events/power.h>
 #include <linux/exynos-ss.h>
 
 #include <asm/compat.h>
@@ -86,9 +87,11 @@ void arch_cpu_idle(void)
 	 * This should do all the clock switching and wait for interrupt
 	 * tricks
 	 */
+	trace_cpu_idle_rcuidle(1, smp_processor_id());
 	if (cpuidle_idle_call()) {
 		cpu_do_idle();
 		local_irq_enable();
+	trace_cpu_idle_rcuidle(PWR_EVENT_EXIT, smp_processor_id());
 	}
 }
 
