@@ -1311,7 +1311,7 @@ EXPORT_SYMBOL(of_parse_phandle);
  * Returns 0 on success and fills out_args, on error returns appropriate
  * errno value.
  *
- * Caller is responsible to call of_node_put() on the returned out_args->node
+ * Caller is responsible to call of_node_put() on the returned out_args->np
  * pointer.
  *
  * Example:
@@ -1354,7 +1354,7 @@ EXPORT_SYMBOL(of_parse_phandle_with_args);
  * Returns 0 on success and fills out_args, on error returns appropriate
  * errno value.
  *
- * Caller is responsible to call of_node_put() on the returned out_args->node
+ * Caller is responsible to call of_node_put() on the returned out_args->np
  * pointer.
  *
  * Example:
