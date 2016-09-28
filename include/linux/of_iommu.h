@@ -11,7 +11,6 @@ extern int of_get_dma_window(struct device_node *dn, const char *prefix,
 			     int index, unsigned long *busno, dma_addr_t *addr,
 			     size_t *size);
 
-extern void of_iommu_init(void);
 extern struct iommu_ops *of_iommu_configure(struct device *dev);
 
 #else
@@ -23,7 +22,6 @@ static inline int of_get_dma_window(struct device_node *dn, const char *prefix,
 	return -EINVAL;
 }
 
-static inline void of_iommu_init(void) { }
 static inline struct iommu_ops *of_iommu_configure(struct device *dev)
 {
 	return NULL;
