@@ -88,7 +88,6 @@ void of_device_make_bus_id(struct device *dev)
 	struct device_node *node = dev->of_node;
 	const __be32 *reg;
 	u64 addr;
-	const __be32 *addrp;
 	int magic;
 
 #ifdef CONFIG_PPC_DCR
