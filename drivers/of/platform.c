@@ -116,15 +116,7 @@ void of_device_make_bus_id(struct device *dev)
 	 */
 	reg = of_get_property(node, "reg", NULL);
 	if (reg) {
-		if (of_can_translate_address(node)) {
-			addr = of_translate_address(node, reg);
-		} else {
-			addrp = of_get_address(node, 0, NULL, NULL);
-			if (addrp)
-				addr = of_read_number(addrp, 1);
-			else
-				addr = OF_BAD_ADDR;
-		}
+		addr = of_translate_address(node, reg);
 		if (addr != OF_BAD_ADDR) {
 			dev_set_name(dev, "%llx.%s",
 				     (unsigned long long)addr, node->name);
@@ -159,9 +151,8 @@ struct platform_device *of_device_alloc(struct device_node *np,
 		return NULL;
 
 	/* count the io and irq resources */
-	if (of_can_translate_address(np))
-		while (of_address_to_resource(np, num_reg, &temp_res) == 0)
-			num_reg++;
+	while (of_address_to_resource(np, num_reg, &temp_res) == 0)
+		num_reg++;
 	num_irq = of_irq_count(np);
 
 	/* Populate the resource table */
