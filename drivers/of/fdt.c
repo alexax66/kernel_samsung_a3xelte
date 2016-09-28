@@ -992,14 +992,9 @@ bool __init early_init_dt_scan(void *params)
 	if (!params)
 		return false;
 
-	/* Setup flat device-tree pointer */
-	initial_boot_params = params;
-
 	/* check device tree validity */
-	if (be32_to_cpu(initial_boot_params->magic) != OF_DT_HEADER) {
-		initial_boot_params = NULL;
+	if (be32_to_cpu(initial_boot_params->magic) != OF_DT_HEADER)
 		return false;
-	}
 
 	/* Retrieve various information from the /chosen node */
 	of_scan_flat_dt(early_init_dt_scan_chosen, boot_command_line);
@@ -1010,6 +1005,8 @@ bool __init early_init_dt_scan(void *params)
 	/* Setup memory, calling early_init_dt_add_memory_arch */
 	of_scan_flat_dt(early_init_dt_scan_memory, NULL);
 
+	/* Setup flat device-tree pointer */
+	initial_boot_params = params;
 	return true;
 }
 
