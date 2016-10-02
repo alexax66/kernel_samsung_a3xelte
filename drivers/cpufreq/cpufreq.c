@@ -1009,7 +1009,7 @@ static int cpufreq_add_dev(struct device *dev, struct subsys_interface *sif)
 	}
 
 	/* related cpus should atleast have policy->cpus */
-	cpumask_or(policy->related_cpus, policy->related_cpus, policy->cpus);
+		cpumask_copy(policy->related_cpus, policy->cpus);
 
 	/*
 	 * affected cpus must always be the one, which are online. We aren't
