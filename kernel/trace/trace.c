@@ -1274,7 +1274,6 @@ void ftrace_off_permanent(void)
 {
 	tracing_disabled = 1;
 	ftrace_stop();
-	tracing_off_permanent();
 }
 
 /**
