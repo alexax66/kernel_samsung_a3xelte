@@ -1874,12 +1874,8 @@ config HIGHPTE
 	depends on HIGHMEM
 
 config HW_PERF_EVENTS
-	bool "Enable hardware performance counter support for perf events"
-	depends on PERF_EVENTS
-	default y
-	help
-	  Enable hardware performance counter support for perf events. If
-	  disabled, perf events will use software events only.
+	def_bool y
+	depends on ARM_PMU
 
 source "mm/Kconfig"
 

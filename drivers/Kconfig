@@ -164,6 +164,8 @@ source "drivers/iio/Kconfig"
 
 source "drivers/ntb/Kconfig"
 
+source "drivers/perf/Kconfig"
+
 source "drivers/vme/Kconfig"
 
 source "drivers/pwm/Kconfig"
