@@ -551,14 +551,6 @@ static void armpmu_init(struct arm_pmu *armpmu)
 	};
 }
 
-int armpmu_register(struct arm_pmu *armpmu, int type)
-{
-	armpmu_init(armpmu);
-	pr_info("enabled with %s PMU driver, %d counters available\n",
-			armpmu->name, armpmu->num_events);
-	return perf_pmu_register(&armpmu->pmu, armpmu->name, type);
-}
-
 /* Set at runtime when we know what CPU type we are. */
 static struct arm_pmu *__oprofile_cpu_pmu;
 
@@ -823,9 +815,15 @@ static int of_pmu_irq_cfg(struct arm_pmu *pmu)
 		}
 
 		/* Now look up the logical CPU number */
-		for_each_possible_cpu(cpu)
-			if (dn == of_cpu_device_node_get(cpu))
+		for_each_possible_cpu(cpu) {
+			struct device_node *cpu_dn;
+
+			cpu_dn = of_cpu_device_node_get(cpu);
+			of_node_put(cpu_dn);
+
+			if (dn == cpu_dn)
 				break;
+		}
 
 		if (cpu >= nr_cpu_ids) {
 			pr_warn("Failed to find logical CPU for %s\n",
@@ -881,6 +879,8 @@ int arm_pmu_device_probe(struct platform_device *pdev,
 		return -ENOMEM;
 	}
 
+	armpmu_init(pmu);
+
 	if (!__oprofile_cpu_pmu)
 		__oprofile_cpu_pmu = pmu;
 
@@ -906,9 +906,12 @@ int arm_pmu_device_probe(struct platform_device *pdev,
 	if (ret)
 		goto out_free;
 
-	ret = armpmu_register(pmu, -1);
+	ret = perf_pmu_register(&pmu->pmu, pmu->name, -1);
 	if (ret)
 		goto out_destroy;
+
+	pr_info("enabled with %s PMU driver, %d counters available\n",
+			pmu->name, pmu->num_events);
 
 	return 0;
 
