@@ -343,6 +343,11 @@
 		use-physical-timer;
 	};
 
+	pmu {
+	compatible = "arm,cortex-a53-pmu", "arm,armv8-pmuv3";
+	interrupts = <0 70 4>;
+	};
+
 	clock: clock-controller@0x10010000 {
 		compatible = "samsung,exynos7580-clock";
 		reg = <0x0 0x10010000 0x0 0x1000>;
