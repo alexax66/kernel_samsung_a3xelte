@@ -1003,9 +1003,12 @@ int arm_pmu_device_probe(struct platform_device *pdev,
 	}
 
 	if (ret) {
-		pr_info("failed to probe PMU!\n");
+		pr_info("%s: failed to probe PMU!\n", of_node_full_name(node));
 		goto out_free;
 	}
+
+	if (!pmu->pmu.attr_groups)
+		pmu->pmu.attr_groups = pmu->attr_groups;
 
 	ret = cpu_pmu_init(pmu);
 	if (ret)
