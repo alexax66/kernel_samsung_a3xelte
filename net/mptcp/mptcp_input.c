@@ -588,7 +588,7 @@ static int mptcp_detect_mapping(struct sock *sk, struct sk_buff *skb)
 	 * from what is expected at the data-level.
 	 */
 	if (mpcb->infinite_mapping_rcv) {
-		tp->mptcp->map_data_seq = mptcp_get_rcv_nxt_64(meta_tp);
+		tp->mptcp->map_data_seq = mptcp_get_rcv_nxt_64(meta_tp) - (tp->copied_seq - tcb->seq);
 		tp->mptcp->map_subseq = tcb->seq;
 		tp->mptcp->map_data_len = skb->len;
 		tp->mptcp->map_data_fin = tcp_hdr(skb)->fin;
@@ -706,16 +706,13 @@ static int mptcp_detect_mapping(struct sock *sk, struct sk_buff *skb)
 	 *
 	 * 4. It's not a data_fin and TCP-end_seq > TCP-seq and
 	 *    MPTCP-sub_seq + MPTCP-data_len <= TCP-seq
-	 *
-	 * 5. MPTCP-sub_seq is prior to what we already copied (copied_seq)
 	 */
 
 	/* subflow-fin is not part of the mapping - ignore it here ! */
 	tcp_end_seq = tcb->end_seq - tcp_hdr(skb)->fin;
 	if ((!before(sub_seq, tcb->end_seq) && after(tcp_end_seq, tcb->seq)) ||
 	    (mptcp_is_data_fin(skb) && skb->len == 0 && after(sub_seq, tcb->end_seq)) ||
-	    (!after(sub_seq + data_len, tcb->seq) && after(tcp_end_seq, tcb->seq)) ||
-	    before(sub_seq, tp->copied_seq)) {
+	    (!after(sub_seq + data_len, tcb->seq) && after(tcp_end_seq, tcb->seq))) {
 		/* Subflow-sequences of packet is different from what is in the
 		 * packet's dss-mapping. The peer is misbehaving - reset
 		 */
