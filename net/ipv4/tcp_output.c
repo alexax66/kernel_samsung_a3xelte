@@ -1352,11 +1352,6 @@ void __pskb_trim_head(struct sk_buff *skb, int len)
 /* Remove acked data from a packet in the transmit queue. */
 int tcp_trim_head(struct sock *sk, struct sk_buff *skb, u32 len)
 {
-#ifdef CONFIG_MPTCP
-	if (mptcp(tcp_sk(sk)) && !is_meta_sk(sk) && mptcp_is_data_seq(skb))
-		return mptcp_trim_head(sk, skb, len);
-#endif
-
 	if (skb_unclone(skb, GFP_ATOMIC))
 		return -ENOMEM;
 
@@ -1373,15 +1368,6 @@ int tcp_trim_head(struct sock *sk, struct sk_buff *skb, u32 len)
 	/* Any change of skb->len requires recalculation of tso factor. */
 	if (tcp_skb_pcount(skb) > 1)
 		tcp_set_skb_tso_segs(sk, skb, tcp_skb_mss(skb));
-
-#ifdef CONFIG_MPTCP
-	/* Some data got acked - we assume that the seq-number reached the dest.
-	 * Anyway, our MPTCP-option has been trimmed above - we lost it here.
-	 * Only remove the SEQ if the call does not come from a meta retransmit.
-	 */
-	if (mptcp(tcp_sk(sk)) && !is_meta_sk(sk))
-		TCP_SKB_CB(skb)->mptcp_flags &= ~MPTCPHDR_SEQ;
-#endif
 
 	return 0;
 }
