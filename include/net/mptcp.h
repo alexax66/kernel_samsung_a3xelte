@@ -312,6 +312,7 @@ struct mptcp_cb {
 	struct sock *master_sk;
 
 	u64	csum_cutoff_seq;
+	u64	infinite_rcv_seq;
 
 	__u64	mptcp_loc_key;
 	__u32	mptcp_loc_token;
@@ -1306,6 +1307,7 @@ static inline bool mptcp_fallback_infinite(struct sock *sk, int flag)
 
 	mpcb->infinite_mapping_snd = 1;
 	mpcb->infinite_mapping_rcv = 1;
+	mpcb->infinite_rcv_seq = mptcp_get_rcv_nxt_64(mptcp_meta_tp(tp));
 	tp->mptcp->fully_established = 1;
 
 	mptcp_sub_force_close_all(mpcb, sk);
