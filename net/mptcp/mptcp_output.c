@@ -1210,7 +1210,7 @@ void mptcp_send_active_reset(struct sock *meta_sk, gfp_t priority)
 {
 	struct tcp_sock *meta_tp = tcp_sk(meta_sk);
 	struct mptcp_cb *mpcb = meta_tp->mpcb;
-	struct sock *sk;
+	struct sock *sk = NULL, *sk_it = NULL, *tmpsk;
 
 	if (!mpcb->cnt_subflows)
 		return;
@@ -1220,16 +1220,22 @@ void mptcp_send_active_reset(struct sock *meta_sk, gfp_t priority)
 	/* First - select a socket */
 	sk = mptcp_select_ack_sock(meta_sk);
 
-	/* May happen if no subflow is in an appropriate state, OR
-	 * we are in infinite mode or about to go there - just send a reset */
-	if (!sk || mpcb->infinite_mapping_snd || mpcb->send_infinite_mapping ||
+	/* May happen if no subflow is in an appropriate state */
+	if (!sk)
+		return;
+
+	/* We are in infinite mode or about to go there - just send a reset */
+	if (mpcb->infinite_mapping_snd || mpcb->send_infinite_mapping ||
 	    mpcb->infinite_mapping_rcv) {
 
 		/* tcp_done must be handled with bh disabled */
 		if (!in_serving_softirq())
 			local_bh_disable();
 
-		mptcp_sub_force_close_all(mpcb, NULL);
+		sk->sk_err = ECONNRESET;
+		if (tcp_need_reset(sk->sk_state))
+			tcp_send_active_reset(sk, priority);
+		mptcp_sub_force_close(sk);
 
 		if (!in_serving_softirq())
 			local_bh_enable();
@@ -1244,7 +1250,15 @@ void mptcp_send_active_reset(struct sock *meta_sk, gfp_t priority)
 	if (!in_serving_softirq())
 		local_bh_disable();
 
-	mptcp_sub_force_close_all(mpcb, sk);
+	mptcp_for_each_sk_safe(mpcb, sk_it, tmpsk) {
+		if (tcp_sk(sk_it)->send_mp_fclose)
+			continue;
+
+		sk_it->sk_err = ECONNRESET;
+		if (tcp_need_reset(sk_it->sk_state))
+			tcp_send_active_reset(sk_it, GFP_ATOMIC);
+		mptcp_sub_force_close(sk_it);
+	}
 
 	if (!in_serving_softirq())
 		local_bh_enable();
