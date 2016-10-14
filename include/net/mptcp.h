@@ -899,6 +899,8 @@ void mptcp_init_congestion_control(struct sock *sk);
 void mptcp_enable_sock(struct sock *sk);
 void mptcp_disable_sock(struct sock *sk);
 void mptcp_sock_destruct(struct sock *sk);
+void mptcp_enable_static_key(void);
+void mptcp_disable_static_key(void);
 
 /* MPTCP-path-manager registration/initialization functions */
 int mptcp_register_path_manager(struct mptcp_pm_ops *pm);
