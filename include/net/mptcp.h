@@ -442,11 +442,11 @@ static void reset_meta_funcs(struct tcp_sock *tp)
 /* Initializes MPTCP flags in tcp_sock (and other tcp_sock members that depend
  * on those flags).
  */
-static inline void mptcp_init_tcp_sock(struct tcp_sock *tp)
-{
-	reset_mpc(tp);
-	reset_meta_funcs(tp);
-}
+//static inline void mptcp_init_tcp_sock(struct tcp_sock *tp)
+//{
+//	reset_mpc(tp);
+//	reset_meta_funcs(tp);
+//}
 
 #ifdef CONFIG_MPTCP
 
@@ -671,7 +671,7 @@ static inline int mptcp_sub_len_dss(struct mp_dss *m, int csum)
 	return 4 + m->A * (4 + m->a * 4) + m->M * (10 + m->m * 4 + csum * 2);
 }
 
-#define MPTCP_APP	2
+#define MPTCP_SYSCTL	1
 
 extern int sysctl_mptcp_enabled;
 extern int sysctl_mptcp_checksum;
@@ -905,6 +905,8 @@ void mptcp_join_reqsk_init(struct mptcp_cb *mpcb, struct request_sock *req,
 void mptcp_reqsk_init(struct request_sock *req, struct sk_buff *skb);
 int mptcp_conn_request(struct sock *sk, struct sk_buff *skb);
 void mptcp_init_congestion_control(struct sock *sk);
+void mptcp_enable_sock(struct sock *sk);
+void mptcp_disable_sock(struct sock *sk);
 void mptcp_sock_destruct(struct sock *sk);
 
 /* MPTCP-path-manager registration/initialization functions */
@@ -926,6 +928,13 @@ void mptcp_get_default_scheduler(char *name);
 int mptcp_set_default_scheduler(const char *name);
 extern struct mptcp_sched_ops mptcp_sched_default;
 
+/* Initializes function-pointers and MPTCP-flags */
+static inline void mptcp_init_tcp_sock(struct sock *sk)
+{
+	if (!mptcp_init_failed && sysctl_mptcp_enabled == MPTCP_SYSCTL)
+		mptcp_enable_sock(sk);
+}
+
 static inline void mptcp_reset_synack_timer(struct sock *meta_sk,
 					    unsigned long len)
 {
@@ -936,17 +945,6 @@ static inline void mptcp_reset_synack_timer(struct sock *meta_sk,
 static inline void mptcp_delete_synack_timer(struct sock *meta_sk)
 {
 	sk_stop_timer(meta_sk, &tcp_sk(meta_sk)->mpcb->synack_timer);
-}
-
-static inline bool is_mptcp_enabled(const struct sock *sk)
-{
-	if (!sysctl_mptcp_enabled || mptcp_init_failed)
-		return false;
-
-	if (sysctl_mptcp_enabled == MPTCP_APP && !tcp_sk(sk)->mptcp_enabled)
-		return false;
-
-	return true;
 }
 
 static inline int mptcp_pi_to_flag(int pi)
@@ -1595,6 +1593,8 @@ static inline void mptcp_reqsk_new_mptcp(struct request_sock *req,
 static inline void mptcp_remove_shortcuts(const struct mptcp_cb *mpcb,
 					  const struct sk_buff *skb) {}
 static inline void mptcp_delete_synack_timer(struct sock *meta_sk) {}
+//static inline void mptcp_init_tcp_sock(struct sock *sk) {}
+static inline void mptcp_init_tcp_sock(struct sock *sk) {}
 #endif /* CONFIG_MPTCP */
 
 #endif /* CONFIG_MPTCP */
