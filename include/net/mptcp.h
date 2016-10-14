@@ -439,15 +439,6 @@ static void reset_meta_funcs(struct tcp_sock *tp)
 	tp->cleanup_rbuf	= tcp_cleanup_rbuf;
 }
 
-/* Initializes MPTCP flags in tcp_sock (and other tcp_sock members that depend
- * on those flags).
- */
-//static inline void mptcp_init_tcp_sock(struct tcp_sock *tp)
-//{
-//	reset_mpc(tp);
-//	reset_meta_funcs(tp);
-//}
-
 #ifdef CONFIG_MPTCP
 
 /* Used for checking if the mptcp initialization has been successful */
@@ -1593,7 +1584,6 @@ static inline void mptcp_reqsk_new_mptcp(struct request_sock *req,
 static inline void mptcp_remove_shortcuts(const struct mptcp_cb *mpcb,
 					  const struct sk_buff *skb) {}
 static inline void mptcp_delete_synack_timer(struct sock *meta_sk) {}
-//static inline void mptcp_init_tcp_sock(struct sock *sk) {}
 static inline void mptcp_init_tcp_sock(struct sock *sk) {}
 #endif /* CONFIG_MPTCP */
 
