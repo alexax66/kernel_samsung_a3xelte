@@ -2849,16 +2849,14 @@ static int do_tcp_setsockopt(struct sock *sk, int level,
 		break;
 #ifdef CONFIG_MPTCP
 	case MPTCP_ENABLED:
-		if (mptcp_init_failed || !sysctl_mptcp_enabled ||
-		    sk->sk_state != TCP_CLOSE) {
+		if (sk->sk_state == TCP_CLOSE || sk->sk_state == TCP_LISTEN) {
+			if (val)
+				tp->mptcp_enabled = 1;
+			else
+				tp->mptcp_enabled = 0;
+		} else {
 			err = -EPERM;
-			break;
 		}
-
-		if (val)
-			mptcp_enable_sock(sk);
-		else
-			mptcp_disable_sock(sk);
 		break;
 #endif
 	default:
@@ -3079,7 +3077,7 @@ static int do_tcp_getsockopt(struct sock *sk, int level,
 		break;
 #ifdef CONFIG_MPTCP
 	case MPTCP_ENABLED:
-	if (sock_flag(sk, SOCK_MPTCP))
+		val = tp->mptcp_enabled;
 		break;
 #endif
 	default:
