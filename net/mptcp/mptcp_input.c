@@ -604,11 +604,6 @@ static int mptcp_detect_mapping(struct sock *sk, struct sk_buff *skb)
 	 * from what is expected at the data-level.
 	 */
 	if (mpcb->infinite_mapping_rcv) {
-		/* copied_seq may be bigger than tcb->seq (e.g., when the peer
-		 * retransmits data that actually has already been acknowledged with
-		 * newer data, if he did not receive our acks). Thus, we need
-		 * to account for this overlap as well.
-		 */
 		tp->mptcp->map_data_seq = mpcb->infinite_rcv_seq - (tp->copied_seq - tcb->seq);
 		tp->mptcp->map_subseq = tcb->seq;
 		tp->mptcp->map_data_len = skb->len;
