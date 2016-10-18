@@ -1224,9 +1224,8 @@ void mptcp_send_active_reset(struct sock *meta_sk, gfp_t priority)
 	if (!sk)
 		return;
 
-	/* We are in infinite mode or about to go there - just send a reset */
-	if (mpcb->infinite_mapping_snd || mpcb->send_infinite_mapping ||
-	    mpcb->infinite_mapping_rcv) {
+	/* We are in infinite mode - just send a reset */
+	if (mpcb->infinite_mapping_snd || mpcb->infinite_mapping_rcv) {
 		sk->sk_err = ECONNRESET;
 		if (tcp_need_reset(sk->sk_state))
 			tcp_send_active_reset(sk, priority);
@@ -1442,7 +1441,8 @@ void mptcp_retransmit_timer(struct sock *meta_sk)
 	int err;
 
 	/* In fallback, retransmission is handled at the subflow-level */
-	if (!meta_tp->packets_out || mpcb->infinite_mapping_snd)
+	if (!meta_tp->packets_out || mpcb->infinite_mapping_snd ||
+	    mpcb->send_infinite_mapping)
 		return;
 
 	WARN_ON(tcp_write_queue_empty(meta_sk));
