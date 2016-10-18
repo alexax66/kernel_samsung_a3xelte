@@ -275,9 +275,9 @@ void mptcp_reinject_data(struct sock *sk, int clone_it)
 		__mptcp_reinject_data(skb_it, meta_sk, NULL, 1);
 	}
 
-	tp->pf = 1;
-
 	mptcp_push_pending_frames(meta_sk);
+
+	tp->pf = 1;
 }
 EXPORT_SYMBOL(mptcp_reinject_data);
 
