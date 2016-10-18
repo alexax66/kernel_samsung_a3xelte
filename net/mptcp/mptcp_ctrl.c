@@ -501,7 +501,7 @@ static void mptcp_mpcb_put(struct mptcp_cb *mpcb)
 	}
 }
 
-void mptcp_sock_destruct(struct sock *sk)
+static void mptcp_sock_destruct(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
