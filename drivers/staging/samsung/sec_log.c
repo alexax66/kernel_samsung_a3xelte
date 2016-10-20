@@ -20,7 +20,9 @@
 #ifdef CONFIG_KNOX_KAP
 extern int boot_mode_security;
 #endif
-
+#ifdef CONFIG_TIMA_RKP
+extern int rkp_support_large_memory;
+#endif
 /*
  * Example usage: sec_log=256K@0x45000000
  * In above case, log_buf size is 256KB and its base address is
@@ -100,8 +102,8 @@ void sec_debug_avc_log(char *fmt, ...)
 	va_list args;
 	char buf[BUF_SIZE];
 	int len = 0;
-	unsigned int idx;
-	unsigned int size;
+	unsigned long idx;
+	unsigned long size;
 
 	/* In case of sec_avc_log_setup is failed */
 	if (!sec_avc_log_size)
@@ -258,7 +260,7 @@ out:
 }
 __setup("sec_tsp_log=", sec_tsp_log_setup);
 
-static int sec_tsp_log_timestamp(unsigned int idx)
+static int sec_tsp_log_timestamp(unsigned long idx)
 {
 	/* Add the current time stamp */
 	char tbuf[50];
@@ -291,8 +293,8 @@ void sec_debug_tsp_log(char *fmt, ...)
 	va_list args;
 	char buf[TSP_BUF_SIZE];
 	int len = 0;
-	unsigned int idx;
-	unsigned int size;
+	unsigned long idx;
+	unsigned long size;
 
 	/* In case of sec_tsp_log_setup is failed */
 	if (!sec_tsp_log_size)
@@ -408,68 +410,68 @@ static char *last_kmsg_buffer;
 static size_t last_kmsg_size;
 void sec_debug_save_last_kmsg(unsigned char* head_ptr, unsigned char* curr_ptr)
 {
-       size_t size;
+	size_t size;
 
-       if (head_ptr == NULL || curr_ptr == NULL || head_ptr == curr_ptr) {
-               pr_err("%s: no data \n", __func__);
-               return;
-       }
+	if (head_ptr == NULL || curr_ptr == NULL || head_ptr == curr_ptr) {
+		pr_err("%s: no data \n", __func__);
+		return;
+	}
 
-       size = (size_t)(curr_ptr - head_ptr);
-       if (size <= 0) {
-               pr_err("%s: invalid args \n", __func__);
-               return;
-       }
+	size = (size_t)(curr_ptr - head_ptr);
+	if (size <= 0) {
+		pr_err("%s: invalid args \n", __func__);
+		return;
+	}
 
-       /* provide previous log as last_kmsg */
-       last_kmsg_size = min((size_t)(1 << CONFIG_LOG_BUF_SHIFT), size);
-       last_kmsg_buffer = (char *)kzalloc(last_kmsg_size, GFP_NOWAIT);
+	/* provide previous log as last_kmsg */
+	last_kmsg_size = min((size_t)(1 << CONFIG_LOG_BUF_SHIFT), size);
+	last_kmsg_buffer = (char *)kzalloc(last_kmsg_size, GFP_NOWAIT);
 
-       if (last_kmsg_size && last_kmsg_buffer) {
-               memcpy(last_kmsg_buffer, curr_ptr-last_kmsg_size, last_kmsg_size);
-               pr_info("%s: successed\n", __func__);
-       } else
-               pr_err("%s: failed\n", __func__);
+	if (last_kmsg_size && last_kmsg_buffer) {
+		memcpy(last_kmsg_buffer, curr_ptr-last_kmsg_size, last_kmsg_size);
+		pr_info("%s: successed\n", __func__);
+	} else
+		pr_err("%s: failed\n", __func__);
 }
 
 static ssize_t sec_last_kmsg_read(struct file *file, char __user *buf,
-                                 size_t len, loff_t *offset)
+				  size_t len, loff_t *offset)
 {
-       loff_t pos = *offset;
-       ssize_t count;
+	loff_t pos = *offset;
+	ssize_t count;
 
-       if (pos >= last_kmsg_size)
-               return 0;
+	if (pos >= last_kmsg_size)
+		return 0;
 
-       count = min(len, (size_t) (last_kmsg_size - pos));
-       if (copy_to_user(buf, last_kmsg_buffer + pos, count))
-               return -EFAULT;
+	count = min(len, (size_t) (last_kmsg_size - pos));
+	if (copy_to_user(buf, last_kmsg_buffer + pos, count))
+		return -EFAULT;
 
-       *offset += count;
-       return count;
+	*offset += count;
+	return count;
 }
 
 static const struct file_operations last_kmsg_file_ops = {
-       .owner = THIS_MODULE,
-       .read = sec_last_kmsg_read,
+	.owner = THIS_MODULE,
+	.read = sec_last_kmsg_read,
 };
 
 static int __init sec_last_kmsg_late_init(void)
 {
-       struct proc_dir_entry *entry;
+	struct proc_dir_entry *entry;
 
-       if (last_kmsg_buffer == NULL)
-               return 0;
+	if (last_kmsg_buffer == NULL)
+		return 0;
 
-       entry = proc_create("last_kmsg", S_IFREG | S_IRUGO,
-                       NULL, &last_kmsg_file_ops);
-       if (!entry) {
-               pr_err("%s: failed to create proc entry\n", __func__);
-               return 0;
-       }
+	entry = proc_create("last_kmsg", S_IFREG | S_IRUGO,
+			NULL, &last_kmsg_file_ops);
+	if (!entry) {
+		pr_err("%s: failed to create proc entry\n", __func__);
+		return 0;
+	}
 
-       proc_set_size(entry, last_kmsg_size);
-       return 0;
+	proc_set_size(entry, last_kmsg_size);
+	return 0;
 }
 
 late_initcall(sec_last_kmsg_late_init);
@@ -480,6 +482,9 @@ late_initcall(sec_last_kmsg_late_init);
 #ifdef   CONFIG_TIMA_RKP
 
 static int  tima_setup_rkp_mem(void){
+	unsigned long phys_map_addr;
+	unsigned long phys_map_size;
+
 #ifdef CONFIG_NO_BOOTMEM
 	if (memblock_is_region_reserved(TIMA_DEBUG_LOG_START, TIMA_DEBUG_LOG_SIZE) ||
 			memblock_reserve(TIMA_DEBUG_LOG_START, TIMA_DEBUG_LOG_SIZE)) {
@@ -491,6 +496,20 @@ static int  tima_setup_rkp_mem(void){
 		goto out;
 	}
 	pr_info("RKP :%s, base:%x, size:%x \n", __func__,TIMA_DEBUG_LOG_START, TIMA_DEBUG_LOG_SIZE);
+
+#ifndef CONFIG_SOC_EXYNOS7420
+#ifdef CONFIG_NO_BOOTMEM
+	if (memblock_is_region_reserved(TIMA_SEC_TO_PGT, TIMA_SEC_TO_PGT_SIZE) ||
+			memblock_reserve(TIMA_SEC_TO_PGT, TIMA_SEC_TO_PGT_SIZE)) {
+#else
+	if(reserve_bootmem(TIMA_SEC_TO_PGT, TIMA_SEC_TO_PGT_SIZE, BOOTMEM_EXCLUSIVE)){
+#endif
+		pr_err("%s: RKP failed reserving size %d " \
+			   "at base 0x%x\n", __func__, TIMA_SEC_TO_PGT_SIZE, TIMA_SEC_TO_PGT);
+		goto out;
+	}
+	pr_info("RKP :%s, base:%x, size:%x \n", __func__,TIMA_SEC_TO_PGT, TIMA_SEC_TO_PGT_SIZE);
+#endif /* CONFIG_SOC_EXYNOS7420 */
 
 #ifdef CONFIG_NO_BOOTMEM
 	if (memblock_is_region_reserved(TIMA_SEC_LOG, TIMA_SEC_LOG_SIZE) ||
@@ -504,17 +523,26 @@ static int  tima_setup_rkp_mem(void){
 	}
 	pr_info("RKP :%s, base:%x, size:%x \n", __func__,TIMA_SEC_LOG, TIMA_SEC_LOG_SIZE);
 
+	if (rkp_support_large_memory) {
+		pr_info("RKP large memory\n");
+		phys_map_addr = (TIMA_PHYS_MAP - TIMA_PHYS_MAP_OFFSET);
+		phys_map_size = (TIMA_PHYS_MAP_SIZE + TIMA_PHYS_MAP_OFFSET);
+	}
+	else {
+		phys_map_addr = TIMA_PHYS_MAP;
+		phys_map_size = TIMA_PHYS_MAP_SIZE;
+	}
 #ifdef CONFIG_NO_BOOTMEM
-	if (memblock_is_region_reserved(TIMA_PHYS_MAP, TIMA_PHYS_MAP_SIZE) ||
-			memblock_reserve(TIMA_PHYS_MAP, TIMA_PHYS_MAP_SIZE)) {
+	if (memblock_is_region_reserved(phys_map_addr, phys_map_size) ||
+			memblock_reserve(phys_map_addr, phys_map_size)) {
 #else
-	if(reserve_bootmem(TIMA_PHYS_MAP,  TIMA_PHYS_MAP_SIZE, BOOTMEM_EXCLUSIVE)){
+	if(reserve_bootmem(phys_map_addr,  phys_map_size, BOOTMEM_EXCLUSIVE)){
 #endif
-		pr_err("%s: RKP failed reserving size %d "					\
-			   "at base 0x%x\n", __func__, TIMA_PHYS_MAP_SIZE, TIMA_PHYS_MAP);
+		pr_err("%s: RKP failed reserving size %lx "					\
+			   "at base 0x%lx\n", __func__, phys_map_size, phys_map_addr);
 		goto out;
 	}
-	pr_info("RKP :%s, base:%x, size:%x \n", __func__,TIMA_PHYS_MAP, TIMA_PHYS_MAP_SIZE);
+	pr_info("RKP :%s, base:%lx, size:%lx \n", __func__,phys_map_addr, phys_map_size);
 
 #ifdef CONFIG_NO_BOOTMEM
 	if (memblock_is_region_reserved(TIMA_DASHBOARD_START, TIMA_DASHBOARD_SIZE) ||
