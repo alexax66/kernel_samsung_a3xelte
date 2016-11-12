@@ -33,7 +33,9 @@
 #include <linux/slab.h>
 #include <linux/kernel_stat.h>
 #include <linux/pm_qos.h>
+#ifdef CONFIG_POWERSUSPEND
 #include <linux/powersuspend.h>
+#endif
 #include <asm/cputime.h>
 #ifdef CONFIG_ANDROID
 #include <asm/uaccess.h>
@@ -77,8 +79,10 @@ static cpumask_t speedchange_cpumask;
 static spinlock_t speedchange_cpumask_lock;
 static struct mutex gov_lock;
 
+#ifdef CONFIG_POWERSUSPEND
 /* boolean for determining screen on/off state */
 static bool suspended = false;
+#endif
 
 /* Target load.  Lower values result in higher CPU speeds. */
 #define DEFAULT_TARGET_LOAD 90
@@ -438,7 +442,11 @@ static void cpufreq_interactive_timer(unsigned long data)
 
 	if (boosted && pcpu->policy->cur < tunables->touchboost_speed_freq)
 		new_freq = tunables->touchboost_speed_freq;
+#ifdef CONFIG_POWERSUSPEND
 	else if (cpu_load >= tunables->go_hispeed_load && !suspended) {
+#else
+	else if (cpu_load >= tunables->go_hispeed_load) {
+#endif
 		if (pcpu->target_freq < tunables->hispeed_freq) {
 			new_freq = tunables->hispeed_freq;
 		} else {
@@ -1633,6 +1641,7 @@ static struct notifier_block cpufreq_interactive_cluster0_max_qos_notifier = {
 };
 #endif
 
+#ifdef CONFIG_POWERSUSPEND
 static void interactive_early_suspend(struct power_suspend *handler)
 {
 	suspended = true;
@@ -1651,6 +1660,7 @@ static struct power_suspend interactive_suspend = {
 	.suspend = interactive_early_suspend,
 	.resume = interactive_late_resume,
 };
+#endif
 
 static int __init cpufreq_interactive_init(void)
 {
@@ -1670,7 +1680,9 @@ static int __init cpufreq_interactive_init(void)
 		init_rwsem(&pcpu->enable_sem);
 	}
 
+#ifdef CONFIG_POWERSUSPEND
 	register_power_suspend(&interactive_suspend);
+#endif
 
 	spin_lock_init(&speedchange_cpumask_lock);
 	mutex_init(&gov_lock);

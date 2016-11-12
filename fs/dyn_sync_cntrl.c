@@ -10,7 +10,9 @@
 #include <linux/module.h>
 #include <linux/kobject.h>
 #include <linux/sysfs.h>
+#ifdef CONFIG_POWERSUSPEND
 #include <linux/powersuspend.h>
+#endif
 #include <linux/mutex.h>
 #include <linux/notifier.h>
 #include <linux/reboot.h>
@@ -74,13 +76,13 @@ static ssize_t dyn_fsync_version_show(struct kobject *kobj,
 		DYN_FSYNC_VERSION_MINOR);
 }
 
-
+#ifdef CONFIG_POWERSUSPEND
 static ssize_t dyn_fsync_powersuspend_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
 	return sprintf(buf, "power suspend active: %u\n", power_suspend_active);
 }
-
+#endif
 
 static void dyn_fsync_force_flush(void)
 {
@@ -88,6 +90,7 @@ static void dyn_fsync_force_flush(void)
 	sync_filesystems(1);
 }
 
+#ifdef CONFIG_POWERSUSPEND
 static void dyn_fsync_suspend(struct power_suspend *p)
 {
 	mutex_lock(&fsync_mutex);
@@ -110,23 +113,29 @@ static struct power_suspend dyn_fsync_power_suspend_handler =
 		.suspend = dyn_fsync_suspend,
 		.resume = dyn_fsync_resume,
 	};
+#endif
 
 static int dyn_fsync_panic_event(struct notifier_block *this,
 		unsigned long event, void *ptr)
 {
+#ifdef CONFIG_POWERSUSPEND
 	power_suspend_active = true;
+#endif
 	dyn_fsync_force_flush();
 //	pr_warn("dynamic fsync: panic - force flush!\n");
 
 	return NOTIFY_DONE;
 }
 
+
 static int dyn_fsync_notify_sys(struct notifier_block *this, unsigned long code,
 				void *unused)
 {
 	if (code == SYS_DOWN || code == SYS_HALT) 
 	{
+#ifdef CONFIG_POWERSUSPEND
 		power_suspend_active = true;
+#endif
 		dyn_fsync_force_flush();
 //		pr_warn("dynamic fsync: reboot - force flush!\n");
 	}
@@ -148,14 +157,18 @@ static struct kobj_attribute dyn_fsync_active_attribute =
 static struct kobj_attribute dyn_fsync_version_attribute = 
 	__ATTR(Dyn_fsync_version, 0444, dyn_fsync_version_show, NULL);
 
+#ifdef CONFIG_POWERSUSPEND
 static struct kobj_attribute dyn_fsync_powersuspend_attribute =
 	__ATTR(Dyn_fsync_suspend, 0444, dyn_fsync_powersuspend_show, NULL);
+#endif
 
 static struct attribute *dyn_fsync_active_attrs[] =
 {
 	&dyn_fsync_active_attribute.attr,
 	&dyn_fsync_version_attribute.attr,
+#ifdef CONFIG_POWERSUSPEND
 	&dyn_fsync_powersuspend_attribute.attr,
+#endif
 	NULL,
 };
 
@@ -179,7 +192,9 @@ static int dyn_fsync_init(void)
 {
 	int sysfs_result;
 
+#ifdef CONFIG_POWERSUSPEND
 	register_power_suspend(&dyn_fsync_power_suspend_handler);
+#endif
 	register_reboot_notifier(&dyn_fsync_notifier);
 	
 	atomic_notifier_chain_register(&panic_notifier_list,
@@ -210,7 +225,9 @@ static int dyn_fsync_init(void)
 
 static void dyn_fsync_exit(void)
 {
+#ifdef CONFIG_POWERSUSPEND
 	unregister_power_suspend(&dyn_fsync_power_suspend_handler);
+#endif
 	unregister_reboot_notifier(&dyn_fsync_notifier);
 
 	atomic_notifier_chain_unregister(&panic_notifier_list,
@@ -226,6 +243,10 @@ module_init(dyn_fsync_init);
 module_exit(dyn_fsync_exit);
 
 MODULE_AUTHOR("andip71");
+#ifdef CONFIG_POWERSUSPEND
 MODULE_DESCRIPTION("dynamic fsync - automatic fs sync optimizaition using"
 		"Power_suspend driver!");
+#else
+MODULE_DESCRIPTION("dynamic fsync - automatic fs sync optimizaition");
+#endif
 MODULE_LICENSE("GPL v2");
