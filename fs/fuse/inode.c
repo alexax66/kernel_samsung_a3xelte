@@ -614,7 +614,7 @@ void fuse_conn_init(struct fuse_conn *fc)
 	fc->blocked = 0;
 	fc->initialized = 0;
 	fc->attr_version = 1;
-	get_random_bytes(&fc->scramble_key, sizeof(fc->scramble_key));
+	erandom_get_random_bytes((char *)&fc->scramble_key, sizeof(fc->scramble_key));
 }
 EXPORT_SYMBOL_GPL(fuse_conn_init);
 
