@@ -66,7 +66,7 @@ static void exynos_show_wakeup_reason_eint(void)
 			gpio = exynos_eint_to_pin_num(i + bit);
 			irq = gpio_to_irq(gpio);
 
-			log_wakeup_reason(irq);
+			log_base_wakeup_reason(irq);
 			update_wakeup_reason_stats(irq, i + bit);
 			found = 1;
 		}
