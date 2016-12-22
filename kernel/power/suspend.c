@@ -29,7 +29,6 @@
 #include <linux/partialresume.h>
 #include <linux/rtc.h>
 #include <trace/events/power.h>
-#include <linux/wakeup_reason.h>
 
 #include "power.h"
 
