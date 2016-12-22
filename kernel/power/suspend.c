@@ -326,7 +326,11 @@ static bool suspend_again(bool *drivers_resumed)
 static __always_inline bool
 suspend_again(bool *drivers_resumed __attribute__((unused)))
 {
+#ifdef CONFIG_QUICK_WAKEUP
+	return platform_suspend_again();
+#else
 	return suspend_ops->suspend_again && suspend_ops->suspend_again();
+#endif
 }
 #endif /* CONFIG_PARTIALRESUME */
 
