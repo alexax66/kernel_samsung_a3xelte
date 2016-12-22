@@ -335,6 +335,7 @@ fast_fill16(struct fb_info *p, unsigned long __iomem *dst, int dst_idx,
 			n -= 64 - dst_idx;
 			if (n == 0)
 				continue;
+			}
 		}
 #endif
 		n /= BITS_PER_LONG;
