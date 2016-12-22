@@ -107,6 +107,7 @@ int suspend_valid_only_mem(suspend_state_t state)
 }
 EXPORT_SYMBOL_GPL(suspend_valid_only_mem);
 
+#ifdef CONFIG_QUICK_WAKEUP
 static bool platform_suspend_again(void)
 {
 	int count;
@@ -128,6 +129,7 @@ static bool platform_suspend_again(void)
 
 	return suspend;
 }
+#endif
 
 static int suspend_test(int level)
 {
