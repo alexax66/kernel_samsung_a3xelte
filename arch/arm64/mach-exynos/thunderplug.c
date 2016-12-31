@@ -25,6 +25,9 @@
 #ifdef CONFIG_STATE_NOTIFIER
 #include <linux/state_notifier.h>
 #endif
+#ifdef CONFIG_POWERSUSPEND
+#include <linux/powersuspend.h>
+#endif
 
 #define DEBUG				0
 
@@ -469,7 +472,7 @@ static int state_notifier_callback(struct notifier_block *this,
 	}
 	return NOTIFY_OK;
 }
-#endif
+#endif //CONFIG_STATE_NOTIFIER
 
 static void __ref cpu_up_work(struct work_struct *work)
 {
@@ -740,6 +743,34 @@ static struct attribute_group thunderplug_attr_group =
 
 static struct kobject *thunderplug_kobj;
 
+#ifdef CONFIG_POWERSUSPEND
+static void __ref thunderplug_early_suspend(struct power_suspend *handler)
+{
+	if (isSuspended == false) {
+		isSuspended = true;
+		offline_cpus();
+		pr_info("%s: suspend\n", THUNDERPLUG);
+	}
+	return;
+}
+
+static void __ref thunderplug_late_resume(struct power_suspend *handler)
+{
+	if (isSuspended == true) {
+		isSuspended = false;
+		cpus_online_all();
+		pr_info("%s: resume\n", THUNDERPLUG);
+	}
+	return;
+}
+
+static struct power_suspend thunderplug_suspend = {
+	.suspend = thunderplug_early_suspend,
+	.resume = thunderplug_late_resume,
+};
+
+#endif //CONFIG_POWERSUSPEND
+
 static int __init thunderplug_init(void)
 {
 	int ret = 0;
@@ -783,6 +814,10 @@ static int __init thunderplug_init(void)
 			__func__);
 		goto err_out;
 	}
+#endif
+
+#ifdef CONFIG_POWERSUSPEND
+	register_power_suspend(&thunderplug_suspend);
 #endif
 
 	pr_info("%s: init\n", THUNDERPLUG);
