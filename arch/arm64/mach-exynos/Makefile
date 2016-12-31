@@ -54,3 +54,5 @@ obj-$(CONFIG_COMPANION_USE)		+= setup-fimc-is-companion.o
 obj-$(CONFIG_EXYNOS5_SETUP_MIPIPHY)	+= setup-exynos5-mipiphy.o
 
 obj-$(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION) += secmem.o
+
+obj-$(CONFIG_THUNDERPLUG_CONTROL) += thunderplug.o
