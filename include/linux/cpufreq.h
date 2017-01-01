@@ -162,8 +162,6 @@ static inline bool policy_is_shared(struct cpufreq_policy *policy)
 
 #define CPUFREQ_PRECHANGE	(0)
 #define CPUFREQ_POSTCHANGE	(1)
-#define CPUFREQ_RESUMECHANGE	(8)
-#define CPUFREQ_SUSPENDCHANGE	(9)
 
 struct cpufreq_freqs {
 	unsigned int cpu;	/* cpu nr */
