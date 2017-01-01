@@ -581,6 +581,12 @@ config NR_CPUS
 	# These have to remain sorted largest to smallest
 	default "8"
 
+config ARCH_ENABLE_MEMORY_HOTPLUG
+	def_bool y
+
+config ARCH_ENABLE_MEMORY_HOTREMOVE
+	def_bool y
+
 config HOTPLUG_CPU
 	bool "Support for hot-pluggable CPUs"
 	depends on SMP
@@ -698,6 +704,10 @@ config ARMV7_COMPAT_CPUINFO
 	 processor.
 
 	 If you want to execute ARMv7 applications, say Y
+
+config ARCH_MEMORY_PROBE
+	def_bool y
+	depends on MEMORY_HOTPLUG
 
 config SECCOMP
 	bool "Enable seccomp to safely compute untrusted bytecode"
