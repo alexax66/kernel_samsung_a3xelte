@@ -37,6 +37,10 @@
 #include <linux/cpufreq_kt.h>
 #endif
 
+#ifdef CONFIG_STATE_NOTIFIER
+#include <linux/state_notifier.h>
+#endif
+
 #ifdef CONFIG_POWERSUSPEND
 #include <linux/powersuspend.h>
 #endif
@@ -1154,31 +1158,39 @@ static int decon_blank(int blank_mode, struct fb_info *info)
 	case FB_BLANK_POWERDOWN:
 	case FB_BLANK_NORMAL:
 		DISP_SS_EVENT_LOG(DISP_EVT_BLANK, &decon->sd, ktime_set(0, 0));
+
+		ret = decon_disable(decon);
+		if (ret) {
+			decon_err("failed to disable decon\n");
+			goto blank_exit;
+		}
 #ifndef CONFIG_EXYNOS7580_DYNAMIC_CLUSTER_HOTPLUG
 		screen_is_on = false;
 #endif
 #ifdef CONFIG_POWERSUSPEND
 		set_power_suspend_state_panel_hook(POWER_SUSPEND_ACTIVE);
 #endif
-		ret = decon_disable(decon);
-		if (ret) {
-			decon_err("failed to disable decon\n");
-			goto blank_exit;
-		}
+#ifdef CONFIG_STATE_NOTIFIER
+		state_suspend();
+#endif
 		break;
 	case FB_BLANK_UNBLANK:
 		DISP_SS_EVENT_LOG(DISP_EVT_UNBLANK, &decon->sd, ktime_set(0, 0));
-#ifndef CONFIG_EXYNOS7580_DYNAMIC_CLUSTER_HOTPLUG
-		screen_is_on = true;
-#endif
+
 		ret = decon_enable(decon);
-#ifdef CONFIG_POWERSUSPEND
-		set_power_suspend_state_panel_hook(POWER_SUSPEND_INACTIVE);
-#endif
 		if (ret) {
 			decon_err("failed to enable decon\n");
 			goto blank_exit;
 		}
+#ifndef CONFIG_EXYNOS7580_DYNAMIC_CLUSTER_HOTPLUG
+		screen_is_on = true;
+#endif
+#ifdef CONFIG_POWERSUSPEND
+		set_power_suspend_state_panel_hook(POWER_SUSPEND_INACTIVE);
+#endif
+#ifdef CONFIG_STATE_NOTIFIER
+		state_resume();
+#endif
 		break;
 	case FB_BLANK_VSYNC_SUSPEND:
 	case FB_BLANK_HSYNC_SUSPEND:

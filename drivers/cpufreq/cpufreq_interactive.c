@@ -33,6 +33,9 @@
 #include <linux/slab.h>
 #include <linux/kernel_stat.h>
 #include <linux/pm_qos.h>
+#ifdef CONFIG_STATE_NOTIFIER
+#include <linux/state_notifier.h>
+#endif
 #ifdef CONFIG_POWERSUSPEND
 #include <linux/powersuspend.h>
 #endif
@@ -79,7 +82,11 @@ static cpumask_t speedchange_cpumask;
 static spinlock_t speedchange_cpumask_lock;
 static struct mutex gov_lock;
 
-#ifdef CONFIG_POWERSUSPEND
+#ifdef CONFIG_STATE_NOTIFIER
+static struct notifier_block notif;
+#endif
+
+#if defined(CONFIG_POWERSUSPEND) || defined(CONFIG_STATE_NOTIFIER)
 /* boolean for determining screen on/off state */
 static bool suspended = false;
 #endif
@@ -442,7 +449,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 
 	if (boosted && pcpu->policy->cur < tunables->touchboost_speed_freq)
 		new_freq = tunables->touchboost_speed_freq;
-#ifdef CONFIG_POWERSUSPEND
+#if defined(CONFIG_POWERSUSPEND) || defined(CONFIG_STATE_NOTIFIER)
 	else if (cpu_load >= tunables->go_hispeed_load && !suspended) {
 #else
 	else if (cpu_load >= tunables->go_hispeed_load) {
@@ -1662,6 +1669,25 @@ static struct power_suspend interactive_suspend = {
 };
 #endif
 
+#ifdef CONFIG_STATE_NOTIFIER
+static int state_notifier_callback(struct notifier_block *this,
+ 				unsigned long event, void *data)
+{
+	switch (event) {
+		case STATE_NOTIFIER_ACTIVE:
+			suspended = false;
+			break;
+		case STATE_NOTIFIER_SUSPEND:
+			suspended = true;
+			break;
+		default:
+			break;
+	}
+
+	return NOTIFY_OK;
+}
+#endif
+
 static int __init cpufreq_interactive_init(void)
 {
 	unsigned int i;
@@ -1682,6 +1708,12 @@ static int __init cpufreq_interactive_init(void)
 
 #ifdef CONFIG_POWERSUSPEND
 	register_power_suspend(&interactive_suspend);
+#endif
+
+#ifdef CONFIG_STATE_NOTIFIER
+	notif.notifier_call = state_notifier_callback;
+	if (state_register_client(&notif))
+		pr_err("Failed to register State notifier callback for interactive governor\n");
 #endif
 
 	spin_lock_init(&speedchange_cpumask_lock);
