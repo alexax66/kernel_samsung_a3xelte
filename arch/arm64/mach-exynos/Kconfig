@@ -363,3 +363,7 @@ config THUNDERPLUG_CONTROL
 	default n
 	help
 	  This driver hotplugs cpu cores based on per-core load
+
+config STATE_NOTIFIER
+	bool "State Notifier"
+	default n
