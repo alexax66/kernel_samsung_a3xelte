@@ -151,6 +151,13 @@ static void update_color_position(struct mdnie_info *mdnie, unsigned int idx)
 				wbuf[scr_info->white_g] = mdnie->tune->coordinate_table[mode][idx * 3 + 1];
 				wbuf[scr_info->white_b] = mdnie->tune->coordinate_table[mode][idx * 3 + 2];
 			}
+			if (mode == AUTO && scenario == UI_MODE) {
+				mdnie->white_default_r = mdnie->tune->coordinate_table[mode][idx * 3 + 0];
+				mdnie->white_default_g = mdnie->tune->coordinate_table[mode][idx * 3 + 1];
+				mdnie->white_default_b = mdnie->tune->coordinate_table[mode][idx * 3 + 2];
+				dev_info(mdnie->dev, "%s, white_default_r %d, white_default_g %d, white_default_b %d\n",
+				__func__, mdnie->white_default_r, mdnie->white_default_g, mdnie->white_default_b);
+			}
 		}
 	}
 
@@ -588,6 +595,60 @@ static ssize_t sensorRGB_store(struct device *dev,
 	return count;
 }
 
+static ssize_t whiteRGB_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mdnie_info *mdnie = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d %d %d\n", mdnie->white_balance_r, mdnie->white_balance_g, mdnie->white_balance_b);
+}
+
+static ssize_t whiteRGB_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct mdnie_info *mdnie = dev_get_drvdata(dev);
+	mdnie_t *wbuf;
+	u8 mode, scenario;
+	int white_red, white_green, white_blue;
+	int ret;
+	struct mdnie_scr_info *scr_info = mdnie->tune->scr_info;
+
+	ret = sscanf(buf, "%d %d %d",
+		&white_red, &white_green, &white_blue);
+	if (ret < 0)
+		return ret;
+
+	dev_info(dev, "%s, white_r %d, white_g %d, white_b %d\n",
+		__func__, white_red, white_green, white_blue);
+
+	if((white_red <= 0 && white_red >= -19) && (white_green <= 0 && white_green >= -19) && (white_blue <= 0 && white_blue >= -19)) {
+		mutex_lock(&mdnie->lock);
+
+		for (mode = 0; mode < MODE_MAX; mode++) {
+			if(mode == AUTO) {
+				for (scenario = 0; scenario <= EMAIL_MODE; scenario++) {
+					wbuf = mdnie->tune->main_table[scenario][mode].seq[scr_info->index].cmd;
+					if (IS_ERR_OR_NULL(wbuf))
+						continue;
+					if (scenario != EBOOK_MODE) {
+						wbuf[scr_info->white_r] = (unsigned char)(mdnie->white_default_r + white_red);
+						wbuf[scr_info->white_g] = (unsigned char)(mdnie->white_default_g + white_green);
+						wbuf[scr_info->white_b] = (unsigned char)(mdnie->white_default_b + white_blue);
+						mdnie->white_balance_r = white_red;
+						mdnie->white_balance_g = white_green;
+						mdnie->white_balance_b = white_blue;
+					}
+				}
+			}
+		}
+		mdnie->white_rgb_enabled = 1;
+		mutex_unlock(&mdnie->lock);
+		mdnie_update(mdnie);
+	}
+
+	return count;
+}
+
 static ssize_t mdnie_ldu_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -675,6 +736,7 @@ static struct device_attribute mdnie_attributes[] = {
 	__ATTR(auto_brightness, 0664, auto_brightness_show, auto_brightness_store),
 	__ATTR(mdnie, 0444, mdnie_show, NULL),
 	__ATTR(sensorRGB, 0664, sensorRGB_show, sensorRGB_store),
+	__ATTR(whiteRGB, 0664, whiteRGB_show, whiteRGB_store),
 	__ATTR(mdnie_ldu, 0664, mdnie_ldu_show, mdnie_ldu_store),
 #ifdef CONFIG_LCD_HMT
 	__ATTR(hmt_color_temperature, 0664, hmtColorTemp_show, hmtColorTemp_store),
@@ -773,6 +835,14 @@ int mdnie_register(struct device *p, void *data, mdnie_w w, mdnie_r r, unsigned 
 	mdnie->coordinate[0] = coordinate[0];
 	mdnie->coordinate[1] = coordinate[1];
 	mdnie->tune = tune;
+
+	mdnie->white_default_r = 255;
+	mdnie->white_default_g = 255;
+	mdnie->white_default_b = 255;
+	mdnie->white_balance_r = 0;
+	mdnie->white_balance_g = 0;
+	mdnie->white_balance_b = 0;
+	mdnie->white_rgb_enabled = 0;
 
 	mutex_init(&mdnie->lock);
 	mutex_init(&mdnie->dev_lock);
