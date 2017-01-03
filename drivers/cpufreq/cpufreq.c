@@ -362,9 +362,6 @@ static int cpufreq_parse_governor(char *str_governor, unsigned int *policy,
 {
 	int err = -EINVAL;
 
-	if (!cpufreq_driver)
-		goto out;
-
 	if (cpufreq_driver->setpolicy) {
 		if (!strnicmp(str_governor, "performance", CPUFREQ_NAME_LEN)) {
 			*policy = CPUFREQ_POLICY_PERFORMANCE;
@@ -399,7 +396,6 @@ static int cpufreq_parse_governor(char *str_governor, unsigned int *policy,
 
 		mutex_unlock(&cpufreq_governor_mutex);
 	}
-out:
 	return err;
 }
 
@@ -441,9 +437,7 @@ static ssize_t store_##file_name					\
 	unsigned int ret;						\
 	struct cpufreq_policy new_policy;				\
 									\
-	ret = cpufreq_get_policy(&new_policy, policy->cpu);		\
-	if (ret)							\
-		return -EINVAL;						\
+	memcpy(&new_policy, policy, sizeof(*policy));			\
 									\
 	ret = sscanf(buf, "%u", &new_policy.object);			\
 	if (ret != 1)							\
@@ -464,9 +458,7 @@ static ssize_t store_scaling_min_freq(struct cpufreq_policy *policy,
 	unsigned int ret;
 	struct cpufreq_policy new_policy;
 
-	ret = cpufreq_get_policy(&new_policy, policy->cpu);
-	if (ret)
-		return -EINVAL;
+	memcpy(&new_policy, policy, sizeof(*policy));
 
 	ret = sscanf(buf, "%u", &new_policy.user_min);
 	if (ret != 1)
@@ -561,14 +553,12 @@ static ssize_t store_scaling_governor(struct cpufreq_policy *policy,
 	/* Do not use cpufreq_set_policy here or the user_policy.max
 	   will be wrongly overridden */
 	ret = __cpufreq_set_policy(policy, &new_policy);
+	if (ret)
+		return ret;
 
 	policy->user_policy.policy = policy->policy;
 	policy->user_policy.governor = policy->governor;
-
-	if (ret)
-		return ret;
-	else
-		return count;
+	return count;
 }
 
 /**
@@ -1018,7 +1008,7 @@ static int cpufreq_add_dev(struct device *dev, struct subsys_interface *sif)
 	}
 
 	/* related cpus should atleast have policy->cpus */
-	cpumask_copy(policy->related_cpus, policy->cpus);
+		cpumask_copy(policy->related_cpus, policy->cpus);
 
 	/*
 	 * affected cpus must always be the one, which are online. We aren't
@@ -1030,7 +1020,7 @@ static int cpufreq_add_dev(struct device *dev, struct subsys_interface *sif)
 		policy->min = last_min;
 		policy->user_min = last_min;
 	}
-
+	
 	if (last_max > -1) {
 		policy->max = last_max;
 		policy->user_max = last_max;
@@ -1334,6 +1324,9 @@ static unsigned int __cpufreq_get(unsigned int cpu)
 		return ret_freq;
 
 	ret_freq = cpufreq_driver->get(cpu);
+
+	if (!policy)
+		return ret_freq;
 
 	if (ret_freq && policy->cur &&
 		!(cpufreq_driver->flags & CPUFREQ_CONST_LOOPS)) {
