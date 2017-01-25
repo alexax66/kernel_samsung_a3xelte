@@ -132,7 +132,7 @@ static int ion_cma_allocate(struct ion_heap *heap, struct ion_buffer *buffer,
 	if ((buffer->flags & ION_FLAG_PROTECTED) && ion_secure_protect(heap))
 		goto free_table;
 
-	dev_dbg(dev, "Allocate buffer %p\n", buffer);
+	dev_dbg(dev, "Allocate buffer %pK\n", buffer);
 	return 0;
 
 free_table:
@@ -151,7 +151,7 @@ static void ion_cma_free(struct ion_buffer *buffer)
 	struct device *dev = cma_heap->dev;
 	struct ion_cma_buffer_info *info = buffer->priv_virt;
 
-	dev_dbg(dev, "Release buffer %p\n", buffer);
+	dev_dbg(dev, "Release buffer %pK\n", buffer);
 	/* release memory */
 	dma_release_from_contiguous(dev,
 			phys_to_page(dma_to_phys(dev, info->handle)),
@@ -173,7 +173,7 @@ static int ion_cma_phys(struct ion_heap *heap, struct ion_buffer *buffer,
 	struct device *dev = cma_heap->dev;
 	struct ion_cma_buffer_info *info = buffer->priv_virt;
 
-	dev_dbg(dev, "Return buffer %p physical address %pa\n", buffer,
+	dev_dbg(dev, "Return buffer %pK physical address %pa\n", buffer,
 		&info->handle);
 
 	*addr = info->handle;
