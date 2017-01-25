@@ -654,7 +654,6 @@ static inline unsigned int group_first_cpu(struct sched_group *group)
 }
 
 extern int group_balance_cpu(struct sched_group *sg);
-extern unsigned int nr_eligible_big_tasks(int cpu);
 
 #ifdef CONFIG_SCHED_HMP
 static LIST_HEAD(hmp_domains);
