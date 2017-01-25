@@ -35,7 +35,7 @@ static int cpufreq_governor_performance(struct cpufreq_policy *policy,
 	return 0;
 }
 
-#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE
+#ifdef CONFIG_CPU_FREQ_GOV_PERFORMANCE_MODULE
 static
 #endif
 struct cpufreq_governor cpufreq_gov_performance = {
