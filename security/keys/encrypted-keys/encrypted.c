@@ -785,6 +785,8 @@ static int encrypted_instantiate(struct key *key,
 	size_t datalen = prep->datalen;
 	int ret;
 
+	if (test_bit(KEY_FLAG_NEGATIVE, &key->flags))
+		return -ENOKEY;
 	if (datalen <= 0 || datalen > 32767 || !prep->data)
 		return -EINVAL;
 
