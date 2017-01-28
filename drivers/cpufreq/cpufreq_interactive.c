@@ -1363,8 +1363,10 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			up_write(&pcpu->enable_sem);
 		}
 
-		kthread_stop(tunables->speedchange_task);
-		put_task_struct(tunables->speedchange_task);
+		if (tunables->speedchange_task) {
+			kthread_stop(tunables->speedchange_task);
+			put_task_struct(tunables->speedchange_task);
+		}
 		tunables->speedchange_task = NULL;
 
 		mutex_unlock(&gov_lock);
