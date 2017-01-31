@@ -2014,10 +2014,10 @@ DEVICE_ATTR(throttling1, S_IRUGO|S_IWUSR, show_gpu_throttling1, set_gpu_throttli
 DEVICE_ATTR(throttling2, S_IRUGO|S_IWUSR, show_gpu_throttling2, set_gpu_throttling2);
 DEVICE_ATTR(throttling3, S_IRUGO|S_IWUSR, show_gpu_throttling3, set_gpu_throttling3);
 DEVICE_ATTR(throttling4, S_IRUGO|S_IWUSR, show_gpu_throttling4, set_gpu_throttling4);
-DEVICE_ATTR(throttling5, S_IRUGO|S_IWUSR, show_gpu_throttling5, set_gpu_throttling1);
-DEVICE_ATTR(throttling6, S_IRUGO|S_IWUSR, show_gpu_throttling6, set_gpu_throttling2);
-DEVICE_ATTR(throttling7, S_IRUGO|S_IWUSR, show_gpu_throttling7, set_gpu_throttling3);
-DEVICE_ATTR(throttling8, S_IRUGO|S_IWUSR, show_gpu_throttling8, set_gpu_throttling4);
+DEVICE_ATTR(throttling5, S_IRUGO|S_IWUSR, show_gpu_throttling5, set_gpu_throttling5);
+DEVICE_ATTR(throttling6, S_IRUGO|S_IWUSR, show_gpu_throttling6, set_gpu_throttling6);
+DEVICE_ATTR(throttling7, S_IRUGO|S_IWUSR, show_gpu_throttling7, set_gpu_throttling7);
+DEVICE_ATTR(throttling8, S_IRUGO|S_IWUSR, show_gpu_throttling8, set_gpu_throttling8);
 DEVICE_ATTR(tripping, S_IRUGO|S_IWUSR, show_gpu_tripping, set_gpu_tripping);
 DEVICE_ATTR(tmu, S_IRUGO|S_IWUSR, show_tmu, set_tmu_control);
 #ifdef CONFIG_CPU_THERMAL_IPA
@@ -2167,37 +2167,37 @@ int gpu_create_sysfs_file(struct device *dev)
 		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "couldn't create sysfs file [throttling2]\n");
 		goto out;
 	}
-	
+
 	if (device_create_file(dev, &dev_attr_throttling3)) {
 		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "couldn't create sysfs file [throttling3]\n");
 		goto out;
 	}
-	
+
 	if (device_create_file(dev, &dev_attr_throttling4)) {
 		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "couldn't create sysfs file [throttling4]\n");
 		goto out;
 	}
-	
+
 	if (device_create_file(dev, &dev_attr_throttling5)) {
-		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "couldn't create sysfs file [throttling1]\n");
+		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "couldn't create sysfs file [throttling5]\n");
 		goto out;
 	}
-	
+
 	if (device_create_file(dev, &dev_attr_throttling6)) {
-		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "couldn't create sysfs file [throttling2]\n");
+		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "couldn't create sysfs file [throttling6]\n");
 		goto out;
 	}
-	
+
 	if (device_create_file(dev, &dev_attr_throttling7)) {
-		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "couldn't create sysfs file [throttling3]\n");
+		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "couldn't create sysfs file [throttling7]\n");
 		goto out;
 	}
-	
+
 	if (device_create_file(dev, &dev_attr_throttling8)) {
-		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "couldn't create sysfs file [throttling4]\n");
+		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "couldn't create sysfs file [throttling8]\n");
 		goto out;
 	}
-	
+
 	if (device_create_file(dev, &dev_attr_tripping)) {
 		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "couldn't create sysfs file [tripping]\n");
 		goto out;

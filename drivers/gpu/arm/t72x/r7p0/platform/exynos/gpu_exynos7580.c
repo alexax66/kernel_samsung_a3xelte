@@ -98,7 +98,7 @@ static gpu_attribute gpu_config_attributes[] = {
 	{GPU_TEMP_THROTTLING5, 440},
 	{GPU_TEMP_THROTTLING6, 350},
 	{GPU_TEMP_THROTTLING7, 266},
-	{GPU_TEMP_THROTTLING8, 266},
+	{GPU_TEMP_THROTTLING8, 160},
 	{GPU_TEMP_TRIPPING, 266},
 	{GPU_POWER_COEFF, 46}, /* all core on param */
 	{GPU_DVFS_TIME_INTERVAL, 5},
