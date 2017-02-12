@@ -356,7 +356,7 @@ static struct otg_notify dwc_lsi_notify = {
 	.set_peripheral	= exynos_set_peripheral,
 	.vbus_detect_gpio = -1,
 	.is_wakelock = 1,
-	.booting_delay_sec = 10,
+	.booting_delay_sec = 1,
 	.auto_drive_vbus = 1,
 	.set_battcall = set_online,
 };
