@@ -138,6 +138,8 @@ struct mmc_request {
 	int			flags;
 	struct list_head	link;
 	struct list_head	hlist;
+	ktime_t			io_start;
+	int			lat_hist_enabled;
 };
 
 struct mmc_card;

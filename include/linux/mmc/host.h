@@ -204,6 +204,35 @@ struct mmc_supply {
 #define EMMC_MAX_QUEUE_DEPTH		(16)
 #define EMMC_MIN_RT_CLASS_TAG_COUNT	(1)
 
+/*
+ * X-axis for IO latency histogram support.
+ */
+static const u_int64_t latency_x_axis_us[] = {
+	100,
+	200,
+	300,
+	400,
+	500,
+	600,
+	700,
+	800,
+	900,
+	1000,
+	1200,
+	1400,
+	1600,
+	1800,
+	2000,
+	2500,
+	3000,
+	4000,
+	5000,
+	6000,
+	7000,
+	9000,
+	10000
+};
+
 struct mmc_host {
 	struct device		*parent;
 	struct device		class_dev;
@@ -426,6 +455,15 @@ struct mmc_host {
 		int				num_funcs;
 	} embedded_sdio_data;
 #endif
+
+#define MMC_IO_LAT_HIST_DISABLE         0
+#define MMC_IO_LAT_HIST_ENABLE          1
+#define MMC_IO_LAT_HIST_ZERO            2
+	int		latency_hist_enabled;
+	u_int64_t	latency_y_axis_read[ARRAY_SIZE(latency_x_axis_us) + 1];
+	u_int64_t	latency_reads_elems;
+	u_int64_t	latency_y_axis_write[ARRAY_SIZE(latency_x_axis_us) + 1];
+	u_int64_t	latency_writes_elems;
 
 	unsigned long		private[0] ____cacheline_aligned;
 };
