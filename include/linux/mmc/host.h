@@ -479,8 +479,6 @@ void mmc_handle_queued_request(struct mmc_host *host);
 int mmc_blk_end_queued_req(struct mmc_host *host,
 		struct mmc_async_req *areq, int index, int status);
 
-int mmc_cache_ctrl(struct mmc_host *, u8);
-
 static inline void mmc_signal_sdio_irq(struct mmc_host *host)
 {
 	host->ops->enable_sdio_irq(host, 0);
