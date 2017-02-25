@@ -445,10 +445,10 @@ static inline int prepare_dir(const char *path_s, uid_t uid, gid_t gid, mode_t m
 	}
 	
 	err = mnt_want_write(path.mnt);
-	if (err) 
+	if (err)
 		goto out;
 	
-	err = vfs_mkdir(path.dentry->d_inode, dent, mode);
+	err = vfs_mkdir2(path.mnt, path.dentry->d_inode, dent, mode);
 	if (err) {
 		if (err == -EEXIST)
 			err = 0;
@@ -459,7 +459,7 @@ static inline int prepare_dir(const char *path_s, uid_t uid, gid_t gid, mode_t m
 	attrs.ia_gid = gid; 
 	attrs.ia_valid = ATTR_UID | ATTR_GID;
 	mutex_lock(&dent->d_inode->i_mutex);
-	notify_change(dent, &attrs);
+	notify_change2(path.mnt, dent, &attrs);
 	mutex_unlock(&dent->d_inode->i_mutex);
 
 out_drop:
