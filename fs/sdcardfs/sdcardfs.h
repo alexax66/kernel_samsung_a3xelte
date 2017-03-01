@@ -210,14 +210,6 @@ struct sdcardfs_mount_options {
 	type_t type;
 };
 
-struct sdcardfs_vfsmount_options {
-	gid_t gid;
-	mode_t mask;
-};
-
-extern int parse_options_remount(struct super_block *sb, char *options, int silent,
-		struct sdcardfs_vfsmount_options *vfsopts);
-
 /* sdcardfs super-block data in memory */
 struct sdcardfs_sb_info {
 	struct super_block *lower_sb;
