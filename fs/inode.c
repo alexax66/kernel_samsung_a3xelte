@@ -1637,12 +1637,12 @@ int dentry_needs_remove_privs(struct dentry *dentry)
 }
 EXPORT_SYMBOL(dentry_needs_remove_privs);
 
-static int __remove_privs(struct vfsmount *mnt, struct dentry *dentry, int kill)
+static int __remove_privs(struct dentry *dentry, int kill)
 {
 	struct iattr newattrs;
 
 	newattrs.ia_valid = ATTR_FORCE | kill;
-	return notify_change2(mnt, dentry, &newattrs);
+	return notify_change(dentry, &newattrs);
 }
 
 int file_remove_privs(struct file *file)
@@ -1662,7 +1662,7 @@ int file_remove_privs(struct file *file)
 	if (kill < 0)
 		return kill;
 	if (kill)
-		error = __remove_privs(file->f_path.mnt, dentry, kill);
+		error = __remove_privs(dentry, kill);
 	if (!error)
 		inode_has_no_xattr(inode);
 
