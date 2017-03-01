@@ -212,7 +212,6 @@ reconnect_path(struct vfsmount *mnt, struct dentry *target_dir, char *nbuf)
 }
 
 struct getdents_callback {
-	struct dir_context ctx;
 	char *name;		/* name that was found. It already points to a
 				   buffer NAME_MAX+1 is size */
 	unsigned long ino;	/* the inum we are looking for */
@@ -279,11 +278,10 @@ static int get_name(const struct path *path, char *name, struct dentry *child)
 	buffer.ino = child->d_inode->i_ino;
 	buffer.found = 0;
 	buffer.sequence = 0;
-	buffer.ctx.actor = filldir_one;
 	while (1) {
 		int old_seq = buffer.sequence;
 
-		error = iterate_dir(file, &buffer.ctx);
+		error = vfs_readdir(file, filldir_one, &buffer);
 		if (buffer.found) {
 			error = 0;
 			break;
