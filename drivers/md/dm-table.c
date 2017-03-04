@@ -1494,9 +1494,10 @@ void dm_table_set_restrictions(struct dm_table *t, struct request_queue *q,
 		q->limits.discard_zeroes_data = 0;
 
 	/* Ensure that all underlying devices are non-rotational. */
-	if (dm_table_all_devices_attribute(t, device_is_nonrot))
+	if (dm_table_all_devices_attribute(t, device_is_nonrot)) {
 		queue_flag_set_unlocked(QUEUE_FLAG_NONROT, q);
-	else
+		queue_flag_clear_unlocked(QUEUE_FLAG_ADD_RANDOM, q);
+	} else
 		queue_flag_clear_unlocked(QUEUE_FLAG_NONROT, q);
 
 	if (!dm_table_supports_write_same(t))

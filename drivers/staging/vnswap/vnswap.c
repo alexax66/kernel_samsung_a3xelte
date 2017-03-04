@@ -1059,8 +1059,8 @@ static int create_device(struct vnswap *vnswap)
 	}
 
 	/* vnswap devices sort of resembles non-rotational disks */
-	queue_flag_set_unlocked(QUEUE_FLAG_NONROT,
-		vnswap->disk->queue);
+	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, vnswap->disk->queue);
+	queue_flag_clear_unlocked(QUEUE_FLAG_ADD_RANDOM, vnswap->disk->queue);
 
 	swap_header_page =  alloc_page(__GFP_HIGHMEM);
 
