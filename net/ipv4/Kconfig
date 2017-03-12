@@ -614,6 +614,14 @@ config TCP_CONG_WVEGAS
 	wVegas congestion control for MPTCP
 	To enable it, just put 'wvegas' in tcp_congestion_control
 
+config TCP_CONG_SOCIOPATH
+	tristate "TCP Sociopath"
+	default n
+	---help---
+	This is basically TCP Reno with no slow start and a much more
+	aggressive ssthresh recalculation (lowers it by 5% instead of 50%).
+	Use responsibly!
+
 choice
 	prompt "Default TCP congestion control"
 	default DEFAULT_CUBIC
@@ -672,6 +680,7 @@ config DEFAULT_TCP_CONG
 	default "vegas" if DEFAULT_VEGAS
 	default "westwood" if DEFAULT_WESTWOOD
 	default "veno" if DEFAULT_VENO
+	default "sociopath" if DEFAULT_SOCIOPATH
 	default "lia" if DEFAULT_LIA
 	default "wvegas" if DEFAULT_WVEGAS
 	default "reno" if DEFAULT_RENO
