@@ -650,6 +650,9 @@ choice
 	config DEFAULT_WESTWOOD
 		bool "Westwood" if TCP_CONG_WESTWOOD=y
 
+	config DEFAULT_SOCIOPATH
+		bool "Sociopath" if TCP_CONG_SOCIOPATH=y
+
 	config DEFAULT_LIA
 		bool "Lia" if TCP_CONG_LIA=y
 
