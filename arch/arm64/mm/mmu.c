@@ -228,7 +228,7 @@ static inline void __init block_to_pages(pmd_t *pmd, unsigned long addr,
 }
 #endif
 static void __init alloc_init_pte(pmd_t *pmd, unsigned long addr,
-				  unsigned long end, unsigned long pfn)
+				  unsigned long end, phys_addr_t phys)
 {
 	pte_t *pte;
 
@@ -255,10 +255,10 @@ static void __init alloc_init_pte(pmd_t *pmd, unsigned long addr,
 	pte = pte_offset_kernel(pmd, addr);
 	do {
 		if (iotable_on == 1)
-			set_pte(pte, pfn_pte(pfn, pgprot_iotable_init(PAGE_KERNEL_EXEC)));
+			set_pte(pte, pfn_pte(__phys_to_pfn(phys), pgprot_iotable_init(PAGE_KERNEL_EXEC)));
 		else
-			set_pte(pte, pfn_pte(pfn, PAGE_KERNEL_EXEC));
-		pfn++;
+			set_pte(pte, pfn_pte(__phys_to_pfn(phys), PAGE_KERNEL_EXEC));
+		phys += PAGE_SIZE;
 	} while (pte++, addr += PAGE_SIZE, addr != end);
 }
 
@@ -308,7 +308,7 @@ static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 			if (!pmd_none(old_pmd))
 				flush_tlb_all();
 		} else {
-			alloc_init_pte(pmd, addr, next, __phys_to_pfn(phys));
+			alloc_init_pte(pmd, addr, next, phys);
 		}
 		phys += next - addr;
 	} while (pmd++, addr = next, addr != end);
