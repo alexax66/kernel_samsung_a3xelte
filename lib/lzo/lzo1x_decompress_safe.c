@@ -89,9 +89,11 @@ copy_literal_run:
 						COPY8(op, ip);
 						op += 8;
 						ip += 8;
+#if !defined(__arm__)
 						COPY8(op, ip);
 						op += 8;
 						ip += 8;
+#endif
 					} while (ip < ie);
 					ip = ie;
 					op = oe;
