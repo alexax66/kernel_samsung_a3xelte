@@ -657,6 +657,12 @@ void add_disk(struct gendisk *disk)
 	 *             256G             4096k
 	 */
 
+	if (get_capacity(disk)) {
+		unsigned long size = get_capacity(disk) >> 9;
+		size = 1UL << (ilog2(size) / 2);
+		bdi->ra_pages = min(bdi->ra_pages, size);
+	}
+
 	disk_add_events(disk);
 }
 EXPORT_SYMBOL(add_disk);
