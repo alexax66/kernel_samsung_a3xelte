@@ -48,6 +48,8 @@ extern void (*arm_pm_restart)(char str, const char *cmd);
 #define UDBG_SEGV	(1 << 3)
 #define UDBG_BUS	(1 << 4)
 
+extern char* (*arch_read_hardware_id)(void);
+
 #endif	/* __ASSEMBLY__ */
 
 #endif	/* __ASM_SYSTEM_MISC_H */
