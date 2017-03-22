@@ -1680,7 +1680,7 @@ int fuse_flush_mtime(struct file *file, bool nofail)
 int fuse_do_setattr(struct dentry *dentry, struct iattr *attr,
 		    struct file *file)
 {
-	struct inode *inode = dentry;
+	struct inode *inode = dentry->d_inode;
 	struct fuse_conn *fc = get_fuse_conn(inode);
 	struct fuse_inode *fi = get_fuse_inode(inode);
 	struct fuse_req *req;
