@@ -1668,7 +1668,7 @@ int file_remove_privs(struct file *file)
 
 	return error;
 }
-EXPORT_SYMBOL(file_remove_suid);
+EXPORT_SYMBOL(file_remove_privs);
 
 /**
  *	file_update_time	-	update mtime and ctime time
