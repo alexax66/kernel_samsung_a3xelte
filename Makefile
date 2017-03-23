@@ -600,13 +600,20 @@ endif # $(dot-config)
 # Defaults to vmlinux, but the arch makefile usually adds further targets
 all: vmlinux
 
+KBUILD_CFLAGS	+= $(call cc-option,-fno-delete-null-pointer-checks,)
+KBUILD_CFLAGS	+= $(call cc-disable-warning,maybe-uninitialized,)
+
+include $(srctree)/arch/$(SRCARCH)/Makefile
+
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Ofast
 else
 KBUILD_CFLAGS	+= -Ofast
 endif
 
-include $(srctree)/arch/$(SRCARCH)/Makefile
+ifdef CONFIG_KERNEL_OPTIMIZATION
+KBUILD_CFLAGS	+= -Ofast -pipe
+endif
 
 # Tell gcc to never replace conditional load with a non-conditional one
 KBUILD_CFLAGS	+= $(call cc-option,--param=allow-store-data-races=0)
