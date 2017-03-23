@@ -3552,7 +3552,7 @@ CONFIG_DYNAMIC_FSYNC=y
 #
 # Caches
 #
-# CONFIG_FSCACHE is not set
+CONFIG_FSCACHE=y
 
 #
 # CD-ROM/DVD Filesystems
