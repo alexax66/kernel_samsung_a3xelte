@@ -209,7 +209,7 @@ void cpuidle_uninstall_idle_handler(void)
 {
 	if (enabled_devices) {
 		initialized = 0;
-		kick_all_cpus_sync();
+		wake_up_idle_cpus(cpu_online_mask);
 	}
 }
 
@@ -569,7 +569,7 @@ static void smp_callback(void *v)
 static int cpuidle_latency_notify(struct notifier_block *b,
 		unsigned long l, void *v)
 {
-	smp_call_function(smp_callback, NULL, 1);
+	wake_up_idle_cpus((struct cpumask *)v);
 	return NOTIFY_OK;
 }
 
