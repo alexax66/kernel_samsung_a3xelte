@@ -1663,6 +1663,16 @@ int file_remove_privs(struct file *file)
 		return kill;
 	if (kill)
 		error = __remove_privs(file->f_path.mnt, dentry, kill);
+
+	killsuid = should_remove_suid(dentry);
+	killpriv = security_inode_need_killpriv(dentry);
+
+	if (killpriv < 0)
+		return killpriv;
+	if (killpriv)
+		error = security_inode_killpriv(dentry);
+	if (!error && killsuid)
+		error = __remove_suid(dentry, killsuid);
 	if (!error)
 		inode_has_no_xattr(inode);
 

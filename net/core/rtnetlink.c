@@ -907,6 +907,7 @@ static int rtnl_fill_ifinfo(struct sk_buff *skb, struct net_device *dev,
 		map.irq         = dev->irq;
 		map.dma         = dev->dma;
 		map.port        = dev->if_port;
+
 		if (nla_put(skb, IFLA_MAP, sizeof(map), &map))
 			goto nla_put_failure;
 	}
