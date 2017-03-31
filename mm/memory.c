@@ -3449,6 +3449,37 @@ oom:
 	return VM_FAULT_OOM;
 }
 
+static int __do_fault(struct vm_area_struct *vma, unsigned long address,
+		pgoff_t pgoff, unsigned int flags, struct page **page)
+{
+	struct vm_fault vmf;
+	int ret;
+
+	vmf.virtual_address = (void __user *)(address & PAGE_MASK);
+	vmf.pgoff = pgoff;
+	vmf.flags = flags;
+	vmf.page = NULL;
+
+	ret = vma->vm_ops->fault(vma, &vmf);
+	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE | VM_FAULT_RETRY)))
+		return ret;
+
+	if (unlikely(PageHWPoison(vmf.page))) {
+		if (ret & VM_FAULT_LOCKED)
+			unlock_page(vmf.page);
+		page_cache_release(vmf.page);
+		return VM_FAULT_HWPOISON;
+	}
+
+	if (unlikely(!(ret & VM_FAULT_LOCKED)))
+		lock_page(vmf.page);
+	else
+		VM_BUG_ON_PAGE(!PageLocked(vmf.page), vmf.page);
+
+	*page = vmf.page;
+	return ret;
+}
+
 /*
  * do_fault() tries to create a new page mapping. It aggressively
  * tries to share with existing pages, but makes a separate copy if
@@ -3468,12 +3499,11 @@ static int do_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 {
 	pte_t *page_table;
 	spinlock_t *ptl;
-	struct page *page;
+	struct page *page, *fault_page;
 	struct page *cow_page;
 	pte_t entry;
 	int anon = 0;
 	struct page *dirty_page = NULL;
-	struct vm_fault vmf;
 	int ret;
 	int page_mkwrite = 0;
 
@@ -3497,41 +3527,19 @@ static int do_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 	} else
 		cow_page = NULL;
 
-	vmf.virtual_address = (void __user *)(address & PAGE_MASK);
-	vmf.pgoff = pgoff;
-	vmf.flags = flags;
-	vmf.page = NULL;
-
-	ret = vma->vm_ops->fault(vma, &vmf);
-	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE |
-			    VM_FAULT_RETRY)))
+	ret = __do_fault(vma, address, pgoff, flags, &fault_page);
+	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE | VM_FAULT_RETRY)))
 		goto uncharge_out;
-
-	if (unlikely(PageHWPoison(vmf.page))) {
-		if (ret & VM_FAULT_LOCKED)
-			unlock_page(vmf.page);
-		ret = VM_FAULT_HWPOISON;
-		goto uncharge_out;
-	}
-
-	/*
-	 * For consistency in subsequent calls, make the faulted page always
-	 * locked.
-	 */
-	if (unlikely(!(ret & VM_FAULT_LOCKED)))
-		lock_page(vmf.page);
-	else
-		VM_BUG_ON(!PageLocked(vmf.page));
 
 	/*
 	 * Should we do an early C-O-W break?
 	 */
-	page = vmf.page;
+	page = fault_page;
 	if (flags & FAULT_FLAG_WRITE) {
 		if (!(vma->vm_flags & VM_SHARED)) {
 			page = cow_page;
 			anon = 1;
-			copy_user_highpage(page, vmf.page, address, vma);
+			copy_user_highpage(page, fault_page, address, vma);
 			__SetPageUptodate(page);
 		} else {
 			/*
@@ -3540,7 +3548,14 @@ static int do_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 			 * to become writable
 			 */
 			if (vma->vm_ops->page_mkwrite) {
+				struct vm_fault vmf;
 				int tmp;
+
+				vmf.virtual_address =
+					(void __user *)(address & PAGE_MASK);
+				vmf.pgoff = pgoff;
+				vmf.flags = flags;
+				vmf.page = fault_page;
 
 				unlock_page(page);
 				vmf.flags = FAULT_FLAG_WRITE|FAULT_FLAG_MKWRITE;
@@ -3629,9 +3644,9 @@ static int do_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 		if (vma->vm_file && !page_mkwrite)
 			file_update_time(vma->vm_file);
 	} else {
-		unlock_page(vmf.page);
+		unlock_page(fault_page);
 		if (anon)
-			page_cache_release(vmf.page);
+			page_cache_release(fault_page);
 	}
 
 	return ret;
