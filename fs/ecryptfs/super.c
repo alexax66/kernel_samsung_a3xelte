@@ -148,7 +148,7 @@ static void ecryptfs_evict_inode(struct inode *inode)
 	struct ecryptfs_mount_crypt_stat *mount_crypt_stat =
 		&ecryptfs_superblock_to_private(inode->i_sb)->mount_crypt_stat;
 #endif
-	truncate_inode_pages(&inode->i_data, 0);
+	truncate_inode_pages_final(&inode->i_data);
 #if defined(CONFIG_MMC_DW_FMP_ECRYPT_FS) || defined(CONFIG_UFS_FMP_ECRYPT_FS)
 	if (mount_crypt_stat->flags & ECRYPTFS_USE_FMP) {
 		lower_inode = ecryptfs_inode_to_lower(inode);
@@ -157,7 +157,7 @@ static void ecryptfs_evict_inode(struct inode *inode)
 				break;
 
 			if (!strcmp("sdcardfs", lower_inode->i_sb->s_type->name)) {
-				truncate_inode_pages(&lower_inode->i_data, 0);
+				truncate_inode_pages_final(&lower_inode->i_data);
 				lower_inode->i_mapping->iv = NULL;
 				lower_inode->i_mapping->key = NULL;
 				lower_inode->i_mapping->key_length = 0;
@@ -170,7 +170,7 @@ static void ecryptfs_evict_inode(struct inode *inode)
 				lower_inode = sdcardfs_lower_inode(lower_inode);
 				continue;
 			} else if (!strcmp("ext4", lower_inode->i_sb->s_type->name)) {
-				truncate_inode_pages(&inode->i_data, 0);
+				truncate_inode_pages_final(&inode->i_data);
 				lower_inode->i_mapping->iv = NULL;
 				lower_inode->i_mapping->key = NULL;
 				lower_inode->i_mapping->key_length = 0;
@@ -188,7 +188,7 @@ static void ecryptfs_evict_inode(struct inode *inode)
 		}
 	}
 #else
-	truncate_inode_pages(&inode->i_data, 0);
+	truncate_inode_pages_final(&inode->i_data);
 #endif
 	clear_inode(inode);
 	iput(ecryptfs_inode_to_lower(inode));
