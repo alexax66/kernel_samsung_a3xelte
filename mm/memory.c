@@ -3924,12 +3924,11 @@ int handle_pte_fault(struct mm_struct *mm,
 	if (!pte_present(entry)) {
 		if (pte_none(entry)) {
 			if (vma->vm_ops)
-				return do_fault(mm, vma, address,
-						pte, pmd, flags, entry);
-			return do_anonymous_page(mm, vma, address,
-						 pte, pmd, flags);
+		if (likely(vma->vm_ops->fault))
 					return do_fault(mm, vma, address, pte,
 						pmd, flags, entry);
+			return do_anonymous_page(mm, vma, address,
+						 pte, pmd, flags);
 		}
 		return do_swap_page(mm, vma, address,
 					pte, pmd, flags, entry);
