@@ -1853,15 +1853,6 @@ long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 	VM_BUG_ON(!!pages != !!(gup_flags & FOLL_GET));
 
 	/*
-	 * Require read or write permissions.
-	 * If FOLL_FORCE is set, we only require the "MAY" flags.
-	 */
-	vm_flags  = (gup_flags & FOLL_WRITE) ?
-			(VM_WRITE | VM_MAYWRITE) : (VM_READ | VM_MAYREAD);
-	vm_flags &= (gup_flags & FOLL_FORCE) ?
-			(VM_MAYREAD | VM_MAYWRITE) : (VM_READ | VM_WRITE);
-
-	/*
 	 * If FOLL_FORCE and FOLL_NUMA are both set, handle_mm_fault
 	 * would be called on PROT_NONE ranges. We must never invoke
 	 * handle_mm_fault on PROT_NONE ranges or the NUMA hinting
@@ -1888,7 +1879,7 @@ long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 
 			/* user gate pages are read-only */
 			if (gup_flags & FOLL_WRITE)
-				return i ? : -EFAULT;
+				goto efault;
 			if (pg > TASK_SIZE)
 				pgd = pgd_offset_k(pg);
 			else
@@ -1898,12 +1889,12 @@ long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 			BUG_ON(pud_none(*pud));
 			pmd = pmd_offset(pud, pg);
 			if (pmd_none(*pmd))
-				return i ? : -EFAULT;
+				goto efault;
 			VM_BUG_ON(pmd_trans_huge(*pmd));
 			pte = pte_offset_map(pmd, pg);
 			if (pte_none(*pte)) {
 				pte_unmap(pte);
-				return i ? : -EFAULT;
+				goto efault;
 			}
 			vma = get_gate_vma(mm);
 			if (pages) {
@@ -1916,7 +1907,7 @@ long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 						page = pte_page(*pte);
 					else {
 						pte_unmap(pte);
-						return i ? : -EFAULT;
+						goto efault;
 					}
 				}
 				pages[i] = page;
@@ -1927,10 +1918,42 @@ long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 			goto next_page;
 		}
 
-		if (!vma ||
-		    (vma->vm_flags & (VM_IO | VM_PFNMAP)) ||
-		    !(vm_flags & vma->vm_flags))
-			return i ? : -EFAULT;
+		if (!vma)
+			goto efault;
+		vm_flags = vma->vm_flags;
+		if (vm_flags & (VM_IO | VM_PFNMAP))
+			goto efault;
+
+		if (gup_flags & FOLL_WRITE) {
+			if (!(vm_flags & VM_WRITE)) {
+				if (!(gup_flags & FOLL_FORCE))
+					goto efault;
+				/*
+				 * We used to let the write,force case do COW
+				 * in a VM_MAYWRITE VM_SHARED !VM_WRITE vma, so
+				 * ptrace could set a breakpoint in a read-only
+				 * mapping of an executable, without corrupting
+				 * the file (yet only when that file had been
+				 * opened for writing!).  Anon pages in shared
+				 * mappings are surprising: now just reject it.
+				 */
+				if (!is_cow_mapping(vm_flags)) {
+					WARN_ON_ONCE(vm_flags & VM_MAYWRITE);
+					goto efault;
+				}
+			}
+		} else {
+			if (!(vm_flags & VM_READ)) {
+				if (!(gup_flags & FOLL_FORCE))
+					goto efault;
+				/*
+				 * Is there actually any vma we can reach here
+				 * which does not have VM_MAYREAD set?
+				 */
+				if (!(vm_flags & VM_MAYREAD))
+					goto efault;
+			}
+		}
 
 		if (is_vm_hugetlb_page(vma)) {
 			i = follow_hugetlb_page(mm, vma, pages, vmas,
@@ -1985,7 +2008,7 @@ long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 					}
 					if (ret & (VM_FAULT_SIGBUS |
 						   VM_FAULT_SIGSEGV))
-						return i ? i : -EFAULT;
+						goto efault;
 					BUG();
 				}
 
@@ -2043,6 +2066,8 @@ next_page:
 		} while (nr_pages && start < vma->vm_end);
 	} while (nr_pages);
 	return i;
+efault:
+	return i ? : -EFAULT;
 }
 EXPORT_SYMBOL(__get_user_pages);
 
@@ -2115,9 +2140,8 @@ int fixup_user_fault(struct task_struct *tsk, struct mm_struct *mm,
  * @start:	starting user address
  * @nr_pages:	number of pages from start to pin
  * @write:	whether pages will be written to by the caller
- * @force:	whether to force write access even if user mapping is
- *		readonly. This will result in the page being COWed even
- *		in MAP_SHARED mappings. You do not want this.
+ * @force:	whether to force access even when user mapping is currently
+ *		protected (but never forces write access to shared mapping).
  * @pages:	array that receives pointers to the pages pinned.
  *		Should be at least nr_pages long. Or NULL, if caller
  *		only intends to ensure the pages are faulted in.
@@ -3481,13 +3505,37 @@ static int __do_fault(struct vm_area_struct *vma, unsigned long address,
 	return ret;
 }
 
+static void do_set_pte(struct vm_area_struct *vma, unsigned long address,
+		struct page *page, pte_t *pte, bool write, bool anon)
+{
+	pte_t entry;
+
+	flush_icache_page(vma, page);
+	entry = mk_pte(page, vma->vm_page_prot);
+	if (write)
+		entry = maybe_mkwrite(pte_mkdirty(entry), vma);
+	else if (pte_file(*pte) && pte_file_soft_dirty(*pte))
+		pte_mksoft_dirty(entry);
+	if (anon) {
+		inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);
+		page_add_new_anon_rmap(page, vma, address);
+	} else {
+		inc_mm_counter_fast(vma->vm_mm, MM_FILEPAGES);
+		page_add_file_rmap(page);
+	}
+	set_pte_at(vma->vm_mm, address, pte, entry);
+
+	/* no need to invalidate: a not-present page won't be cached */
+	update_mmu_cache(vma, address, pte);
+}
+
 static int do_read_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 		unsigned long address, pmd_t *pmd,
 		pgoff_t pgoff, unsigned int flags, pte_t orig_pte)
 {
 	struct page *fault_page;
 	spinlock_t *ptl;
-	pte_t entry, *pte;
+	pte_t *pte;
 	int ret;
 
 	ret = __do_fault(vma, address, pgoff, flags, &fault_page);
@@ -3501,20 +3549,9 @@ static int do_read_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 		page_cache_release(fault_page);
 		return ret;
 	}
-
-	flush_icache_page(vma, fault_page);
-	entry = mk_pte(fault_page, vma->vm_page_prot);
-	if (pte_file(orig_pte) && pte_file_soft_dirty(orig_pte))
-		pte_mksoft_dirty(entry);
-	inc_mm_counter_fast(mm, MM_FILEPAGES);
-	page_add_file_rmap(fault_page);
-	set_pte_at(mm, address, pte, entry);
-
-	/* no need to invalidate: a not-present page won't be cached */
-	update_mmu_cache(vma, address, pte);
+	do_set_pte(vma, address, fault_page, pte, false, false);
 	pte_unmap_unlock(pte, ptl);
 	unlock_page(fault_page);
-
 	return ret;
 }
 
@@ -3524,7 +3561,7 @@ static int do_cow_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 {
 	struct page *fault_page, *new_page;
 	spinlock_t *ptl;
-	pte_t entry, *pte;
+	pte_t *pte;
 	int ret;
 
 	if (unlikely(anon_vma_prepare(vma)))
@@ -3553,17 +3590,7 @@ static int do_cow_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 		page_cache_release(fault_page);
 		goto uncharge_out;
 	}
-
-	flush_icache_page(vma, new_page);
-	entry = mk_pte(new_page, vma->vm_page_prot);
-	entry = maybe_mkwrite(pte_mkdirty(entry), vma);
-	inc_mm_counter_fast(mm, MM_ANONPAGES);
-	page_add_new_anon_rmap(new_page, vma, address);
-	set_pte_at(mm, address, pte, entry);
-
-	/* no need to invalidate: a not-present page won't be cached */
-	update_mmu_cache(vma, address, pte);
-
+	do_set_pte(vma, address, new_page, pte, true, true);
 	pte_unmap_unlock(pte, ptl);
 	unlock_page(fault_page);
 	page_cache_release(fault_page);
@@ -3581,7 +3608,7 @@ static int do_shared_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 	struct page *fault_page;
 	struct address_space *mapping;
 	spinlock_t *ptl;
-	pte_t entry, *pte;
+	pte_t *pte;
 	int dirtied = 0;
 	int ret, tmp;
 
@@ -3610,16 +3637,7 @@ static int do_shared_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 		page_cache_release(fault_page);
 		return ret;
 	}
-
-	flush_icache_page(vma, fault_page);
-	entry = mk_pte(fault_page, vma->vm_page_prot);
-	entry = maybe_mkwrite(pte_mkdirty(entry), vma);
-	inc_mm_counter_fast(mm, MM_FILEPAGES);
-	page_add_file_rmap(fault_page);
-	set_pte_at(mm, address, pte, entry);
-
-	/* no need to invalidate: a not-present page won't be cached */
-	update_mmu_cache(vma, address, pte);
+	do_set_pte(vma, address, fault_page, pte, true, false);
 	pte_unmap_unlock(pte, ptl);
 
 	if (set_page_dirty(fault_page))
