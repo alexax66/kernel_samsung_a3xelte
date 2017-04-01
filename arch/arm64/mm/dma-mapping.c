@@ -23,11 +23,8 @@
 #include <linux/genalloc.h>
 #include <linux/dma-mapping.h>
 #include <linux/dma-contiguous.h>
-#include <linux/of.h>
-#include <linux/platform_device.h>
 #include <linux/vmalloc.h>
 #include <linux/swiotlb.h>
-#include <linux/amba/bus.h>
 
 #include <asm/cacheflush.h>
 
@@ -429,28 +426,6 @@ static void arm_exynos_dma_mcode_free(struct device *dev, size_t size, void *cpu
 	iounmap(cpu_addr);
 }
 
-static int dma_bus_notifier(struct notifier_block *nb,
-			    unsigned long event, void *_dev)
-{
-	struct device *dev = _dev;
-
-	if (event != BUS_NOTIFY_ADD_DEVICE)
-		return NOTIFY_DONE;
-
-	if (of_property_read_bool(dev->of_node, "dma-coherent"))
-		set_dma_ops(dev, &coherent_swiotlb_dma_ops);
-
-	return NOTIFY_OK;
-}
-
-static struct notifier_block platform_bus_nb = {
-	.notifier_call = dma_bus_notifier,
-};
-
-static struct notifier_block amba_bus_nb = {
-	.notifier_call = dma_bus_notifier,
-};
-
 extern int swiotlb_late_init_with_default_size(size_t default_size);
 
 static int __init atomic_pool_init(void)
@@ -517,12 +492,6 @@ out:
 static int __init swiotlb_late_init(void)
 {
 	size_t swiotlb_size = min(SZ_64M, MAX_ORDER_NR_PAGES << PAGE_SHIFT);
-
-	/*
-	 * These must be registered before of_platform_populate().
-	 */
-	bus_register_notifier(&platform_bus_type, &platform_bus_nb);
-	bus_register_notifier(&amba_bustype, &amba_bus_nb);
 
 	dma_ops = &noncoherent_swiotlb_dma_ops;
 
