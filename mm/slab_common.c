@@ -283,7 +283,7 @@ void kmem_cache_destroy(struct kmem_cache *s)
 }
 EXPORT_SYMBOL(kmem_cache_destroy);
 
-int slab_is_available(void)
+bool slab_is_available(void)
 {
 	return slab_state >= UP;
 }
