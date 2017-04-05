@@ -173,6 +173,26 @@ static inline struct kmem_cache *memcg_root_cache(struct kmem_cache *s)
 		return s;
 	return s->memcg_params->root_cache;
 }
+
+static __always_inline int memcg_charge_slab(struct kmem_cache *s,
+					     gfp_t gfp, int order)
+{
+	if (!memcg_kmem_enabled())
+		return 0;
+	if (is_root_cache(s))
+		return 0;
+	return memcg_charge_kmem(s->memcg_params->memcg, gfp,
+				 PAGE_SIZE << order);
+}
+
+static __always_inline void memcg_uncharge_slab(struct kmem_cache *s, int order)
+{
+	if (!memcg_kmem_enabled())
+		return;
+	if (is_root_cache(s))
+		return;
+	memcg_uncharge_kmem(s->memcg_params->memcg, PAGE_SIZE << order);
+}
 #else
 static inline bool is_root_cache(struct kmem_cache *s)
 {
@@ -204,6 +224,15 @@ static inline const char *cache_name(struct kmem_cache *s)
 	return s->name;
 }
 
+
+static inline int memcg_charge_slab(struct kmem_cache *s, gfp_t gfp, int order)
+{
+	return 0;
+}
+
+static inline void memcg_uncharge_slab(struct kmem_cache *s, int order)
+{
+}
 static inline struct kmem_cache *cache_from_memcg(struct kmem_cache *s, int idx)
 {
 	return NULL;
