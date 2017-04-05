@@ -107,16 +107,7 @@ struct kmem_cache {
 void *kmem_cache_alloc(struct kmem_cache *, gfp_t);
 void *__kmalloc(size_t size, gfp_t flags);
 
-static __always_inline void *
-kmalloc_order(size_t size, gfp_t flags, unsigned int order)
-{
-	void *ret;
-
-	flags |= (__GFP_COMP | __GFP_KMEMCG);
-	ret = (void *) __get_free_pages(flags, order);
-	kmemleak_alloc(ret, size, 1, flags);
-	return ret;
-}
+extern void *kmalloc_order(size_t size, gfp_t flags, unsigned int order);
 
 /**
  * Calling this on allocated memory will check that the memory
