@@ -1041,11 +1041,10 @@ static void add_full(struct kmem_cache *s,
 #ifdef CONFIG_RKP_KDP
 	check_cred_cache(s, );
 #endif  /* CONFIG_RKP_KDP */
-	lockdep_assert_held(&n->list_lock);
-
 	if (!(s->flags & SLAB_STORE_USER))
 		return;
 
+	lockdep_assert_held(&n->list_lock);
 	list_add(&page->lru, &n->full);
 }
 
@@ -1054,11 +1053,10 @@ static void remove_full(struct kmem_cache *s, struct kmem_cache_node *n, struct 
 #ifdef CONFIG_RKP_KDP
 	check_cred_cache(s, );
 #endif  /* CONFIG_RKP_KDP */
-	lockdep_assert_held(&n->list_lock);
-
 	if (!(s->flags & SLAB_STORE_USER))
 		return;
 
+	lockdep_assert_held(&n->list_lock);
 	list_del(&page->lru);
 }
 
