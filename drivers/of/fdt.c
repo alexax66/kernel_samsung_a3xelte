@@ -908,7 +908,8 @@ int __init early_init_dt_scan_chosen(unsigned long node, const char *uname,
 	p = add_cmdline(p, "androidboot.boot.verifiedbootstate=green");
 	p = add_cmdline(p, "androidboot.boot.flash.locked=1");
 	p = add_cmdline(p, "androidboot.boot.ddrinfo=00000001");
-	p = add_cmdline(p, "androidboot.crypto.state=encrypted");
+	p = add_cmdline(p, "androidboot.boot.warranty_bit=0");
+	p = add_cmdline(p, "androidboot.warranty_bit=0");
 
 	if (p != NULL && l > 0) {
 		if (concat_cmdline) {
