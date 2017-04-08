@@ -20,6 +20,7 @@
 #include <linux/string.h>
 #include <linux/errno.h>
 #include <linux/slab.h>
+#include <linux/cmdline_helper.h>
 
 #include <asm/setup.h>  /* for COMMAND_LINE_SIZE */
 #ifdef CONFIG_PPC
@@ -902,6 +903,12 @@ int __init early_init_dt_scan_chosen(unsigned long node, const char *uname,
 	/* Retrieve command line unless forcing */
 	if (read_dt_cmdline)
 		p = of_get_flat_dt_prop(node, "bootargs", &l);
+
+	p = add_cmdline(p, "androidboot.boot.veritymode=enforcing");
+	p = add_cmdline(p, "androidboot.boot.verifiedbootstate=green");
+	p = add_cmdline(p, "androidboot.boot.flash.locked=1");
+	p = add_cmdline(p, "androidboot.boot.ddrinfo=00000001");
+	p = add_cmdline(p, "androidboot.crypto.state=encrypted");
 
 	if (p != NULL && l > 0) {
 		if (concat_cmdline) {
