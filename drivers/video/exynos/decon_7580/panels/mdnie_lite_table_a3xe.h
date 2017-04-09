@@ -1,16 +1,24 @@
 #ifndef __MDNIE_TABLE_A3XE_H__
 #define __MDNIE_TABLE_A3XE_H__
 
-/* 2015.11.06 */
+/* 2016.08.23 */
 
-/* SCR Position can be different each panel */
+// SCR Position can be different each panel
 static struct mdnie_scr_info scr_info = {
 	.index = 1,
-	.color_blind = 63,	/* ASCR_WIDE_CR[7:0] */
-	.white_r = 81,		/* ASCR_WIDE_WR[7:0] */
-	.white_g = 83,		/* ASCR_WIDE_WG[7:0] */
-	.white_b = 85		/* ASCR_WIDE_WB[7:0] */
+	.color_blind = 63,	// ASCR_WIDE_CR[7:0]
+	.white_r = 81,		// ASCR_WIDE_WR[7:0]
+	.white_g = 83,		// ASCR_WIDE_WG[7:0]
+	.white_b = 85		// ASCR_WIDE_WB[7:0]
 };
+
+static struct mdnie_trans_info trans_info;
+
+static struct mdnie_night_info night_info = {
+	.index_max_num = 11,
+	.index_size = 24
+};
+
 
 static inline int color_offset_f1(int x, int y)
 {
@@ -29,69 +37,71 @@ static inline int color_offset_f4(int x, int y)
 	return ((y << 10) + (((x << 10) * 333) / 107) - (12396 << 10)) >> 10;
 }
 
-/* color coordination order is WR, WG, WB */
+// color coordination order is WR, WG, WB
 static unsigned char coordinate_data_1[] = {
-	0xff, 0xff, 0xff, /* dummy */
-	0xff, 0xfb, 0xfb, /* Tune_1 */
-	0xff, 0xfc, 0xff, /* Tune_2 */
-	0xfb, 0xfa, 0xff, /* Tune_3 */
-	0xff, 0xfe, 0xfc, /* Tune_4 */
-	0xff, 0xff, 0xff, /* Tune_5 */
-	0xfb, 0xfc, 0xff, /* Tune_6 */
-	0xfd, 0xff, 0xfa, /* Tune_7 */
-	0xfc, 0xff, 0xfc, /* Tune_8 */
-	0xfb, 0xff, 0xff, /* Tune_9 */
+	0xff, 0xff, 0xff, // dummy
+	0xff, 0xfb, 0xfb, // Tune_1
+	0xff, 0xfc, 0xff, // Tune_2
+	0xfb, 0xfa, 0xff, // Tune_3
+	0xff, 0xfe, 0xfc, // Tune_4
+	0xff, 0xff, 0xff, // Tune_5
+	0xfb, 0xfc, 0xff, // Tune_6
+	0xfe, 0xff, 0xfb, // Tune_7
+	0xfc, 0xff, 0xfc, // Tune_8
+	0xfb, 0xff, 0xff, // Tune_9
 };
 
 static unsigned char coordinate_data_2[] = {
-	0xff, 0xff, 0xff, /* dummy */
-	0xff, 0xf6, 0xec, /* Tune_1 */
-	0xff, 0xf6, 0xef, /* Tune_2 */
-	0xff, 0xf8, 0xf3, /* Tune_3 */
-	0xff, 0xf8, 0xec, /* Tune_4 */
-	0xff, 0xf9, 0xef, /* Tune_5 */
-	0xff, 0xfb, 0xf3, /* Tune_6 */
-	0xff, 0xfb, 0xec, /* Tune_7 */
-	0xff, 0xfc, 0xef, /* Tune_8 */
-	0xff, 0xfd, 0xf3, /* Tune_9 */
+	0xff, 0xff, 0xff, // dummy
+	0xff, 0xf6, 0xec, // Tune_1
+	0xff, 0xf8, 0xf0, // Tune_2
+	0xff, 0xf8, 0xf3, // Tune_3
+	0xff, 0xf9, 0xed, // Tune_4
+	0xff, 0xfa, 0xf0, // Tune_5
+	0xff, 0xfb, 0xf4, // Tune_6
+	0xff, 0xfb, 0xed, // Tune_7
+	0xff, 0xfd, 0xf0, // Tune_8
+	0xff, 0xfe, 0xf4, // Tune_9
 };
 
 static unsigned char *coordinate_data[MODE_MAX] = {
-	coordinate_data_1,
 	coordinate_data_2,
 	coordinate_data_2,
+	coordinate_data_2,
 	coordinate_data_1,
-	coordinate_data_1,
-	coordinate_data_1,
+	coordinate_data_1
 };
 
-static unsigned char adjust_ldu_data_1[] = {
-	0xff, 0xff, 0xff,
-	0xf6, 0xfa, 0xff,
-	0xf4, 0xf8, 0xff,
-	0xe9, 0xf2, 0xff,
-	0xe2, 0xef, 0xff,
-	0xd4, 0xe8, 0xff,
+static unsigned char night_mode_data[] = {
+	0x00, 0xff, 0xf9, 0x00, 0xee, 0x00, 0xff, 0x00, 0x00, 0xf9, 0xee, 0x00, 0xff, 0x00, 0xf9, 0x00, 0x00, 0xee, 0xff, 0x00, 0xf9, 0x00, 0xee, 0x00, /* 6500K */
+	0x00, 0xff, 0xf7, 0x00, 0xe7, 0x00, 0xff, 0x00, 0x00, 0xf7, 0xe7, 0x00, 0xff, 0x00, 0xf7, 0x00, 0x00, 0xe7, 0xff, 0x00, 0xf7, 0x00, 0xe7, 0x00, /* 6100K */
+	0x00, 0xff, 0xf4, 0x00, 0xdf, 0x00, 0xff, 0x00, 0x00, 0xf4, 0xdf, 0x00, 0xff, 0x00, 0xf4, 0x00, 0x00, 0xdf, 0xff, 0x00, 0xf4, 0x00, 0xdf, 0x00, /* 5700K */
+	0x00, 0xff, 0xf0, 0x00, 0xd5, 0x00, 0xff, 0x00, 0x00, 0xf0, 0xd5, 0x00, 0xff, 0x00, 0xf0, 0x00, 0x00, 0xd5, 0xff, 0x00, 0xf0, 0x00, 0xd5, 0x00, /* 5300K */
+	0x00, 0xff, 0xeb, 0x00, 0xca, 0x00, 0xff, 0x00, 0x00, 0xeb, 0xca, 0x00, 0xff, 0x00, 0xeb, 0x00, 0x00, 0xca, 0xff, 0x00, 0xeb, 0x00, 0xca, 0x00, /* 4900K */
+	0x00, 0xff, 0xe7, 0x00, 0xbf, 0x00, 0xff, 0x00, 0x00, 0xe7, 0xbf, 0x00, 0xff, 0x00, 0xe7, 0x00, 0x00, 0xbf, 0xff, 0x00, 0xe7, 0x00, 0xbf, 0x00, /* 4500K */
+	0x00, 0xff, 0xe1, 0x00, 0xb2, 0x00, 0xff, 0x00, 0x00, 0xe1, 0xb2, 0x00, 0xff, 0x00, 0xe1, 0x00, 0x00, 0xb2, 0xff, 0x00, 0xe1, 0x00, 0xb2, 0x00, /* 4100K */
+	0x00, 0xff, 0xda, 0x00, 0xa2, 0x00, 0xff, 0x00, 0x00, 0xda, 0xa2, 0x00, 0xff, 0x00, 0xda, 0x00, 0x00, 0xa2, 0xff, 0x00, 0xda, 0x00, 0xa2, 0x00, /* 3700K */
+	0x00, 0xff, 0xd1, 0x00, 0x90, 0x00, 0xff, 0x00, 0x00, 0xd1, 0x90, 0x00, 0xff, 0x00, 0xd1, 0x00, 0x00, 0x90, 0xff, 0x00, 0xd1, 0x00, 0x90, 0x00, /* 3300K */
+	0x00, 0xff, 0xc7, 0x00, 0x7c, 0x00, 0xff, 0x00, 0x00, 0xc7, 0x7c, 0x00, 0xff, 0x00, 0xc7, 0x00, 0x00, 0x7c, 0xff, 0x00, 0xc7, 0x00, 0x7c, 0x00, /* 2900K */
+	0x00, 0xff, 0xb9, 0x00, 0x62, 0x00, 0xff, 0x00, 0x00, 0xb9, 0x62, 0x00, 0xff, 0x00, 0xb9, 0x00, 0x00, 0x62, 0xff, 0x00, 0xb9, 0x00, 0x62, 0x00  /* 2500K */
 };
 
-static unsigned char adjust_ldu_data_2[] = {
-	0xff, 0xfa, 0xf1,
-	0xff, 0xfd, 0xf8,
-	0xff, 0xfd, 0xfa,
-	0xfa, 0xfd, 0xff,
-	0xf5, 0xfb, 0xff,
-	0xe5, 0xf3, 0xff,
-};
+static inline int get_hbm_index(int idx)
+{
+	int i = 0;
+	int idx_list[] = {
+		40000	/* idx < 40000: HBM_OFF */
+				/* idx >= 40000: HBM_ON */
+	};
 
-static unsigned char *adjust_ldu_data[MODE_MAX] = {
-	adjust_ldu_data_1,
-	adjust_ldu_data_2,
-	adjust_ldu_data_2,
-	adjust_ldu_data_1,
-	adjust_ldu_data_1,
-	adjust_ldu_data_1,
-};
+	while (i < ARRAY_SIZE(idx_list)) {
+		if (idx < idx_list[i])
+			break;
+		i++;
+	}
 
+	return i;
+}
 
 static unsigned char GRAYSCALE_1[] = {
 	0xDE,
@@ -184,9 +194,11 @@ static unsigned char GRAYSCALE_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char GRAYSCALE_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -284,9 +296,11 @@ static unsigned char GRAYSCALE_NEGATIVE_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char GRAYSCALE_NEGATIVE_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -385,9 +399,11 @@ static unsigned char SCREEN_CURTAIN_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char SCREEN_CURTAIN_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -485,9 +501,11 @@ static unsigned char STANDARD_UI_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char STANDARD_UI_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -585,9 +603,11 @@ static unsigned char NATURAL_UI_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char NATURAL_UI_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -685,9 +705,11 @@ static unsigned char DYNAMIC_UI_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char DYNAMIC_UI_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -785,9 +807,11 @@ static unsigned char MOVIE_UI_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char MOVIE_UI_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -885,9 +909,11 @@ static unsigned char AUTO_UI_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char AUTO_UI_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -986,9 +1012,11 @@ static unsigned char STANDARD_GALLERY_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char STANDARD_GALLERY_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -1086,9 +1114,11 @@ static unsigned char NATURAL_GALLERY_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char NATURAL_GALLERY_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -1186,9 +1216,11 @@ static unsigned char DYNAMIC_GALLERY_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char DYNAMIC_GALLERY_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -1286,9 +1318,11 @@ static unsigned char MOVIE_GALLERY_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char MOVIE_GALLERY_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -1386,9 +1420,11 @@ static unsigned char AUTO_GALLERY_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char AUTO_GALLERY_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -1487,9 +1523,11 @@ static unsigned char STANDARD_VIDEO_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char STANDARD_VIDEO_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -1587,9 +1625,11 @@ static unsigned char NATURAL_VIDEO_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char NATURAL_VIDEO_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -1687,9 +1727,11 @@ static unsigned char DYNAMIC_VIDEO_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char DYNAMIC_VIDEO_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -1787,9 +1829,11 @@ static unsigned char MOVIE_VIDEO_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char MOVIE_VIDEO_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -1887,9 +1931,11 @@ static unsigned char AUTO_VIDEO_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char AUTO_VIDEO_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -1988,9 +2034,11 @@ static unsigned char STANDARD_VT_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char STANDARD_VT_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -2088,9 +2136,11 @@ static unsigned char NATURAL_VT_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char NATURAL_VT_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -2188,9 +2238,11 @@ static unsigned char DYNAMIC_VT_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char DYNAMIC_VT_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -2288,9 +2340,11 @@ static unsigned char MOVIE_VT_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char MOVIE_VT_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -2388,9 +2442,11 @@ static unsigned char BYPASS_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char BYPASS_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -2488,9 +2544,11 @@ static unsigned char AUTO_VT_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char AUTO_VT_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -2589,9 +2647,11 @@ static unsigned char STANDARD_CAMERA_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char STANDARD_CAMERA_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -2689,9 +2749,11 @@ static unsigned char NATURAL_CAMERA_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char NATURAL_CAMERA_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -2789,9 +2851,11 @@ static unsigned char DYNAMIC_CAMERA_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char DYNAMIC_CAMERA_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -2889,9 +2953,11 @@ static unsigned char MOVIE_CAMERA_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char MOVIE_CAMERA_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -2989,9 +3055,11 @@ static unsigned char AUTO_CAMERA_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char AUTO_CAMERA_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -3092,6 +3160,7 @@ static unsigned char NEGATIVE_1[] = {
 };
 
 static unsigned char NEGATIVE_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -3189,13 +3258,219 @@ static unsigned char COLOR_BLIND_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char COLOR_BLIND_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
 	0x0e, //ascr algo 1010
+};
+
+static unsigned char COLOR_BLIND_HBM_1[] = {
+        0xDE,
+        0x00, //de cs gamma 000
+        0x00, //de_gain 10
+        0x00,
+        0x07, //de_maxplus 11
+        0xff,
+        0x07, //de_maxminus 11
+        0xff,
+        0x01, //cs_gain 10
+        0x00,
+        0x00, //curve_0
+        0x10, //curve_1
+        0x20, //curve_2
+        0x30, //curve_3
+        0x40, //curve_4
+        0x50, //curve_5
+        0x60, //curve_6
+        0x70, //curve_7
+        0x80, //curve_8
+        0x90, //curve_9
+        0xa0, //curve_10
+        0xb0, //curve_11
+        0xc0, //curve_12
+        0xd0, //curve_13
+        0xe0, //curve_14
+        0xf0, //curve_15
+        0x01, //curve_16
+        0x00,
+        0x00, //curve_offset
+        0x00,
+        0x00, //curve_low_x
+        0x00, //curve_low_y
+        0x00, //linear_on ascr_skin_on strength 0 0 00000
+        0x67, //ascr_skin_cb
+        0xa9, //ascr_skin_cr
+        0x0c, //ascr_dist_up
+        0x0c, //ascr_dist_down
+        0x0c, //ascr_dist_right
+        0x0c, //ascr_dist_left
+        0x00, //ascr_div_up 20
+        0xaa,
+        0xab,
+        0x00, //ascr_div_down
+        0xaa,
+        0xab,
+        0x00, //ascr_div_right
+        0xaa,
+        0xab,
+        0x00, //ascr_div_left
+        0xaa,
+        0xab,
+        0xff, //ascr_skin_Rr
+        0x00, //ascr_skin_Rg
+        0x00, //ascr_skin_Rb
+        0xff, //ascr_skin_Yr
+        0xff, //ascr_skin_Yg
+        0x00, //ascr_skin_Yb
+        0xff, //ascr_skin_Mr
+        0x00, //ascr_skin_Mg
+        0xff, //ascr_skin_Mb
+        0xff, //ascr_skin_Wr
+        0xff, //ascr_skin_Wg
+        0xff, //ascr_skin_Wb
+        0x00, //ascr_Cr
+        0xff, //ascr_Rr
+        0xff, //ascr_Cg
+        0x00, //ascr_Rg
+        0xff, //ascr_Cb
+        0x00, //ascr_Rb
+        0xff, //ascr_Mr
+        0x00, //ascr_Gr
+        0x00, //ascr_Mg
+        0xff, //ascr_Gg
+        0xff, //ascr_Mb
+        0x00, //ascr_Gb
+        0xff, //ascr_Yr
+        0x00, //ascr_Br
+        0xff, //ascr_Yg
+        0x00, //ascr_Bg
+        0x00, //ascr_Yb
+        0xff, //ascr_Bb
+        0xff, //ascr_Wr
+        0x00, //ascr_Kr
+        0xff, //ascr_Wg
+        0x00, //ascr_Kg
+        0xff, //ascr_Wb
+        0x00, //ascr_Kb
+        0x00, //trans_on
+        0x00, //trans_slope 0000
+        0x00, //trans_interval
+        // end
+};
+
+static unsigned char COLOR_BLIND_HBM_2[] = {
+        // start
+        0xDD,
+        0x01, //mdnie_en
+        0x00, //mask 000
+        0x0e, //ascr algo 1010
+};
+
+static unsigned char NIGHT_MODE_1[] = {
+        0xDE,
+        0x00, //de cs gamma 000
+        0x00, //de_gain 10
+        0x00,
+        0x07, //de_maxplus 11
+        0xff,
+        0x07, //de_maxminus 11
+        0xff,
+        0x01, //cs_gain 10
+        0x00,
+        0x00, //curve_0
+        0x10, //curve_1
+        0x20, //curve_2
+        0x30, //curve_3
+        0x40, //curve_4
+        0x50, //curve_5
+        0x60, //curve_6
+        0x70, //curve_7
+        0x80, //curve_8
+        0x90, //curve_9
+        0xa0, //curve_10
+        0xb0, //curve_11
+        0xc0, //curve_12
+        0xd0, //curve_13
+        0xe0, //curve_14
+        0xf0, //curve_15
+        0x01, //curve_16
+        0x00,
+        0x00, //curve_offset
+        0x00,
+        0x00, //curve_low_x
+        0x00, //curve_low_y
+        0x00, //linear_on ascr_skin_on strength 0 0 00000
+        0x67, //ascr_skin_cb
+        0xa9, //ascr_skin_cr
+        0x0c, //ascr_dist_up
+        0x0c, //ascr_dist_down
+        0x0c, //ascr_dist_right
+        0x0c, //ascr_dist_left
+        0x00, //ascr_div_up 20
+        0xaa,
+        0xab,
+        0x00, //ascr_div_down
+        0xaa,
+        0xab,
+        0x00, //ascr_div_right
+        0xaa,
+        0xab,
+        0x00, //ascr_div_left
+        0xaa,
+        0xab,
+        0xff, //ascr_skin_Rr
+        0x00, //ascr_skin_Rg
+        0x00, //ascr_skin_Rb
+        0xff, //ascr_skin_Yr
+        0xff, //ascr_skin_Yg
+        0x00, //ascr_skin_Yb
+        0xff, //ascr_skin_Mr
+        0x00, //ascr_skin_Mg
+        0xff, //ascr_skin_Mb
+        0xff, //ascr_skin_Wr
+        0xff, //ascr_skin_Wg
+        0xff, //ascr_skin_Wb
+        0x00, //ascr_Cr
+        0xff, //ascr_Rr
+        0xff, //ascr_Cg
+        0x00, //ascr_Rg
+        0xff, //ascr_Cb
+        0x00, //ascr_Rb
+        0xff, //ascr_Mr
+        0x00, //ascr_Gr
+        0x00, //ascr_Mg
+        0xff, //ascr_Gg
+        0xff, //ascr_Mb
+        0x00, //ascr_Gb
+        0xff, //ascr_Yr
+        0x00, //ascr_Br
+        0xff, //ascr_Yg
+        0x00, //ascr_Bg
+        0x00, //ascr_Yb
+        0xff, //ascr_Bb
+        0xff, //ascr_Wr
+        0x00, //ascr_Kr
+        0xff, //ascr_Wg
+        0x00, //ascr_Kg
+        0xff, //ascr_Wb
+        0x00, //ascr_Kb
+        0x00, //trans_on
+        0x00, //trans_slope 0000
+        0x00, //trans_interval
+        // end
+ };
+
+static unsigned char NIGHT_MODE_2[] = {
+        // start
+        0xDD,
+        0x01, //mdnie_en
+        0x00, //mask 000
+        0x0e, //ascr algo 1010
 };
 
 ////////////////// BROWSER /////////////////////
@@ -3290,9 +3565,11 @@ static unsigned char STANDARD_BROWSER_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char STANDARD_BROWSER_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -3390,9 +3667,11 @@ static unsigned char NATURAL_BROWSER_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char NATURAL_BROWSER_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -3490,9 +3769,11 @@ static unsigned char DYNAMIC_BROWSER_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char DYNAMIC_BROWSER_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -3590,9 +3871,11 @@ static unsigned char MOVIE_BROWSER_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char MOVIE_BROWSER_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -3690,9 +3973,11 @@ static unsigned char AUTO_BROWSER_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char AUTO_BROWSER_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -3791,9 +4076,11 @@ static unsigned char DYNAMIC_EBOOK_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char DYNAMIC_EBOOK_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -3891,9 +4178,11 @@ static unsigned char STANDARD_EBOOK_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char STANDARD_EBOOK_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -3991,9 +4280,11 @@ static unsigned char NATURAL_EBOOK_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char NATURAL_EBOOK_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -4091,9 +4382,11 @@ static unsigned char MOVIE_EBOOK_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char MOVIE_EBOOK_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -4191,9 +4484,11 @@ static unsigned char AUTO_EBOOK_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char AUTO_EBOOK_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -4291,9 +4586,11 @@ static unsigned char AUTO_EMAIL_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char AUTO_EMAIL_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -4392,9 +4689,11 @@ static unsigned char STANDARD_DMB_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char STANDARD_DMB_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -4492,9 +4791,11 @@ static unsigned char NATURAL_DMB_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char NATURAL_DMB_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -4592,9 +4893,11 @@ static unsigned char DYNAMIC_DMB_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char DYNAMIC_DMB_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -4692,9 +4995,11 @@ static unsigned char MOVIE_DMB_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char MOVIE_DMB_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -4792,9 +5097,11 @@ static unsigned char AUTO_DMB_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char AUTO_DMB_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -4892,15 +5199,31 @@ static unsigned char LOCAL_CE_1[] = {
 	0x00, //trans_on
 	0x00, //trans_slope 0000
 	0x00, //trans_interval
+	// end
 };
 
 static unsigned char LOCAL_CE_2[] = {
+	// start
 	0xDD,
 	0x01, //mdnie_en
 	0x00, //mask 000
 	0x0f, //ascr algo 1010
 };
 
+///////////////// FOR DMB performance //////////////////////////
+static unsigned char START_DMB_1[] = {
+	0xCE,
+	0x29, 0xD0, 0x54, 0xA7,	0x4D,
+	0xB2, 0x06, 0x03, 0x00, 0xFF,
+	0x0A, 0x3F, 0x3F, 0x3F, 0x3F
+ };
+
+static unsigned char END_DMB_1[] = {
+	0xCE,
+	0x29, 0xD0, 0x51, 0xF5, 0x4B,
+	0x38, 0x06, 0x03, 0x00, 0xFF,
+	0x0A, 0x3F, 0x3F, 0x3F, 0x3F
+};
 
 static unsigned char LEVEL_UNLOCK[] = {
 	0xF0,
@@ -4915,11 +5238,25 @@ static unsigned char LEVEL_LOCK[] = {
 #define MDNIE_SET(id)	\
 {							\
 	.name		= #id,				\
-	.update_flag	= {0, 1, 2, 0},			\
+	.update_flag	= {0, 1, 2, 3, 0},			\
 	.seq		= {				\
 		{	.cmd = LEVEL_UNLOCK,	.len = ARRAY_SIZE(LEVEL_UNLOCK),	.sleep = 0,},	\
 		{	.cmd = id##_1,		.len = ARRAY_SIZE(id##_1),		.sleep = 0,},	\
 		{	.cmd = id##_2,		.len = ARRAY_SIZE(id##_2),		.sleep = 0,},	\
+		{	.cmd = END_DMB_1,	.len = ARRAY_SIZE(END_DMB_1),		.sleep = 0,},	\
+		{	.cmd = LEVEL_LOCK,	.len = ARRAY_SIZE(LEVEL_LOCK),		.sleep = 0,},	\
+	}	\
+}
+
+#define MDNIE_SET_DMB(id)	\
+{							\
+	.name		= #id,				\
+	.update_flag	= {0, 1, 2, 3, 0},			\
+	.seq		= {				\
+		{	.cmd = LEVEL_UNLOCK,	.len = ARRAY_SIZE(LEVEL_UNLOCK),	.sleep = 0,},	\
+		{	.cmd = id##_1,		.len = ARRAY_SIZE(id##_1),		.sleep = 0,},	\
+		{	.cmd = id##_2,		.len = ARRAY_SIZE(id##_2),		.sleep = 0,},	\
+		{	.cmd = START_DMB_1,	.len = ARRAY_SIZE(START_DMB_1),		.sleep = 0,},	\
 		{	.cmd = LEVEL_LOCK,	.len = ARRAY_SIZE(LEVEL_LOCK),		.sleep = 0,},	\
 	}	\
 }
@@ -4941,12 +5278,16 @@ static struct mdnie_table hbm_table[HBM_MAX] = {
 };
 
 static struct mdnie_table dmb_table[MODE_MAX] = {
-	MDNIE_SET(DYNAMIC_DMB),
-	MDNIE_SET(STANDARD_DMB),
-	MDNIE_SET(NATURAL_DMB),
-	MDNIE_SET(MOVIE_DMB),
-	MDNIE_SET(AUTO_DMB),
-	MDNIE_SET(AUTO_EBOOK)
+	MDNIE_SET_DMB(DYNAMIC_DMB),
+	MDNIE_SET_DMB(STANDARD_DMB),
+	MDNIE_SET_DMB(NATURAL_DMB),
+	MDNIE_SET_DMB(MOVIE_DMB),
+	MDNIE_SET_DMB(AUTO_DMB),
+	MDNIE_SET_DMB(AUTO_EBOOK)
+};
+
+static struct mdnie_table night_table[NIGHT_MODE_MAX] = {
+	[NIGHT_MODE_ON] = MDNIE_SET(NIGHT_MODE)
 };
 
 static struct mdnie_table main_table[SCENARIO_MAX][MODE_MAX] = {
@@ -5017,13 +5358,16 @@ static struct mdnie_tune tune_info = {
 	.bypass_table = bypass_table,
 	.accessibility_table = accessibility_table,
 	.hbm_table = hbm_table,
+	.night_table = night_table,
 	.dmb_table = dmb_table,
 	.main_table = main_table,
 
 	.coordinate_table = coordinate_data,
-	.adjust_ldu_table = adjust_ldu_data,
-	.max_adjust_ldu = 6,
+	.night_mode_table = night_mode_data,
 	.scr_info = &scr_info,
+	.trans_info = &trans_info,
+	.night_info = &night_info,
+	.get_hbm_index = get_hbm_index,
 	.color_offset = {color_offset_f1, color_offset_f2, color_offset_f3, color_offset_f4}
 };
 
