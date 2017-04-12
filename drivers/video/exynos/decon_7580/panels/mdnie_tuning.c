@@ -86,7 +86,7 @@ int mdnie_open_file(const char *path, char **fp)
 		return -EPERM;
 	}
 
-	dp = kzalloc(length + 1, GFP_KERNEL);
+	dp = kzalloc(length, GFP_KERNEL);
 	if (dp == NULL) {
 		pr_err("%s: failed to alloc size %ld\n", __func__, length);
 		filp_close(filp, current->files);
@@ -152,7 +152,7 @@ static int mdnie_request_firmware(char *path, char *name, unsigned int **buf)
 		return -EPERM;
 	}
 
-	dp = kcalloc(size + 1, sizeof(*dp), GFP_KERNEL);
+	dp = kzalloc(size, GFP_KERNEL);
 	if (dp == NULL) {
 		pr_err("%s: failed to alloc size %d\n", __func__, size);
 		kfree(ptr);
@@ -200,8 +200,7 @@ uintptr_t mdnie_request_table(char *path, struct mdnie_table *org)
 
 	size = mdnie_request_firmware(path, ret ? org->name : NULL, &buf);
 	if (size <= 0) {
-		if (buf)
-			kfree(buf);
+		kfree(buf);
 		goto exit;
 	}
 
