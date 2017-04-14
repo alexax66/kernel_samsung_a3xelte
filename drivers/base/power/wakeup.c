@@ -18,9 +18,13 @@
 #ifdef CONFIG_SEC_PM_DEBUG
 #include <linux/fb.h>
 #endif
+#include <linux/moduleparam.h>
 #include <trace/events/power.h>
 
 #include "power.h"
+
+static bool enable_ipa_ws = false;
+module_param(enable_ipa_ws, bool, 0644);
 
 /*
  * If set, the suspend/hibernate code will abort transitions to a sleep state
@@ -354,149 +358,6 @@ int device_set_wakeup_enable(struct device *dev, bool enable)
 }
 EXPORT_SYMBOL_GPL(device_set_wakeup_enable);
 
-/**
- * wakeup_source_not_registered - validate the given wakeup source.
- * @ws: Wakeup source to be validated.
- */
-static bool wakeup_source_not_registered(struct wakeup_source *ws)
-{
-	/*
-	 * Use timer struct to check if the given source is initialized
-	 * by wakeup_source_add.
-	 */
-	return ws->timer.function != pm_wakeup_timer_fn ||
-		   ws->timer.data != (unsigned long)ws;
-}
-
-/*
- * The functions below use the observation that each wakeup event starts a
- * period in which the system should not be suspended.  The moment this period
- * will end depends on how the wakeup event is going to be processed after being
- * detected and all of the possible cases can be divided into two distinct
- * groups.
- *
- * First, a wakeup event may be detected by the same functional unit that will
- * carry out the entire processing of it and possibly will pass it to user space
- * for further processing.  In that case the functional unit that has detected
- * the event may later "close" the "no suspend" period associated with it
- * directly as soon as it has been dealt with.  The pair of pm_stay_awake() and
- * pm_relax(), balanced with each other, is supposed to be used in such
- * situations.
- *
- * Second, a wakeup event may be detected by one functional unit and processed
- * by another one.  In that case the unit that has detected it cannot really
- * "close" the "no suspend" period associated with it, unless it knows in
- * advance what's going to happen to the event during processing.  This
- * knowledge, however, may not be available to it, so it can simply specify time
- * to wait before the system can be suspended and pass it as the second
- * argument of pm_wakeup_event().
- *
- * It is valid to call pm_relax() after pm_wakeup_event(), in which case the
- * "no suspend" period will be ended either by the pm_relax(), or by the timer
- * function executed when the timer expires, whichever comes first.
- */
-
-/**
- * wakup_source_activate - Mark given wakeup source as active.
- * @ws: Wakeup source to handle.
- *
- * Update the @ws' statistics and, if @ws has just been activated, notify the PM
- * core of the event by incrementing the counter of of wakeup events being
- * processed.
- */
-static void wakeup_source_activate(struct wakeup_source *ws)
-{
-	unsigned int cec;
-
-	if (WARN(wakeup_source_not_registered(ws),
-			"unregistered wakeup source\n"))
-		return;
-
-	/*
-	 * active wakeup source should bring the system
-	 * out of PM_SUSPEND_FREEZE state
-	 */
-	freeze_wake();
-
-	ws->active = true;
-	ws->active_count++;
-	ws->last_time = ktime_get();
-	if (ws->autosleep_enabled)
-		ws->start_prevent_time = ws->last_time;
-
-#ifdef CONFIG_SEC_PM_DEBUG
-	if (ws->is_screen_off)
-		ws->start_screen_off = ws->last_time;
-#endif
-
-	/* Increment the counter of events in progress. */
-	cec = atomic_inc_return(&combined_event_count);
-
-	trace_wakeup_source_activate(ws->name, cec);
-}
-
-/**
- * wakeup_source_report_event - Report wakeup event using the given source.
- * @ws: Wakeup source to report the event for.
- */
-static void wakeup_source_report_event(struct wakeup_source *ws)
-{
-	ws->event_count++;
-	/* This is racy, but the counter is approximate anyway. */
-	if (events_check_enabled)
-		ws->wakeup_count++;
-
-	if (!ws->active)
-		wakeup_source_activate(ws);
-}
-
-/**
- * __pm_stay_awake - Notify the PM core of a wakeup event.
- * @ws: Wakeup source object associated with the source of the event.
- *
- * It is safe to call this function from interrupt context.
- */
-void __pm_stay_awake(struct wakeup_source *ws)
-{
-	unsigned long flags;
-
-	if (!ws)
-		return;
-
-	spin_lock_irqsave(&ws->lock, flags);
-
-	wakeup_source_report_event(ws);
-	del_timer(&ws->timer);
-	ws->timer_expires = 0;
-
-	spin_unlock_irqrestore(&ws->lock, flags);
-}
-EXPORT_SYMBOL_GPL(__pm_stay_awake);
-
-/**
- * pm_stay_awake - Notify the PM core that a wakeup event is being processed.
- * @dev: Device the wakeup event is related to.
- *
- * Notify the PM core of a wakeup event (signaled by @dev) by calling
- * __pm_stay_awake for the @dev's wakeup source object.
- *
- * Call this function after detecting of a wakeup event if pm_relax() is going
- * to be called directly after processing the event (and possibly passing it to
- * user space for further processing).
- */
-void pm_stay_awake(struct device *dev)
-{
-	unsigned long flags;
-
-	if (!dev)
-		return;
-
-	spin_lock_irqsave(&dev->power.lock, flags);
-	__pm_stay_awake(dev->power.wakeup);
-	spin_unlock_irqrestore(&dev->power.lock, flags);
-}
-EXPORT_SYMBOL_GPL(pm_stay_awake);
-
 #ifdef CONFIG_PM_AUTOSLEEP
 static void update_prevent_sleep_time(struct wakeup_source *ws, ktime_t now)
 {
@@ -635,6 +496,156 @@ static void wakeup_source_deactivate(struct wakeup_source *ws)
 	if (!inpr && waitqueue_active(&wakeup_count_wait_queue))
 		wake_up(&wakeup_count_wait_queue);
 }
+
+/**
+ * wakeup_source_not_registered - validate the given wakeup source.
+ * @ws: Wakeup source to be validated.
+ */
+static bool wakeup_source_not_registered(struct wakeup_source *ws)
+{
+	/*
+	 * Use timer struct to check if the given source is initialized
+	 * by wakeup_source_add.
+	 */
+	return ws->timer.function != pm_wakeup_timer_fn ||
+		   ws->timer.data != (unsigned long)ws;
+}
+
+/*
+ * The functions below use the observation that each wakeup event starts a
+ * period in which the system should not be suspended.  The moment this period
+ * will end depends on how the wakeup event is going to be processed after being
+ * detected and all of the possible cases can be divided into two distinct
+ * groups.
+ *
+ * First, a wakeup event may be detected by the same functional unit that will
+ * carry out the entire processing of it and possibly will pass it to user space
+ * for further processing.  In that case the functional unit that has detected
+ * the event may later "close" the "no suspend" period associated with it
+ * directly as soon as it has been dealt with.  The pair of pm_stay_awake() and
+ * pm_relax(), balanced with each other, is supposed to be used in such
+ * situations.
+ *
+ * Second, a wakeup event may be detected by one functional unit and processed
+ * by another one.  In that case the unit that has detected it cannot really
+ * "close" the "no suspend" period associated with it, unless it knows in
+ * advance what's going to happen to the event during processing.  This
+ * knowledge, however, may not be available to it, so it can simply specify time
+ * to wait before the system can be suspended and pass it as the second
+ * argument of pm_wakeup_event().
+ *
+ * It is valid to call pm_relax() after pm_wakeup_event(), in which case the
+ * "no suspend" period will be ended either by the pm_relax(), or by the timer
+ * function executed when the timer expires, whichever comes first.
+ */
+
+/**
+ * wakup_source_activate - Mark given wakeup source as active.
+ * @ws: Wakeup source to handle.
+ *
+ * Update the @ws' statistics and, if @ws has just been activated, notify the PM
+ * core of the event by incrementing the counter of of wakeup events being
+ * processed.
+ */
+static void wakeup_source_activate(struct wakeup_source *ws)
+{
+	unsigned int cec;
+
+	if (WARN(wakeup_source_not_registered(ws),
+			"unregistered wakeup source\n"))
+		return;
+
+	if (!enable_ipa_ws && !strncmp(ws->name, "IPA_WS", 6)) {
+		if (ws->active)
+			wakeup_source_deactivate(ws);
+
+		return;
+	}
+
+	/*
+	 * active wakeup source should bring the system
+	 * out of PM_SUSPEND_FREEZE state
+	 */
+	freeze_wake();
+
+	ws->active = true;
+	ws->active_count++;
+	ws->last_time = ktime_get();
+	if (ws->autosleep_enabled)
+		ws->start_prevent_time = ws->last_time;
+
+#ifdef CONFIG_SEC_PM_DEBUG
+	if (ws->is_screen_off)
+		ws->start_screen_off = ws->last_time;
+#endif
+
+	/* Increment the counter of events in progress. */
+	cec = atomic_inc_return(&combined_event_count);
+
+	trace_wakeup_source_activate(ws->name, cec);
+}
+
+/**
+ * wakeup_source_report_event - Report wakeup event using the given source.
+ * @ws: Wakeup source to report the event for.
+ */
+static void wakeup_source_report_event(struct wakeup_source *ws)
+{
+	ws->event_count++;
+	/* This is racy, but the counter is approximate anyway. */
+	if (events_check_enabled)
+		ws->wakeup_count++;
+
+	if (!ws->active)
+		wakeup_source_activate(ws);
+}
+
+/**
+ * __pm_stay_awake - Notify the PM core of a wakeup event.
+ * @ws: Wakeup source object associated with the source of the event.
+ *
+ * It is safe to call this function from interrupt context.
+ */
+void __pm_stay_awake(struct wakeup_source *ws)
+{
+	unsigned long flags;
+
+	if (!ws)
+		return;
+
+	spin_lock_irqsave(&ws->lock, flags);
+
+	wakeup_source_report_event(ws);
+	del_timer(&ws->timer);
+	ws->timer_expires = 0;
+
+	spin_unlock_irqrestore(&ws->lock, flags);
+}
+EXPORT_SYMBOL_GPL(__pm_stay_awake);
+
+/**
+ * pm_stay_awake - Notify the PM core that a wakeup event is being processed.
+ * @dev: Device the wakeup event is related to.
+ *
+ * Notify the PM core of a wakeup event (signaled by @dev) by calling
+ * __pm_stay_awake for the @dev's wakeup source object.
+ *
+ * Call this function after detecting of a wakeup event if pm_relax() is going
+ * to be called directly after processing the event (and possibly passing it to
+ * user space for further processing).
+ */
+void pm_stay_awake(struct device *dev)
+{
+	unsigned long flags;
+
+	if (!dev)
+		return;
+
+	spin_lock_irqsave(&dev->power.lock, flags);
+	__pm_stay_awake(dev->power.wakeup);
+	spin_unlock_irqrestore(&dev->power.lock, flags);
+}
+EXPORT_SYMBOL_GPL(pm_stay_awake);
 
 /**
  * __pm_relax - Notify the PM core that processing of a wakeup event has ended.
