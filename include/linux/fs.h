@@ -249,7 +249,13 @@ struct iattr {
  */
 #include <linux/quota.h>
 
-/** 
+/*
+ * Maximum number of layers of fs stack.  Needs to be limited to
+ * prevent kernel stack overflow
+ */
+#define FILESYSTEM_MAX_STACK_DEPTH 2
+
+/**
  * enum positive_aop_returns - aop return codes with specific semantics
  *
  * @AOP_WRITEPAGE_ACTIVATE: Informs the caller that page writeback has
@@ -1354,6 +1360,11 @@ struct super_block {
 #define FLAG_ASYNC_FSYNC        0x1
 	unsigned int fsync_flags;
 #endif
+
+	/*
+	 * Indicates how deep in a filesystem stack this SB is 
+	 */
+	int s_stack_depth;
 };
 
 /* superblock cache pruning functions */
