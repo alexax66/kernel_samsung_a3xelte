@@ -283,7 +283,7 @@ void kmem_cache_destroy(struct kmem_cache *s)
 }
 EXPORT_SYMBOL(kmem_cache_destroy);
 
-int slab_is_available(void)
+bool slab_is_available(void)
 {
 	return slab_state >= UP;
 }
@@ -497,6 +497,18 @@ void __init create_kmalloc_caches(unsigned long flags)
 }
 #endif /* !CONFIG_SLOB */
 
+void *kmalloc_order(size_t size, gfp_t flags, unsigned int order)
+{
+	void *ret;
+	struct page *page;
+
+	flags |= __GFP_COMP;
+	page = alloc_kmem_pages(flags, order);
+	ret = page ? page_address(page) : NULL;
+	kmemleak_alloc(ret, size, 1, flags);
+	return ret;
+}
+EXPORT_SYMBOL(kmalloc_order);
 
 #ifdef CONFIG_SLABINFO
 void print_slabinfo_header(struct seq_file *m)
@@ -554,7 +566,7 @@ memcg_accumulate_slabinfo(struct kmem_cache *s, struct slabinfo *info)
 		return;
 
 	for_each_memcg_cache_index(i) {
-		c = cache_from_memcg(s, i);
+		c = cache_from_memcg_idx(s, i);
 		if (!c)
 			continue;
 

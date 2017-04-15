@@ -174,6 +174,11 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute *devattr,
 		return -EINVAL;
 	}
 
+	if (strlen(buf) >= CMD_STR_LEN) {		
+		printk(KERN_ERR "%s: cmd length is over (%s,%d)!!\n", __func__, buf, (int)strlen(buf));
+		return -EINVAL;
+	}
+
 	if (!info->input_dev) {
 		printk(KERN_ERR "%s: No input_dev data found\n",
 				__func__);
@@ -244,7 +249,7 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute *devattr,
 				param_cnt++;
 			}
 			cur++;
-		} while (cur - buf <= len);
+		} while ((cur - buf <= len) && (param_cnt <  CMD_PARAM_NUM));
 	}
 	tsp_debug_info(true, &info->client->dev, "cmd = %s\n", ft_cmd_ptr->cmd_name);
 	for (i = 0; i < param_cnt; i++)

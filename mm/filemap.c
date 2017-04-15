@@ -33,6 +33,7 @@
 #include <linux/hardirq.h> /* for BUG_ON(!in_atomic()) only */
 #include <linux/memcontrol.h>
 #include <linux/cleancache.h>
+#include <linux/rmap.h>
 #include "internal.h"
 
 #ifdef CONFIG_SDP
@@ -111,12 +112,33 @@
  *   ->tasklist_lock            (memory_failure, collect_procs_ao)
  */
 
+static void page_cache_tree_delete(struct address_space *mapping,
+				   struct page *page, void *shadow)
+{
+	if (shadow) {
+		void **slot;
+
+		slot = radix_tree_lookup_slot(&mapping->page_tree, page->index);
+		radix_tree_replace_slot(slot, shadow);
+		mapping->nrshadows++;
+		/*
+		 * Make sure the nrshadows update is committed before
+		 * the nrpages update so that final truncate racing
+		 * with reclaim does not see both counters 0 at the
+		 * same time and miss a shadow entry.
+		 */
+		smp_wmb();
+	} else
+		radix_tree_delete(&mapping->page_tree, page->index);
+	mapping->nrpages--;
+}
+
 /*
  * Delete a page from the page cache and free it. Caller has to make
  * sure the page is locked and that nobody else uses it - or that usage
  * is safe.  The caller must hold the mapping's tree_lock.
  */
-void __delete_from_page_cache(struct page *page)
+void __delete_from_page_cache(struct page *page, void *shadow)
 {
 	struct address_space *mapping = page->mapping;
 
@@ -136,10 +158,11 @@ void __delete_from_page_cache(struct page *page)
 	else
 		cleancache_invalidate_page(mapping, page);
 
-	radix_tree_delete(&mapping->page_tree, page->index);
+	page_cache_tree_delete(mapping, page, shadow);
+
 	page->mapping = NULL;
 	/* Leave page->index set: truncation lookup relies upon it */
-	mapping->nrpages--;
+
 	__dec_zone_page_state(page, NR_FILE_PAGES);
 	if (PageSwapBacked(page))
 		__dec_zone_page_state(page, NR_SHMEM);
@@ -175,7 +198,7 @@ void delete_from_page_cache(struct page *page)
 
 	freepage = mapping->a_ops->freepage;
 	spin_lock_irq(&mapping->tree_lock);
-	__delete_from_page_cache(page);
+	__delete_from_page_cache(page, NULL);
 	spin_unlock_irq(&mapping->tree_lock);
 	mem_cgroup_uncharge_cache_page(page);
 
@@ -435,7 +458,7 @@ int replace_page_cache_page(struct page *old, struct page *new, gfp_t gfp_mask)
 		new->index = offset;
 
 		spin_lock_irq(&mapping->tree_lock);
-		__delete_from_page_cache(old);
+		__delete_from_page_cache(old, NULL);
 		error = radix_tree_insert(&mapping->page_tree, offset, new);
 		BUG_ON(error);
 		mapping->nrpages++;
@@ -454,6 +477,29 @@ int replace_page_cache_page(struct page *old, struct page *new, gfp_t gfp_mask)
 	return error;
 }
 EXPORT_SYMBOL_GPL(replace_page_cache_page);
+
+static int page_cache_tree_insert(struct address_space *mapping,
+				  struct page *page)
+{
+	void **slot;
+	int error;
+
+	slot = radix_tree_lookup_slot(&mapping->page_tree, page->index);
+	if (slot) {
+		void *p;
+
+		p = radix_tree_deref_slot_protected(slot, &mapping->tree_lock);
+		if (!radix_tree_exceptional_entry(p))
+			return -EEXIST;
+		radix_tree_replace_slot(slot, page);
+		mapping->nrpages++;
+		return 0;
+	}
+	error = radix_tree_insert(&mapping->page_tree, page->index, page);
+	if (!error)
+		mapping->nrpages++;
+	return error;
+}
 
 /**
  * add_to_page_cache_locked - add a locked page to the pagecache
@@ -485,9 +531,8 @@ int add_to_page_cache_locked(struct page *page, struct address_space *mapping,
 		page->index = offset;
 
 		spin_lock_irq(&mapping->tree_lock);
-		error = radix_tree_insert(&mapping->page_tree, offset, page);
+		error = page_cache_tree_insert(mapping, page);
 		if (likely(!error)) {
-			mapping->nrpages++;
 			__inc_zone_page_state(page, NR_FILE_PAGES);
 			spin_unlock_irq(&mapping->tree_lock);
 			trace_mm_filemap_add_to_page_cache(page);
@@ -693,14 +738,19 @@ int __lock_page_or_retry(struct page *page, struct mm_struct *mm,
 }
 
 /**
- * find_get_page - find and get a page reference
+ * find_get_entry - find and get a page cache entry
  * @mapping: the address_space to search
- * @offset: the page index
+ * @offset: the page cache index
  *
- * Is there a pagecache struct page at the given (mapping, offset) tuple?
- * If yes, increment its refcount and return it; if no, return NULL.
+ * Looks up the page cache slot at @mapping & @offset.  If there is a
+ * page cache page, it is returned with an increased refcount.
+ *
+ * If the slot holds a shadow entry of a previously evicted page, or a
+ * swap entry from shmem/tmpfs, it is returned.
+ *
+ * Otherwise, %NULL is returned.
  */
-struct page *find_get_page(struct address_space *mapping, pgoff_t offset)
+struct page *find_get_entry(struct address_space *mapping, pgoff_t offset)
 {
 	void **pagep;
 	struct page *page;
@@ -717,9 +767,9 @@ repeat:
 			if (radix_tree_deref_retry(page))
 				goto repeat;
 			/*
-			 * Otherwise, shmem/tmpfs must be storing a swap entry
-			 * here as an exceptional entry: so return it without
-			 * attempting to raise page count.
+			 * A shadow entry of a recently evicted page,
+			 * or a swap entry from shmem/tmpfs.  Return
+			 * it without attempting to raise page count.
 			 */
 			goto out;
 		}
@@ -741,24 +791,50 @@ out:
 
 	return page;
 }
-EXPORT_SYMBOL(find_get_page);
+EXPORT_SYMBOL(find_get_entry);
 
 /**
- * find_lock_page - locate, pin and lock a pagecache page
+ * find_get_page - find and get a page reference
  * @mapping: the address_space to search
  * @offset: the page index
  *
- * Locates the desired pagecache page, locks it, increments its reference
- * count and returns its address.
+ * Looks up the page cache slot at @mapping & @offset.  If there is a
+ * page cache page, it is returned with an increased refcount.
  *
- * Returns zero if the page was not present. find_lock_page() may sleep.
+ * Otherwise, %NULL is returned.
  */
-struct page *find_lock_page(struct address_space *mapping, pgoff_t offset)
+struct page *find_get_page(struct address_space *mapping, pgoff_t offset)
+{
+	struct page *page = find_get_entry(mapping, offset);
+
+	if (radix_tree_exceptional_entry(page))
+		page = NULL;
+	return page;
+}
+EXPORT_SYMBOL(find_get_page);
+
+/**
+ * find_lock_entry - locate, pin and lock a page cache entry
+ * @mapping: the address_space to search
+ * @offset: the page cache index
+ *
+ * Looks up the page cache slot at @mapping & @offset.  If there is a
+ * page cache page, it is returned locked and with an increased
+ * refcount.
+ *
+ * If the slot holds a shadow entry of a previously evicted page, or a
+ * swap entry from shmem/tmpfs, it is returned.
+ *
+ * Otherwise, %NULL is returned.
+ *
+ * find_lock_entry() may sleep.
+ */
+struct page *find_lock_entry(struct address_space *mapping, pgoff_t offset)
 {
 	struct page *page;
 
 repeat:
-	page = find_get_page(mapping, offset);
+	page = find_get_entry(mapping, offset);
 	if (page && !radix_tree_exception(page)) {
 		lock_page(page);
 		/* Has the page been truncated? */
@@ -771,6 +847,29 @@ repeat:
 	}
 	return page;
 }
+EXPORT_SYMBOL(find_lock_entry);
+
+/**
+ * find_lock_page - locate, pin and lock a pagecache page
+ * @mapping: the address_space to search
+ * @offset: the page index
+ *
+ * Looks up the page cache slot at @mapping & @offset.  If there is a
+ * page cache page, it is returned locked and with an increased
+ * refcount.
+ *
+ * Otherwise, %NULL is returned.
+ *
+ * find_lock_page() may sleep.
+ */
+struct page *find_lock_page(struct address_space *mapping, pgoff_t offset)
+{
+	struct page *page = find_lock_entry(mapping, offset);
+
+	if (radix_tree_exceptional_entry(page))
+		page = NULL;
+	return page;
+}
 EXPORT_SYMBOL(find_lock_page);
 
 /**
@@ -779,16 +878,18 @@ EXPORT_SYMBOL(find_lock_page);
  * @index: the page's index into the mapping
  * @gfp_mask: page allocation mode
  *
- * Locates a page in the pagecache.  If the page is not present, a new page
- * is allocated using @gfp_mask and is added to the pagecache and to the VM's
- * LRU list.  The returned page is locked and has its reference count
- * incremented.
+ * Looks up the page cache slot at @mapping & @offset.  If there is a
+ * page cache page, it is returned locked and with an increased
+ * refcount.
  *
- * find_or_create_page() may sleep, even if @gfp_flags specifies an atomic
- * allocation!
+ * If the page is not present, a new page is allocated using @gfp_mask
+ * and added to the page cache and the VM's LRU list.  The page is
+ * returned locked and with an increased refcount.
  *
- * find_or_create_page() returns the desired page's address, or zero on
- * memory exhaustion.
+ * On memory exhaustion, %NULL is returned.
+ *
+ * find_or_create_page() may sleep, even if @gfp_flags specifies an
+ * atomic allocation!
  */
 struct page *find_or_create_page(struct address_space *mapping,
 		pgoff_t index, gfp_t gfp_mask)
@@ -819,6 +920,76 @@ repeat:
 	return page;
 }
 EXPORT_SYMBOL(find_or_create_page);
+
+/**
+ * find_get_entries - gang pagecache lookup
+ * @mapping:	The address_space to search
+ * @start:	The starting page cache index
+ * @nr_entries:	The maximum number of entries
+ * @entries:	Where the resulting entries are placed
+ * @indices:	The cache indices corresponding to the entries in @entries
+ *
+ * find_get_entries() will search for and return a group of up to
+ * @nr_entries entries in the mapping.  The entries are placed at
+ * @entries.  find_get_entries() takes a reference against any actual
+ * pages it returns.
+ *
+ * The search returns a group of mapping-contiguous page cache entries
+ * with ascending indexes.  There may be holes in the indices due to
+ * not-present pages.
+ *
+ * Any shadow entries of evicted pages, or swap entries from
+ * shmem/tmpfs, are included in the returned array.
+ *
+ * find_get_entries() returns the number of pages and shadow entries
+ * which were found.
+ */
+unsigned find_get_entries(struct address_space *mapping,
+			  pgoff_t start, unsigned int nr_entries,
+			  struct page **entries, pgoff_t *indices)
+{
+	void **slot;
+	unsigned int ret = 0;
+	struct radix_tree_iter iter;
+
+	if (!nr_entries)
+		return 0;
+
+	rcu_read_lock();
+restart:
+	radix_tree_for_each_slot(slot, &mapping->page_tree, &iter, start) {
+		struct page *page;
+repeat:
+		page = radix_tree_deref_slot(slot);
+		if (unlikely(!page))
+			continue;
+		if (radix_tree_exception(page)) {
+			if (radix_tree_deref_retry(page))
+				goto restart;
+			/*
+			 * A shadow entry of a recently evicted page,
+			 * or a swap entry from shmem/tmpfs.  Return
+			 * it without attempting to raise page count.
+			 */
+			goto export;
+		}
+		if (!page_cache_get_speculative(page))
+			goto repeat;
+
+		/* Has the page moved? */
+		if (unlikely(page != *slot)) {
+			page_cache_release(page);
+			goto repeat;
+		}
+export:
+		indices[ret] = iter.index;
+		entries[ret] = page;
+		if (++ret == nr_entries)
+			break;
+	}
+	rcu_read_unlock();
+	return ret;
+}
 
 /**
  * find_get_pages - gang pagecache lookup
@@ -866,9 +1037,9 @@ repeat:
 				goto restart;
 			}
 			/*
-			 * Otherwise, shmem/tmpfs must be storing a swap entry
-			 * here as an exceptional entry: so skip over it -
-			 * we only reach this from invalidate_mapping_pages().
+			 * A shadow entry of a recently evicted page,
+			 * or a swap entry from shmem/tmpfs.  Skip
+			 * over it.
 			 */
 			continue;
 		}
@@ -933,9 +1104,9 @@ repeat:
 				goto restart;
 			}
 			/*
-			 * Otherwise, shmem/tmpfs must be storing a swap entry
-			 * here as an exceptional entry: so stop looking for
-			 * contiguous pages.
+			 * A shadow entry of a recently evicted page,
+			 * or a swap entry from shmem/tmpfs.  Stop
+			 * looking for contiguous pages.
 			 */
 			break;
 		}
@@ -1009,10 +1180,17 @@ repeat:
 				goto restart;
 			}
 			/*
-			 * This function is never used on a shmem/tmpfs
-			 * mapping, so a swap entry won't be found here.
+			 * A shadow entry of a recently evicted page.
+			 *
+			 * Those entries should never be tagged, but
+			 * this tree walk is lockless and the tags are
+			 * looked up in bulk, one radix tree node at a
+			 * time, so there is a sizable window for page
+			 * reclaim to evict a page we saw tagged.
+			 *
+			 * Skip over it.
 			 */
-			BUG();
+			continue;
 		}
 
 		if (!page_cache_get_speculative(page))
@@ -1632,11 +1810,11 @@ int filemap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	struct inode *inode = mapping->host;
 	pgoff_t offset = vmf->pgoff;
 	struct page *page;
-	pgoff_t size;
+	loff_t size;
 	int ret = 0;
 
-	size = (i_size_read(inode) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
-	if (offset >= size)
+	size = round_up(i_size_read(inode), PAGE_CACHE_SIZE);
+	if (offset >= size >> PAGE_CACHE_SHIFT)
 		return VM_FAULT_SIGBUS;
 
 	/*
@@ -1685,8 +1863,8 @@ retry_find:
 	 * Found the page and have a reference on it.
 	 * We must recheck i_size under page lock.
 	 */
-	size = (i_size_read(inode) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
-	if (unlikely(offset >= size)) {
+	size = round_up(i_size_read(inode), PAGE_CACHE_SIZE);
+	if (unlikely(offset >= size >> PAGE_CACHE_SHIFT)) {
 		unlock_page(page);
 		page_cache_release(page);
 		return VM_FAULT_SIGBUS;
@@ -1744,6 +1922,78 @@ page_not_uptodate:
 }
 EXPORT_SYMBOL(filemap_fault);
 
+void filemap_map_pages(struct vm_area_struct *vma, struct vm_fault *vmf)
+{
+	struct radix_tree_iter iter;
+	void **slot;
+	struct file *file = vma->vm_file;
+	struct address_space *mapping = file->f_mapping;
+	loff_t size;
+	struct page *page;
+	unsigned long address = (unsigned long) vmf->virtual_address;
+	unsigned long addr;
+	pte_t *pte;
+
+	rcu_read_lock();
+	radix_tree_for_each_slot(slot, &mapping->page_tree, &iter, vmf->pgoff) {
+		if (iter.index > vmf->max_pgoff)
+			break;
+repeat:
+		page = radix_tree_deref_slot(slot);
+		if (unlikely(!page))
+			goto next;
+		if (radix_tree_exception(page)) {
+			if (radix_tree_deref_retry(page))
+				break;
+			else
+				goto next;
+		}
+
+		if (!page_cache_get_speculative(page))
+			goto repeat;
+
+		/* Has the page moved? */
+		if (unlikely(page != *slot)) {
+			page_cache_release(page);
+			goto repeat;
+		}
+
+		if (!PageUptodate(page) ||
+				PageReadahead(page) ||
+				PageHWPoison(page))
+			goto skip;
+		if (!trylock_page(page))
+			goto skip;
+
+		if (page->mapping != mapping || !PageUptodate(page))
+			goto unlock;
+
+		size = round_up(i_size_read(mapping->host), PAGE_CACHE_SIZE);
+		if (page->index >= size >> PAGE_CACHE_SHIFT)
+			goto unlock;
+
+		pte = vmf->pte + page->index - vmf->pgoff;
+		if (!pte_none(*pte))
+			goto unlock;
+
+		if (file->f_ra.mmap_miss > 0)
+			file->f_ra.mmap_miss--;
+		addr = address + (page->index - vmf->pgoff) * PAGE_SIZE;
+		do_set_pte(vma, addr, page, pte, false, false);
+		unlock_page(page);
+		goto next;
+unlock:
+		unlock_page(page);
+skip:
+		page_cache_release(page);
+next:
+		if (iter.index == vmf->max_pgoff)
+			break;
+	}
+	rcu_read_unlock();
+}
+EXPORT_SYMBOL(filemap_map_pages);
+
 int filemap_page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
 	struct page *page = vmf->page;
@@ -1773,6 +2023,7 @@ EXPORT_SYMBOL(filemap_page_mkwrite);
 
 const struct vm_operations_struct generic_file_vm_ops = {
 	.fault		= filemap_fault,
+	.map_pages	= filemap_map_pages,
 	.page_mkwrite	= filemap_page_mkwrite,
 	.remap_pages	= generic_file_remap_pages,
 };

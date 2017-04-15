@@ -257,7 +257,7 @@ shrink_slab_node(struct shrink_control *shrinkctl, struct shrinker *shrinker,
         unsigned long freed = 0;
         unsigned long long delta;
         long total_scan;
-        long max_pass;
+        long freeable;
         long nr;
         long new_nr;
         int nid = shrinkctl->nid;
@@ -269,10 +269,10 @@ shrink_slab_node(struct shrink_control *shrinkctl, struct shrinker *shrinker,
                 min_cache_size = 0;
 
         if (shrinker->count_objects)
-                max_pass = shrinker->count_objects(shrinker, shrinkctl);
+                freeable = shrinker->count_objects(shrinker, shrinkctl);
         else
-                max_pass = do_shrinker_shrink(shrinker, shrinkctl, 0);
-        if (max_pass == 0)
+                freeable = do_shrinker_shrink(shrinker, shrinkctl, 0);
+        if (freeable == 0)
                 return 0;
 
         /*
@@ -284,14 +284,14 @@ shrink_slab_node(struct shrink_control *shrinkctl, struct shrinker *shrinker,
 
         total_scan = nr;
         delta = (4 * nr_pages_scanned) / shrinker->seeks;
-        delta *= max_pass;
+        delta *= freeable;
         do_div(delta, lru_pages + 1);
         total_scan += delta;
         if (total_scan < 0) {
                 printk(KERN_ERR
                 "shrink_slab: %pF negative objects to delete nr=%ld\n",
                        shrinker->shrink, total_scan);
-                total_scan = max_pass;
+                total_scan = freeable;
         }
 
         /*
@@ -300,26 +300,26 @@ shrink_slab_node(struct shrink_control *shrinkctl, struct shrinker *shrinker,
          * shrinkers to return -1 all the time. This results in a large
          * nr being built up so when a shrink that can do some work
          * comes along it empties the entire cache due to nr >>>
-         * max_pass.  This is bad for sustaining a working set in
+         * freeable.  This is bad for sustaining a working set in
          * memory.
          *
          * Hence only allow the shrinker to scan the entire cache when
          * a large delta change is calculated directly.
          */
-        if (delta < max_pass / 4)
-                total_scan = min(total_scan, max_pass / 2);
+        if (delta < freeable / 4)
+                total_scan = min(total_scan, freeable / 2);
 
         /*
          * Avoid risking looping forever due to too large nr value:
          * never try to free more than twice the estimate number of
          * freeable entries.
          */
-        if (total_scan > max_pass * 2)
-                total_scan = max_pass * 2;
+        if (total_scan > freeable * 2)
+                total_scan = freeable * 2;
 
         trace_mm_shrink_slab_start(shrinker, shrinkctl, nr,
                                 nr_pages_scanned, lru_pages,
-                                max_pass, delta, total_scan);
+                                freeable, delta, total_scan);
 
         while (total_scan > min_cache_size) {
 
@@ -611,7 +611,7 @@ static int __remove_mapping(struct address_space *mapping, struct page *page)
 
 		freepage = mapping->a_ops->freepage;
 
-		__delete_from_page_cache(page);
+		__delete_from_page_cache(page, NULL);
 		spin_unlock_irq(&mapping->tree_lock);
 		mem_cgroup_uncharge_cache_page(page);
 
@@ -1765,7 +1765,7 @@ static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 	struct zone *zone = lruvec_zone(lruvec);
 	unsigned long anon_prio, file_prio;
 	enum scan_balance scan_balance;
-	unsigned long anon, file, free;
+	unsigned long anon, file;
 	bool force_scan = false;
 	unsigned long ap, fp;
 	enum lru_list lru;
@@ -1819,13 +1819,17 @@ static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 		get_lru_size(lruvec, LRU_INACTIVE_FILE);
 
 	/*
-	 * If it's foreseeable that reclaiming the file cache won't be
-	 * enough to get the zone back into a desirable shape, we have
-	 * to swap.  Better start now and leave the - probably heavily
-	 * thrashing - remaining file pages alone.
+	 * Prevent the reclaimer from falling into the cache trap: as
+	 * cache pages start out inactive, every cache fault will tip
+	 * the scan balance towards the file LRU.  And as the file LRU
+	 * shrinks, so does the window for rotation from references.
+	 * This means we have a runaway feedback loop where a tiny
+	 * thrashing file LRU becomes infinitely more attractive than
+	 * anon pages.  Try to detect this based on file LRU size.
 	 */
 	if (global_reclaim(sc)) {
-		free = zone_page_state(zone, NR_FREE_PAGES);
+		unsigned long free = zone_page_state(zone, NR_FREE_PAGES);
+
 		if (unlikely(file + free <= high_wmark_pages(zone))) {
 			scan_balance = SCAN_ANON;
 			goto out;

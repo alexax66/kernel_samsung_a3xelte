@@ -1231,9 +1231,6 @@ unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 
 	*populate = 0;
 
-	while (file && (file->f_mode & FMODE_NONMAPPABLE))
-		file = file->f_op->get_lower_file(file);
-
 	/*
 	 * Does the application expect PROT_READ to imply PROT_EXEC?
 	 *
@@ -2033,7 +2030,6 @@ struct vm_area_struct *find_vma(struct mm_struct *mm, unsigned long addr)
 		return vma;
 
 	rb_node = mm->mm_rb.rb_node;
-	vma = NULL;
 
 	while (rb_node) {
 		struct vm_area_struct *tmp;
@@ -2994,7 +2990,7 @@ static const struct vm_operations_struct special_mapping_vmops = {
  * The array pointer and the pages it points to are assumed to stay alive
  * for as long as this mapping might exist.
  */
-int install_special_mapping(struct mm_struct *mm,
+struct vm_area_struct *_install_special_mapping(struct mm_struct *mm,
 			    unsigned long addr, unsigned long len,
 			    unsigned long vm_flags, struct page **pages)
 {
@@ -3003,7 +2999,7 @@ int install_special_mapping(struct mm_struct *mm,
 
 	vma = kmem_cache_zalloc(vm_area_cachep, GFP_KERNEL);
 	if (unlikely(vma == NULL))
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	INIT_LIST_HEAD(&vma->anon_vma_chain);
 	vma->vm_mm = mm;
@@ -3024,11 +3020,23 @@ int install_special_mapping(struct mm_struct *mm,
 	perf_event_mmap(vma);
 	uksm_vma_add_new(vma);
 
-	return 0;
+	return vma;
 
 out:
 	kmem_cache_free(vm_area_cachep, vma);
-	return ret;
+	return ERR_PTR(ret);
+}
+
+int install_special_mapping(struct mm_struct *mm,
+			    unsigned long addr, unsigned long len,
+			    unsigned long vm_flags, struct page **pages)
+{
+	struct vm_area_struct *vma = _install_special_mapping(mm,
+			    addr, len, vm_flags, pages);
+
+	if (IS_ERR(vma))
+		return PTR_ERR(vma);
+	return 0;
 }
 
 static DEFINE_MUTEX(mm_all_locks_mutex);

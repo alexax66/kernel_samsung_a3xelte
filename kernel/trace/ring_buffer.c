@@ -1586,6 +1586,7 @@ static void update_pages_handler(struct work_struct *work)
  * ring_buffer_resize - resize the ring buffer
  * @buffer: the buffer to resize.
  * @size: the new size.
+ * @cpu_id: the cpu buffer to resize
  *
  * Minimum size is 2 * BUF_PAGE_SIZE.
  *
