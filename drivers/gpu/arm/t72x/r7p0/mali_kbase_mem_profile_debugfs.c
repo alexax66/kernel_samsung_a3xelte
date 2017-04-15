@@ -47,27 +47,24 @@ static int kbasep_mem_profile_seq_show(struct seq_file *sfile, void *data)
 {
 	struct kbase_context *kctx = sfile->private;
 
+	KBASE_DEBUG_ASSERT(kctx != NULL);
+	
 	/* MALI_SEC_INTEGRATION - Destroyed context */
 	if (kctx == NULL)
 		return 0;
 
 	/* MALI_SEC_INTEGRATION */
 	{
-		struct kbase_device *kbdev = kctx->kbdev;
+	struct kbase_device *kbdev = kctx->kbdev;
 
-		atomic_inc(&kctx->mem_profile_showing_state);
-		if (kbdev->vendor_callbacks->mem_profile_check_kctx)
-			if (!kbdev->vendor_callbacks->mem_profile_check_kctx(kctx)) {
-				atomic_dec(&kctx->mem_profile_showing_state);
-				return 0;
-			}
+	if(kbdev->vendor_callbacks->mem_profile_check_kctx)
+		if (!kbdev->vendor_callbacks->mem_profile_check_kctx(kctx))
+			return 0;
 	}
 
 	/* MALI_SEC_INTEGRATION */
-	if (kctx->destroying_context) {
-		atomic_dec(&kctx->mem_profile_showing_state);
+	if (kctx->destroying_context)
 		return 0;
-	}
 
 	spin_lock(&kctx->mem_profile_lock);
 	/* MALI_SEC_INTEGRATION */
@@ -76,7 +73,6 @@ static int kbasep_mem_profile_seq_show(struct seq_file *sfile, void *data)
 		seq_putc(sfile, '\n');
 	}
 	spin_unlock(&kctx->mem_profile_lock);
-	atomic_dec(&kctx->mem_profile_showing_state);
 
 	return 0;
 }

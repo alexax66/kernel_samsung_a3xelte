@@ -6491,12 +6491,13 @@ static ssize_t shealth_cadence_enable_store(struct device *dev,
 {
 	struct bhy_client_data *client_data = dev_get_drvdata(dev);
 	int64_t enable;
-	int ret;
+	int ret = 0;
 
 	if (kstrtoll(buf, 10, &enable) < 0)
 		return -EINVAL;
 
-	ret = enable_logging(client_data, (bool)enable);
+	/* ret = enable_logging(client_data, (bool)enable); */
+    PINFO("log_mode : %d", client_data->log_mode);
 	if (ret < 0)
 		return ret;
 
@@ -7628,12 +7629,21 @@ int bhy_suspend(struct device *dev)
 
 	PINFO("Enter suspend");
 
+	/*
 	if (client_data->step_det_enabled || client_data->step_cnt_enabled) {
 		if (!client_data->pedo_enabled) {
 			ret = enable_logging(client_data, true);
 			if (ret < 0)
 				return ret;
 		}
+	}
+	*/
+	if (client_data->step_det_enabled ||
+		client_data->step_cnt_enabled ||
+		client_data->pedo_enabled) {
+		ret = enable_logging(client_data, true);
+		if (ret < 0)
+			return ret;
 	}
 
 	mutex_lock(&client_data->mutex_bus_op);
@@ -7749,12 +7759,21 @@ int bhy_resume(struct device *dev)
 	input_sync(client_data->input);
 #endif /*~ BHY_TS_LOGGING_SUPPORT */
 
+	/*
 	if (client_data->step_det_enabled || client_data->step_cnt_enabled) {
 		if (!client_data->pedo_enabled) {
 			ret = enable_logging(client_data, false);
 			if (ret < 0)
 				return ret;
 		}
+	}
+	*/
+	if (client_data->step_det_enabled ||
+		client_data->step_cnt_enabled ||
+		client_data->pedo_enabled) {
+		ret = enable_logging(client_data, false);
+		if (ret < 0)
+			return ret;
 	}
 
 	return 0;

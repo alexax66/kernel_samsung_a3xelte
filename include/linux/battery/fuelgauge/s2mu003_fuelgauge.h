@@ -58,7 +58,7 @@ struct sec_fg_info {
 	bool is_low_batt_alarm;
 
 	/* battery info */
-	u32 soc;
+	int soc;
 
 	/* miscellaneous */
 	unsigned long fullcap_check_interval;
@@ -74,6 +74,7 @@ struct s2mu003_platform_data {
 	int fuel_alert_soc;
 	int fullsocthr;
 	int fg_irq;
+	int system_rev;
 
 	char *fuelgauge_name;
 
@@ -112,7 +113,7 @@ struct s2mu003_fuelgauge_data {
 	/* register programming */
 	int reg_addr;
 	u8 reg_data[2];
-
+	int diff_soc;
 	unsigned int pre_soc;
 	int fg_irq;
 };

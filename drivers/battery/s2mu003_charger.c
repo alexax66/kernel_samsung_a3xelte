@@ -96,6 +96,8 @@ static enum power_supply_property sec_charger_props[] = {
 	POWER_SUPPLY_PROP_CHARGING_ENABLED,
 	POWER_SUPPLY_PROP_ENERGY_NOW,
 	POWER_SUPPLY_HEALTH_WATCHDOG_TIMER_EXPIRE,
+	POWER_SUPPLY_PROP_CHARGE_INITIALIZE,
+	POWER_SUPPLY_PROP_BOOST_DISABLE,
 };
 
 static enum power_supply_property s2mu003_otg_props[] = {
@@ -127,6 +129,12 @@ static void s2mu003_test_read(struct i2c_client *i2c)
 		data = s2mu003_reg_read(i2c, i);
 		sprintf(str+strlen(str), "0x%02x:0x%02x, ", i, data);
 	}
+
+	data = s2mu003_reg_read(i2c, 0x24);
+	sprintf(str+strlen(str), "0x%02x:0x%02x, ", 0x24, data);
+	
+	data = s2mu003_reg_read(i2c, 0x2A);
+	sprintf(str+strlen(str), "0x%02x:0x%02x, ", 0x2A, data);
 
 	data = s2mu003_reg_read(i2c, 0x89);
 	sprintf(str+strlen(str), "0x%02x:0x%02x, ", 0x89, data);
@@ -630,6 +638,167 @@ static bool s2mu003_chg_init(struct s2mu003_charger_data *charger)
 	return true;
 }
 
+static void s2mu003_flash_onoff(struct s2mu003_charger_data *charger, bool enable)
+{
+	pr_info("%s, %d\n", __func__, enable);
+
+	if (enable) {
+		s2mu003_assign_bits(charger->client, 0x24, 0xCC, 0x48);
+		s2mu003_assign_bits(charger->client, 0x2A, 0xCC, 0x48);
+		pr_info("%s enable, 0x24[7:6] = 01\n", __func__);
+	} else {
+		s2mu003_assign_bits(charger->client, 0x24, 0xCC, 0x00);
+		s2mu003_assign_bits(charger->client, 0x2A, 0xCC, 0x00);
+		pr_info("%s disable, 0x24[7:6] = 00\n", __func__);
+	}
+}
+
+static void s2mu003_charger_initialize(struct s2mu003_charger_data *charger)
+{
+	int temp, temp1;
+
+	/* 0. enable ULDO */
+	temp = s2mu003_reg_read(charger->client, 0x41);
+	temp |= 0x40;
+	s2mu003_reg_write(charger->client, 0x41, temp);
+
+	if(charger->dev_id == 0) {
+		temp = s2mu003_reg_read(charger->client, 0xAE);
+		temp &= 0x0F;
+		temp |= 0x10;
+		s2mu003_reg_write(charger->client, 0xAE, temp);
+
+		temp = s2mu003_reg_read(charger->client, 0x07);
+		temp |= 0x10;
+		s2mu003_reg_write(charger->client, 0x07, temp);
+
+		msleep(10);
+
+		temp = s2mu003_reg_read(charger->client, 0xA5);
+		temp1 = s2mu003_reg_read(charger->client, 0xAF);
+		charger->dev_id = ((temp & 0xC0) >> 4) | ((temp1 & 0xC0) >> 6);
+		pr_info("%s: Reload CHARGER ID : 0x%x\n", __func__, charger->dev_id);
+	}
+
+	temp = s2mu003_reg_read(charger->client, S2MU003_CHG_STATUS2);
+	temp = (temp & 0x08) ? 0 : 1;
+
+	if(!temp) {
+		pr_err("%s : battery is Disconnected\n", __func__);
+		temp = s2mu003_reg_read(charger->client, 0x8A);
+		temp &= 0xF8;
+		temp |= 0x01;
+		s2mu003_reg_write(charger->client, 0x8A, temp);
+
+		temp = s2mu003_reg_read(charger->client, 0x64);
+		temp |= 0x08;
+		s2mu003_reg_write(charger->client, 0x64, temp);
+
+		temp = s2mu003_reg_read(charger->client, 0x75);
+		temp |= 0x01;
+		s2mu003_reg_write(charger->client, 0x75, temp);
+	} else {
+		temp = s2mu003_reg_read(charger->client, 0x8A);
+		temp &= 0xF8;
+		temp |= 0x03;
+		s2mu003_reg_write(charger->client, 0x8A, temp); /* [2:0] = 0x3 */
+
+		temp = s2mu003_reg_read(charger->client, 0x64);
+		temp &= 0xF7;
+		s2mu003_reg_write(charger->client, 0x64, temp);
+
+		temp = s2mu003_reg_read(charger->client, 0x75);
+		temp &= 0xFE;
+		s2mu003_reg_write(charger->client, 0x75, temp);
+	}
+
+	temp = s2mu003_reg_read(charger->client, S2MU003_CHG_CTRL1);
+	temp1 = s2mu003_reg_read(charger->client, S2MU003_CHG_CTRL5);
+	pr_info("%s: chg curr(0x%x), in curr(0x%x)\n",
+		__func__, temp & 0xF0, temp1 & 0xF0);
+
+	temp = s2mu003_reg_read(charger->client, 0x8A);
+	temp &= ~0x20;
+	s2mu003_reg_write(charger->client, 0x8A, temp);
+
+	temp = s2mu003_reg_read(charger->client, 0x96);
+	temp |= 0x03;
+	s2mu003_reg_write(charger->client, 0x96, temp);   /* [1:0] = 11 */
+
+	temp = s2mu003_reg_read(charger->client, 0x97);
+	temp &= 0x0F;
+	temp |= 0xE0;
+	s2mu003_reg_write(charger->client, 0x97, temp);   /* [7:4] = 1110 */
+
+	temp = s2mu003_reg_read(charger->client, 0x9C);
+	temp &= 0xF7;
+	s2mu003_reg_write(charger->client, 0x9C, temp);   /* [3] = 0 */
+
+	temp = s2mu003_reg_read(charger->client, 0x8D);
+	temp |= 0x80;
+	s2mu003_reg_write(charger->client, 0x8D, temp);   /* [7] = 1 */
+
+	temp = s2mu003_reg_read(charger->client, 0x96);
+	temp &= 0xF3;
+	s2mu003_reg_write(charger->client, 0x96, temp);   /* 0x96[3:2] = 00 Dead time */
+
+	temp = s2mu003_reg_read(charger->client, 0x95);
+	temp &= 0xF8;
+	s2mu003_reg_write(charger->client, 0x95, temp);   /* 0X95[2:0] = 000 N Slew */
+
+	temp = s2mu003_reg_read(charger->client, 0x8E);
+	temp &= 0xF8;
+	temp |= 0X03;
+	s2mu003_reg_write(charger->client, 0x8E, temp);   /* 0X8E[2:0] = 011 */
+
+	temp = s2mu003_reg_read(charger->client, 0x8C);
+	temp &= 0x8F;
+	temp |= 0x70;
+	s2mu003_reg_write(charger->client, 0x8C, temp);   /* 0x8C[6:4] = 111 P Slew */
+
+	temp = s2mu003_reg_read(charger->client, 0x9B);
+	temp |= 0x80;
+	s2mu003_reg_write(charger->client, 0x9B, temp);   /* 0x9B[7] = 1 */
+
+	/* disable ic reset even if battery removed */
+	temp = s2mu003_reg_read(charger->client, 0x8A);
+	temp &= 0x7F;
+	s2mu003_reg_write(charger->client, 0x8A, temp);   /* [7] = 0 */
+
+	/* [7] = 1 done function disabled */
+	temp = s2mu003_reg_read(charger->client, 0x74);
+	temp |= 0x80;
+	s2mu003_reg_write(charger->client, 0x74, temp);
+
+	/* Set top-off timer to 0 minutes */
+	temp = s2mu003_reg_read(charger->client, S2MU003_CHG_CTRL7);
+	temp &= ~0x1C;
+	s2mu003_reg_write(charger->client, S2MU003_CHG_CTRL7, temp);
+
+	temp = s2mu003_reg_read(charger->client, S2MU003_CHG_CTRL7);
+	pr_info("%s: S2MU003_CHG_CTRL7: 0x%x\n", __func__, temp);
+
+	temp = s2mu003_reg_read(charger->client, 0x02);
+	temp |= 0x3;
+	s2mu003_reg_write(charger->client, 0x2, temp);    /* 0x2[1:0] = 3 */
+
+	/* Float voltage, otg voltage, eoc de-glitch time */
+	s2mu003_reg_write(charger->client, S2MU003_CHG_CTRL2, 0x70);
+
+	/* Timer setting */
+	s2mu003_reg_write(charger->client, S2MU003_CHG_CTRL3, 0x78);
+
+	/* Disable Charger Watchdog (set 250mA auto-recharge) */
+	s2mu003_reg_write(charger->client, S2MU003_CHG_CTRL6, 0x5D);
+
+	if(charger->is_charging)
+		s2mu003_configure_charger(charger);
+
+	s2mu003_chg_init(charger);
+	
+	dev_info(&charger->client->dev, "%s: Re-initialize Charger completely\n", __func__);
+}
+
 static int s2mu003_get_charging_status(struct s2mu003_charger_data *charger)
 {
 	int status = POWER_SUPPLY_STATUS_UNKNOWN;
@@ -911,6 +1080,16 @@ static int sec_chg_set_property(struct power_supply *psy,
 		}
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+                /* set charging current */
+                if (charger->is_charging) {
+                        /* decrease the charging current according to siop level */
+                        charger->siop_level = val->intval;
+                        pr_info("%s:SIOP level = %d, chg current = %d\n", __func__,
+                                        val->intval, charger->charging_current);
+                        eoc = s2mu003_get_current_eoc_setting(charger);
+                        s2mu003_set_charging_current(charger, 0);
+                }
+		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		/* Slate mode ON case */
 		if (val->intval == 0) {
@@ -918,16 +1097,14 @@ static int sec_chg_set_property(struct power_supply *psy,
 			s2mu003_set_input_current_limit(charger, 0);
 			s2mu003_enable_charger_switch(charger, 0);
 			break;
-		}
-		/* set charging current */
-		if (charger->is_charging) {
-			/* decrease the charging current according to siop level */
-			charger->siop_level = val->intval;
-			pr_info("%s:SIOP level = %d, chg current = %d\n", __func__,
-					val->intval, charger->charging_current);
-			eoc = s2mu003_get_current_eoc_setting(charger);
-			s2mu003_set_charging_current(charger, 0);
-		}
+		} else if (charger->is_charging) {
+                        /* decrease the charging current according to siop level */
+                        charger->siop_level = val->intval;
+                        pr_info("%s:SIOP level = %d, chg current = %d\n", __func__,
+                                        val->intval, charger->charging_current);
+                        eoc = s2mu003_get_current_eoc_setting(charger);
+                        s2mu003_set_charging_current(charger, 0);
+                }
 		break;
 #if defined(CONFIG_BATTERY_SWELLING) || defined(CONFIG_BATTERY_SWELLING_SELF_DISCHARGING)
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
@@ -949,6 +1126,12 @@ static int sec_chg_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
 		/* charger->is_charging = val->intval; */
 		s2mu003_enable_charger_switch(charger, val->intval);
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_INITIALIZE:
+		s2mu003_charger_initialize(charger);
+		break;
+	case POWER_SUPPLY_PROP_BOOST_DISABLE:
+		s2mu003_flash_onoff(charger, val->intval);
 		break;
 	case POWER_SUPPLY_PROP_ENERGY_NOW:
 		/* Switch-off charger if JIG is connected */

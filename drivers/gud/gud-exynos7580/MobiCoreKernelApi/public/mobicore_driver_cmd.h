@@ -14,7 +14,7 @@
 #ifndef _MOBICORE_DRIVER_CMD_H_
 #define _MOBICORE_DRIVER_CMD_H_
 
-#include "mcuuid.h"
+#include "../include/mcuuid.h"
 
 enum mc_drv_cmd_t {
 	MC_DRV_CMD_PING			= 0,

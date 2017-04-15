@@ -483,3 +483,16 @@ config STORE_MODE
        default n
        help
 	 Say Y to enable CONFIG_STORE_MODE
+
+config A3XE
+       bool "config for A3XE"
+       help
+        Say y to include config for A3XE
+
+config LOWTEMP_VBAT_DROP_PREVENT
+       tristate "Prevent vbat drop when low temperature"
+       default n
+       depends on ARM_EXYNOS_SMP_CPUFREQ
+       help
+         This option prevent vbat drop when low temerature thereby setting cpu clock
+          max lock.
