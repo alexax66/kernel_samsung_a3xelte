@@ -897,6 +897,12 @@ config TOUCHSCREEN_MXT540E
 	  To compile this driver as a module, choose M here: the
 	  module will be called mxt540e.
 
+config SWEEP2SLEEP
+	tristate "Sweep touchscreens to put device to sleep"
+	default n
+	help
+	  Say Y here to support sweep2sleep
+
 source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
 source "drivers/input/touchscreen/stm/Kconfig"
 source "drivers/input/touchscreen/melfas_mms400/Kconfig"
