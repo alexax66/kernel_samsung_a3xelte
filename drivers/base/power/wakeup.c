@@ -31,8 +31,6 @@ static bool enable_wlan_wd_wakelock_ws = true;
 module_param(enable_wlan_wd_wakelock_ws, bool, 0644);
 static bool enable_wlan_extscan_wl_ws = true;
 module_param(enable_wlan_extscan_wl_ws, bool, 0644);
-static bool enable_ipa_ws = true;
-module_param(enable_ipa_ws, bool, 0644);
 static bool enable_wlan_ws = true;
 module_param(enable_wlan_ws, bool, 0644);
 static bool enable_netlink_ws = true;
