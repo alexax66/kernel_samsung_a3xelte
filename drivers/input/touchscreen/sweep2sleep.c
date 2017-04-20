@@ -52,7 +52,7 @@
 /* Tuneables */
 #define S2W_DEBUG		0
 #define S2W_DEFAULT		1
-#define S2W_PWRKEY_DUR          60
+#define S2W_PWRKEY_DUR		100
 
 /* Screen size */
 #define DEFAULT_S2W_Y_MAX		1280
@@ -372,34 +372,15 @@ static ssize_t s2w_sweep2sleep_show(struct device *dev,
 static ssize_t s2w_sweep2sleep_dump(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	if (buf[0] >= '0' && buf[0] <= '1' && buf[1] == '\n')
-                if (s2w_switch != buf[0] - '0')
-		        s2w_switch = buf[0] - '0';
+	sscanf(buf, "%d ", &s2w_switch);
+	if (s2w_switch < 0 || s2w_switch > 1)
+		s2w_switch = 0;
 
 	return count;
 }
 
 static DEVICE_ATTR(sweep2sleep, (S_IWUSR|S_IRUGO),
 	s2w_sweep2sleep_show, s2w_sweep2sleep_dump);
-
-static ssize_t s2w_version_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	size_t count = 0;
-
-	count += sprintf(buf, "%s\n", DRIVER_VERSION);
-
-	return count;
-}
-
-static ssize_t s2w_version_dump(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	return count;
-}
-
-static DEVICE_ATTR(sweep2sleep_version, (S_IWUSR|S_IRUGO),
-	s2w_version_show, s2w_version_dump);
 
 /*
  * INIT / EXIT stuff below here
@@ -453,12 +434,6 @@ static int __init sweep2sleep_init(void)
 	if (rc) {
 		pr_warn("%s: sysfs_create_file failed for sweep2sleep\n",
 				__func__);
-	}
-	rc = sysfs_create_file(sweep2sleep_kobj,
-			&dev_attr_sweep2sleep_version.attr);
-	if (rc) {
-		pr_warn("%s: sysfs_create_file failed for \
-				sweep2sleep_version\n", __func__);
 	}
 
 err_input_dev:
