@@ -283,7 +283,7 @@ static int single_step_handler(unsigned long addr, unsigned int esr,
 	if (user_mode(regs)) {
 		info.si_signo = SIGTRAP;
 		info.si_errno = 0;
-		info.si_code  = TRAP_HWBKPT;
+		info.si_code  = TRAP_TRACE;
 		info.si_addr  = (void __user *)instruction_pointer(regs);
 		force_sig_info(SIGTRAP, &info, current);
 
@@ -411,7 +411,7 @@ int aarch32_break_handler(struct pt_regs *regs)
 static int __init debug_traps_init(void)
 {
 	hook_debug_fault_code(DBG_ESR_EVT_HWSS, single_step_handler, SIGTRAP,
-			      TRAP_HWBKPT, "single-step handler");
+			      TRAP_TRACE, "single-step handler");
 	hook_debug_fault_code(DBG_ESR_EVT_BRK, brk_handler, SIGTRAP,
 			      TRAP_BRKPT, "ptrace BRK handler");
 	return 0;
