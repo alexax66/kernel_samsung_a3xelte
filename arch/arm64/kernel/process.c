@@ -1,4 +1,4 @@
-    /*
+/*
  * Based on arch/arm/kernel/process.c
  *
  * Original Copyright (C) 1995  Linus Torvalds
