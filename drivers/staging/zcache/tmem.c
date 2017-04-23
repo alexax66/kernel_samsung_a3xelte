@@ -51,7 +51,7 @@ void tmem_register_hostops(struct tmem_hostops *m)
 
 /*
  * A tmem host implementation must use this function to register
- * callbacks for a page-accessible memory (PAM) implementation
+ * callbacks for a page-accessible memory (PAM) implementation.
  */
 static struct tmem_pamops tmem_pamops;
 
@@ -124,7 +124,7 @@ static void tmem_obj_free(struct tmem_obj *obj, struct tmem_hashbucket *hb)
 }
 
 /*
- * initialize, and insert an tmem_object_root (called only if find failed)
+ * Initialize, and insert an tmem_object_root (called only if find failed)
  */
 static void tmem_obj_init(struct tmem_obj *obj, struct tmem_hashbucket *hb,
 					struct tmem_pool *pool,
@@ -169,7 +169,7 @@ static void tmem_obj_init(struct tmem_obj *obj, struct tmem_hashbucket *hb,
  * "ephemeral" vs "persistent".  These attributes apply to all tmem_objs
  * and all pampds that belong to a tmem_pool.  A tmem_pool is created
  * or deleted relatively rarely (for example, when a filesystem is
- * mounted or unmounted.
+ * mounted or unmounted).
  */
 
 /* flush all data from a pool and, optionally, free it */
@@ -273,7 +273,7 @@ static void tmem_objnode_free(struct tmem_objnode *objnode)
 }
 
 /*
- * lookup index in object and return associated pampd (or NULL if not found)
+ * Lookup index in object and return associated pampd (or NULL if not found)
  */
 static void **__tmem_pampd_lookup_in_obj(struct tmem_obj *obj, uint32_t index)
 {
@@ -467,7 +467,7 @@ out:
 	return slot;
 }
 
-/* recursively walk the objnode_tree destroying pampds and objnodes */
+/* Recursively walk the objnode_tree destroying pampds and objnodes. */
 static void tmem_objnode_node_destroy(struct tmem_obj *obj,
 					struct tmem_objnode *objnode,
 					unsigned int ht)
@@ -596,7 +596,6 @@ out:
  * That is, if a get is done with a certain handle and fails, any
  * subsequent "get" must also fail (unless of course there is a
  * "put" done with the same handle).
-
  */
 int tmem_get(struct tmem_pool *pool, struct tmem_oid *oidp, uint32_t index,
 		char *data, size_t *size, bool raw, int get_and_free)
