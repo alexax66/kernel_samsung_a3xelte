@@ -29,6 +29,8 @@
 
 #ifndef __ASSEMBLY__
 
+#include <linux/kernel.h>
+
 struct arm64_cpu_capabilities {
 	const char *desc;
 	u16 capability;
@@ -62,6 +64,12 @@ static inline void cpus_set_cap(unsigned int num)
 			num, ARM64_NCAPS);
 	else
 		__set_bit(num, cpu_hwcaps);
+}
+
+static inline int __attribute_const__ cpuid_feature_extract_field(u64 features,
+								  int field)
+{
+	return (s64)(features << (64 - 4 - field)) >> (64 - 4);
 }
 
 void check_cpu_capabilities(const struct arm64_cpu_capabilities *caps,

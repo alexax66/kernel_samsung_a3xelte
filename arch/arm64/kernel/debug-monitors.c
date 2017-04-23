@@ -195,7 +195,6 @@ static int __cpuinit debug_monitors_init(void)
 	/* Clear the OS lock. */
 	on_each_cpu(clear_os_lock, NULL, 1);
 	isb();
-	local_dbg_enable();
 
 	/* Register hotplug handler. */
 	register_cpu_notifier(&os_lock_nb);
@@ -209,21 +208,12 @@ postcore_initcall(debug_monitors_init);
  */
 static void set_regs_spsr_ss(struct pt_regs *regs)
 {
-	unsigned long spsr;
-
-	spsr = regs->pstate;
-	spsr &= ~DBG_SPSR_SS;
-	spsr |= DBG_SPSR_SS;
-	regs->pstate = spsr;
+	regs->pstate |= DBG_SPSR_SS;
 }
 
 static void clear_regs_spsr_ss(struct pt_regs *regs)
 {
-	unsigned long spsr;
-
-	spsr = regs->pstate;
-	spsr &= ~DBG_SPSR_SS;
-	regs->pstate = spsr;
+	regs->pstate &= ~DBG_SPSR_SS;
 }
 
 /* EL1 Single Step Handler hooks */
@@ -283,7 +273,7 @@ static int single_step_handler(unsigned long addr, unsigned int esr,
 	if (user_mode(regs)) {
 		info.si_signo = SIGTRAP;
 		info.si_errno = 0;
-		info.si_code  = TRAP_HWBKPT;
+		info.si_code  = TRAP_TRACE;
 		info.si_addr  = (void __user *)instruction_pointer(regs);
 		force_sig_info(SIGTRAP, &info, current);
 
@@ -411,7 +401,7 @@ int aarch32_break_handler(struct pt_regs *regs)
 static int __init debug_traps_init(void)
 {
 	hook_debug_fault_code(DBG_ESR_EVT_HWSS, single_step_handler, SIGTRAP,
-			      TRAP_HWBKPT, "single-step handler");
+			      TRAP_TRACE, "single-step handler");
 	hook_debug_fault_code(DBG_ESR_EVT_BRK, brk_handler, SIGTRAP,
 			      TRAP_BRKPT, "ptrace BRK handler");
 	return 0;
@@ -460,8 +450,10 @@ int kernel_active_single_step(void)
 /* ptrace API */
 void user_enable_single_step(struct task_struct *task)
 {
-	set_ti_thread_flag(task_thread_info(task), TIF_SINGLESTEP);
-	set_regs_spsr_ss(task_pt_regs(task));
+	struct thread_info *ti = task_thread_info(task);
+
+	if (!test_and_set_ti_thread_flag(ti, TIF_SINGLESTEP))
+		set_regs_spsr_ss(task_pt_regs(task));
 }
 
 void user_disable_single_step(struct task_struct *task)

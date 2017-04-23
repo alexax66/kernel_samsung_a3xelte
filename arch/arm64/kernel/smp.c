@@ -144,7 +144,6 @@ asmlinkage void __cpuinit secondary_start_kernel(void)
 	 */
 	atomic_inc(&mm->mm_count);
 	current->active_mm = mm;
-	cpumask_set_cpu(cpu, mm_cpumask(mm));
 
 	set_my_cpu_offset(per_cpu_offset(smp_processor_id()));
 
@@ -187,7 +186,6 @@ asmlinkage void __cpuinit secondary_start_kernel(void)
 	set_cpu_online(cpu, true);
 	complete(&cpu_running);
 
-	local_dbg_enable();
 	/*
 	 * Setup the percpu timer for this CPU.
 	 */
@@ -249,11 +247,6 @@ int __cpu_disable(void)
 	 * Stop the local timer for this CPU.
 	 */
 	percpu_timer_stop();
-
-	/*
-	 * Remove this CPU from the vm mask set of all processes.
-	 */
-	clear_tasks_mm_cpumask(cpu);
 
 	return 0;
 }

@@ -114,6 +114,7 @@ struct lcd_info {
 
 	int				temperature;
 	unsigned int			temperature_index;
+	int				lux;
 
 	unsigned char			id[LDI_LEN_ID];
 	unsigned char			code[LDI_LEN_CHIP_ID];
@@ -327,7 +328,7 @@ static int dsim_panel_set_brightness(struct lcd_info *lcd, int force)
 
 	lcd->current_bl = lcd->bl;
 
-	dev_info(&lcd->ld->dev, "brightness: %d, bl: %d, nit: %d\n", lcd->brightness, lcd->bl, index_brightness_table[lcd->bl]);
+	dev_info(&lcd->ld->dev, "brightness: %d, bl: %d, nit: %d, lx: %d\n", lcd->brightness, lcd->bl, index_brightness_table[lcd->bl], lcd->lux);
 exit:
 	mutex_unlock(&lcd->lock);
 
@@ -986,6 +987,7 @@ static int s6e3aa2_probe(struct dsim_device *dsim)
 	lcd->hbm_table = HBM_TABLE;
 	lcd->aor_table = AOR_TABLE;
 	lcd->aor_ldu_table = AOR_LDU_TABLE;
+	lcd->lux = -1;
 
 	ret = s6e3aa2_read_init_info(lcd, mtp);
 	if (priv->lcdConnected == PANEL_DISCONNEDTED) {
@@ -1260,6 +1262,41 @@ static ssize_t cell_id_show(struct device *dev,
 	return strlen(buf);
 }
 
+static ssize_t lux_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%d\n", lcd->lux);
+
+	return strlen(buf);
+}
+
+static ssize_t lux_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	int value;
+	int rc;
+
+	rc = kstrtoint(buf, 0, &value);
+
+	if (rc < 0)
+		return rc;
+
+	if (lcd->lux != value) {
+		mutex_lock(&lcd->lock);
+		lcd->lux = value;
+		mutex_unlock(&lcd->lock);
+
+#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
+		attr_store_for_each(dev->parent->class, attr->attr.name, buf, size);
+#endif
+	}
+
+	return size;
+}
+
 #ifdef CONFIG_PANEL_AID_DIMMING
 static void show_aid_log(struct lcd_info *lcd)
 {
@@ -1519,6 +1556,7 @@ static DEVICE_ATTR(dump_register, 0644, dump_register_show, dump_register_store)
 static DEVICE_ATTR(weakness_hbm_comp, 0664, weakness_hbm_show, weakness_hbm_store);
 static DEVICE_ATTR(auto_brightness_level, 0444, auto_brightness_level_show, NULL);
 static DEVICE_ATTR(ldu_correction, 0664, ldu_correction_show, ldu_correction_store);
+static DEVICE_ATTR(lux, 0644, lux_show, lux_store);
 
 static struct attribute *lcd_sysfs_attributes[] = {
 	&dev_attr_lcd_type.attr,
@@ -1534,6 +1572,7 @@ static struct attribute *lcd_sysfs_attributes[] = {
 	&dev_attr_dump_register.attr,
 	&dev_attr_ldu_correction.attr,
 	&dev_attr_brightness_table.attr,
+	&dev_attr_lux.attr,
 	NULL,
 };
 

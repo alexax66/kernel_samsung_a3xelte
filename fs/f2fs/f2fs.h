@@ -203,7 +203,7 @@ enum {
 #define BATCHED_TRIM_BLOCKS(sbi)	\
 		(BATCHED_TRIM_SEGMENTS(sbi) << (sbi)->log_blocks_per_seg)
 #define DEF_CP_INTERVAL			60	/* 60 secs */
-#define DEF_IDLE_INTERVAL		120	/* 120 secs */
+#define DEF_IDLE_INTERVAL		30	/* 30 secs */
 
 struct cp_control {
 	int reason;

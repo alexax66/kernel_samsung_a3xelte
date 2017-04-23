@@ -475,7 +475,8 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 			continue;
 
 		/* if task no longer has any memory ignore it */
-		if (test_task_flag(tsk, TIF_MM_RELEASED))
+		if (test_task_flag(tsk, TIF_MM_RELEASED) ||
+		    test_task_flag(tsk, TIF_MEMALLOC))
 			continue;
 
 		if (time_before_eq(jiffies, lowmem_deathpending_timeout)) {
