@@ -362,7 +362,7 @@ static unsigned int choose_freq(struct cpufreq_interactive_cpuinfo *pcpu,
 				 */
 				if (cpufreq_frequency_table_target(
 					    pcpu->policy, pcpu->freq_table,
-					    freqmax - 1, CPUFREQ_RELATION_C,
+					    freqmax - 1, CPUFREQ_RELATION_L,
 					    &index))
 					break;
 				freq = pcpu->freq_table[index].frequency;
@@ -697,7 +697,7 @@ static int cpufreq_interactive_speedchange_task(void *data)
 			if (max_freq != pcpu->policy->cur) {
 				__cpufreq_driver_target(pcpu->policy,
 							max_freq,
-							CPUFREQ_RELATION_C);
+							CPUFREQ_RELATION_L);
 				for_each_cpu(j, pcpu->policy->cpus) {
 					pjcpu = &per_cpu(cpuinfo, j);
 					pjcpu->hispeed_validate_time = hvt;
@@ -1573,6 +1573,7 @@ unsigned int cpufreq_interactive_get_hispeed_freq(int cpu)
 	return tunables->hispeed_freq;
 }
 
+#ifdef CONFIG_ARCH_EXYNOS
 #ifndef CONFIG_EXYNOS7580_QUAD
 static int cpufreq_interactive_cluster1_min_qos_handler(struct notifier_block *b,
 						unsigned long val, void *v)
@@ -1614,7 +1615,7 @@ static int cpufreq_interactive_cluster1_min_qos_handler(struct notifier_block *b
 		spin_unlock_irqrestore(&speedchange_cpumask_lock, flags);
 
 		if (tunables->speedchange_task)
-			(tunables->speedchange_task);
+			wake_up_process_no_notif(tunables->speedchange_task);
 	}
 exit:
 	mutex_unlock(&gov_lock);
@@ -1675,6 +1676,7 @@ exit:
 static struct notifier_block cpufreq_interactive_cluster1_max_qos_notifier = {
 	.notifier_call = cpufreq_interactive_cluster1_max_qos_handler,
 };
+#endif
 
 #if defined(CONFIG_ARM_EXYNOS_MP_CPUFREQ) || defined(CONFIG_ARM_EXYNOS_SMP_CPUFREQ)
 static int cpufreq_interactive_cluster0_min_qos_handler(struct notifier_block *b,
@@ -1712,7 +1714,7 @@ static int cpufreq_interactive_cluster0_min_qos_handler(struct notifier_block *b
 		spin_unlock_irqrestore(&speedchange_cpumask_lock, flags);
 
 		if (tunables->speedchange_task)
-			(tunables->speedchange_task);
+			wake_up_process_no_notif(tunables->speedchange_task);
 	}
 exit:
 	mutex_unlock(&gov_lock);
@@ -1795,6 +1797,7 @@ static int __init cpufreq_interactive_init(void)
 	spin_lock_init(&speedchange_cpumask_lock);
 	mutex_init(&gov_lock);
 
+#ifdef CONFIG_ARCH_EXYNOS
 #ifndef CONFIG_EXYNOS7580_QUAD
 	pm_qos_add_notifier(PM_QOS_CLUSTER1_FREQ_MIN, &cpufreq_interactive_cluster1_min_qos_notifier);
 	pm_qos_add_notifier(PM_QOS_CLUSTER1_FREQ_MAX, &cpufreq_interactive_cluster1_max_qos_notifier);
@@ -1802,6 +1805,7 @@ static int __init cpufreq_interactive_init(void)
 #if defined(CONFIG_ARM_EXYNOS_MP_CPUFREQ) || defined(CONFIG_ARM_EXYNOS_SMP_CPUFREQ)
 	pm_qos_add_notifier(PM_QOS_CLUSTER0_FREQ_MIN, &cpufreq_interactive_cluster0_min_qos_notifier);
 	pm_qos_add_notifier(PM_QOS_CLUSTER0_FREQ_MAX, &cpufreq_interactive_cluster0_max_qos_notifier);
+#endif
 #endif
 
 	return cpufreq_register_governor(&cpufreq_gov_interactive);
