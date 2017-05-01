@@ -19,6 +19,9 @@
 #ifdef CONFIG_STATE_NOTIFIER
 #include <linux/state_notifier.h>
 #endif
+#ifdef CONFIG_POWERSUSPEND
+#include <linux/powersuspend.h>
+#endif
 #include "internal.h"
 
 #ifdef CONFIG_COMPACTION
@@ -1161,6 +1164,25 @@ static struct notifier_block compact_notifier_block = {
 };
 #endif
 
+#ifdef CONFIG_POWERSUSPEND
+static void compact_nodes(void);
+
+static void compact_power_suspend(struct power_suspend *handler)
+{
+	compact_nodes();
+}
+
+static void compact_power_resume(struct power_suspend *handler)
+{
+	//empty
+}
+
+static struct power_suspend compact_suspend = {
+	.suspend = compact_power_suspend,
+	.resume = compact_power_resume,
+};
+#endif
+
 /* Compact all zones within a node */
 static void __compact_pgdat(pg_data_t *pgdat, struct compact_control *cc)
 {
@@ -1297,6 +1319,15 @@ void compaction_unregister_node(struct node *node)
 static int  __init mem_compaction_init(void)
 {
 	state_register_client(&compact_notifier_block);
+	return 0;
+}
+late_initcall(mem_compaction_init);
+#endif
+
+#ifdef CONFIG_POWERSUSPEND
+static int  __init mem_compaction_init(void)
+{
+	register_power_suspend(&compact_suspend);
 	return 0;
 }
 late_initcall(mem_compaction_init);
