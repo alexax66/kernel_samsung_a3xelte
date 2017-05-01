@@ -42,6 +42,9 @@
 #include <linux/state_notifier.h>
 static struct notifier_block writeback_state_notif;
 #endif
+#ifdef CONFIG_POWERSUSPEND
+#include <linux/powersuspend.h>
+#endif
 
 #include "internal.h"
 
@@ -1825,6 +1828,27 @@ static int state_notifier_callback(struct notifier_block *this,
 }
 #endif
 
+#ifdef CONFIG_POWERSUSPEND
+static void writeback_power_suspend(struct power_suspend *handler)
+{
+	dirty_writeback_interval =
+		suspend_dirty_writeback_interval;
+	dirty_expire_interval = suspend_dirty_expire_interval;
+}
+
+static void writeback_power_resume(struct power_suspend *handler)
+{
+	dirty_writeback_interval =
+		resume_dirty_writeback_interval;
+	dirty_expire_interval = resume_dirty_expire_interval;
+}
+
+static struct power_suspend writeback_suspend = {
+	.suspend = writeback_power_suspend,
+	.resume = writeback_power_resume,
+};
+#endif
+
 /*
  * Called early on to tune the page writeback dirty limits.
  *
@@ -1865,6 +1889,9 @@ void __init page_writeback_init(void)
 	writeback_set_ratelimit();
 	register_cpu_notifier(&ratelimit_nb);
 
+#ifdef CONFIG_POWERSUSPEND
+	register_power_suspend(&writeback_suspend);
+#endif
 	fprop_global_init(&writeout_completions);
 }
 
