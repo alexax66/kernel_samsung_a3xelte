@@ -17,6 +17,6 @@
 	- module : drivers/*/built-in.o
 
 3. How to Clean	
-		$ make clean
-		$ make ARCH=arm64 distclean
+	- $ make clean
+	- $ make ARCH=arm64 distclean
 ################################################################################
