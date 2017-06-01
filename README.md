@@ -1,22 +1,37 @@
-################################################################################
+# Kernel_samsung_a3xelte
+## Warning: this is for Marshmallow only
 
-1. How to Build
-	- get Toolchain
-		From android git server , codesourcery and etc ..
-		- aarch64-linux-android-4.9
-	- edit Makefile
-		edit "CROSS_COMPILE" to right toolchain path(You downloaded).
-		Ex)  CROSS_COMPILE=/*/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-    // You have to check.
+_How to build?_
 
-	- make
-		$ make ARCH=arm64 exynos7580-a3xelte_defconfig
-		$ make ARCH=arm64
+- Download this toolchain: `aarch64-cortex_a53-linux-gnueabi` and extract it
+	- Example: `/opt/toolchains/aarch64-cortex_a53-linux-gnueabi-GNU-6.3.0/`
+	
+- Edit `Makefile`
+	- Search `CROSS_COMPILE` variable
+	- Replace value by the bin prefix of toolchain
+		- Like this: 
+		`CROSS_COMPILE	?= /opt/toolchains/aarch64-cortex_a53-linux-gnueabi-GNU-6.3.0/bin/aarch64-cortex_a53-linux-gnueabi-` 
+		(don't forgot the **dash** at end)
+		
+- Run `build_kernel.sh`
 
-2. Output files
-	- Kernel : arch/arm64/boot/Image
-	- module : drivers/*/built-in.o
+_Outputs_
 
-3. How to Clean	
-		$ make clean
-		$ make ARCH=arm64 distclean
-################################################################################
+You can find output in :
+- Kernel : arch/arm64/boot/Image
+	- To use it, rename it in Kernel-zImage in split_img folder of boot.img extracted
+	
+- module : drivers/*/built-in.o
+
+_How to clean?_
+
+Run this: `make mrproper`
+Or: `make clean`
+Or: `make ARCH=arm64 distclean`
+
+_Tips_
+
+- If you have a good config, you can allocate more memory to make process
+	- Edit `build_kernel.sh`
+	- Search for `-j5` parameter
+	- Edit it to `-jN`, replace N by the number of thread of your PC (like 6, 8, more...)
