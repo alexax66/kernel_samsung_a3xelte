@@ -190,12 +190,14 @@ void emergency_sync(void)
  */
 SYSCALL_DEFINE1(syncfs, int, fd)
 {
-	struct fd f = fdget(fd);
+	struct fd f;
 	struct super_block *sb;
 	int ret;
 
 	if (!fsync_enabled)
 		return 0;
+
+	f = fdget(fd);
 
 	if (!f.file)
 		return -EBADF;
@@ -310,7 +312,7 @@ static void do_afsync_work(struct work_struct *work)
 
 static int do_fsync(unsigned int fd, int datasync)
 {
-	struct fd f = fdget(fd);
+	struct fd f;
 	int ret = -EBADF;
 
 	if (!fsync_enabled)
@@ -319,6 +321,8 @@ static int do_fsync(unsigned int fd, int datasync)
 #ifdef CONFIG_ASYNC_FSYNC
 	struct fsync_work *fwork;
 #endif
+
+	f = fdget(fd);
 
 	if (f.file) {
 #ifdef CONFIG_ASYNC_FSYNC
@@ -514,7 +518,8 @@ SYSCALL_DEFINE4(sync_file_range, int, fd, loff_t, offset, loff_t, nbytes,
 	}
 
 	if (flags & SYNC_FILE_RANGE_WRITE) {
-		ret = filemap_fdatawrite_range(mapping, offset, endbyte);
+		ret = __filemap_fdatawrite_range(mapping, offset, endbyte,
+						 WB_SYNC_NONE);
 		if (ret < 0)
 			goto out_put;
 	}

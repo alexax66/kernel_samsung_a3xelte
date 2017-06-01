@@ -143,6 +143,8 @@ extern struct page *empty_zero_page;
 
 #define pte_valid_user(pte) \
 	((pte_val(pte) & (PTE_VALID | PTE_USER)) == (PTE_VALID | PTE_USER))
+#define pte_valid_not_user(pte) \
+	((pte_val(pte) & (PTE_VALID | PTE_USER)) == PTE_VALID)
 
 static inline pte_t clear_pte_bit(pte_t pte, pgprot_t prot)
 {
@@ -213,6 +215,15 @@ static inline void set_pte(pte_t *ptep, pte_t pte)
 	}
 #else
 	*ptep = pte;
+
+	/*
+	 * Only if the new pte is valid and kernel, otherwise TLB maintenance
+	 * or update_mmu_cache() have the necessary barriers.
+	 */
+	if (pte_valid_not_user(pte)) {
+		dsb(ishst);
+		isb();
+	}
 #endif /* CONFIG_TIMA_RKP */
 
 }
@@ -338,10 +349,11 @@ static inline void set_pmd(pmd_t *pmdp, pmd_t pmd)
 		: "r" (pmdp), "r" (pmd)
 		: "x1", "x2", "memory" );
 	}
-#else 
+#else
 	*pmdp = pmd;
 #endif /* CONFIG_TIMA_RKP */
 	dsb(ishst);
+	isb();
 }
 
 static inline void pmd_clear(pmd_t *pmdp)
@@ -385,6 +397,7 @@ static inline void set_pud(pud_t *pudp, pud_t pud)
 	*pudp = pud;
 #endif
 	dsb(ishst);
+	isb();
 }
 
 static inline void pud_clear(pud_t *pudp)

@@ -16,10 +16,12 @@
 #include <linux/sysfs.h>
 #include <linux/balloon_compaction.h>
 #include <linux/page-isolation.h>
-#include <linux/fb.h>
-#include <linux/kthread.h>
-#include <linux/freezer.h>
-#include <linux/module.h>
+#ifdef CONFIG_STATE_NOTIFIER
+#include <linux/state_notifier.h>
+#endif
+#ifdef CONFIG_POWERSUSPEND
+#include <linux/powersuspend.h>
+#endif
 #include "internal.h"
 
 #ifdef CONFIG_COMPACTION
@@ -423,19 +425,44 @@ static void acct_isolated(struct zone *zone, bool locked, struct compact_control
 	}
 }
 
-/* Similar to reclaim, but different enough that they don't share logic */
-static bool too_many_isolated(struct zone *zone)
+static bool __too_many_isolated(struct zone *zone, int safe)
 {
 	unsigned long active, inactive, isolated;
 
-	inactive = zone_page_state(zone, NR_INACTIVE_FILE) +
-					zone_page_state(zone, NR_INACTIVE_ANON);
-	active = zone_page_state(zone, NR_ACTIVE_FILE) +
-					zone_page_state(zone, NR_ACTIVE_ANON);
-	isolated = zone_page_state(zone, NR_ISOLATED_FILE) +
-					zone_page_state(zone, NR_ISOLATED_ANON);
+	if (safe) {
+		inactive = zone_page_state_snapshot(zone, NR_INACTIVE_FILE) +
+			zone_page_state_snapshot(zone, NR_INACTIVE_ANON);
+		active = zone_page_state_snapshot(zone, NR_ACTIVE_FILE) +
+			zone_page_state_snapshot(zone, NR_ACTIVE_ANON);
+		isolated = zone_page_state_snapshot(zone, NR_ISOLATED_FILE) +
+			zone_page_state_snapshot(zone, NR_ISOLATED_ANON);
+	} else {
+		inactive = zone_page_state(zone, NR_INACTIVE_FILE) +
+			zone_page_state(zone, NR_INACTIVE_ANON);
+		active = zone_page_state(zone, NR_ACTIVE_FILE) +
+			zone_page_state(zone, NR_ACTIVE_ANON);
+		isolated = zone_page_state(zone, NR_ISOLATED_FILE) +
+			zone_page_state(zone, NR_ISOLATED_ANON);
+	}
 
 	return isolated > (inactive + active) / 2;
+}
+
+/* Similar to reclaim, but different enough that they don't share logic */
+static bool too_many_isolated(struct compact_control *cc)
+{
+	/*
+	 * __too_many_isolated(safe=0) is fast but inaccurate, because it
+	 * doesn't account for the vm_stat_diff[] counters.  So if it looks
+	 * like too_many_isolated() is about to return true, fall back to the
+	 * slower, more accurate zone_page_state_snapshot().
+	 */
+	if (unlikely(__too_many_isolated(cc->zone, 0))) {
+		if (cc->sync)
+			return __too_many_isolated(cc->zone, 1);
+	}
+
+	return false;
 }
 
 /**
@@ -476,7 +503,7 @@ isolate_migratepages_range(struct zone *zone, struct compact_control *cc,
 	 * list by either parallel reclaimers or compaction. If there are,
 	 * delay for some time until fewer pages are isolated
 	 */
-	while (unlikely(too_many_isolated(zone))) {
+	while (unlikely(too_many_isolated(cc))) {
 		/* async migration should just abort */
 		if (!cc->sync)
 			return 0;
@@ -1114,77 +1141,47 @@ unsigned long try_to_compact_pages(struct zonelist *zonelist,
 	return rc;
 }
 
-static struct compact_thread {
-	wait_queue_head_t waitqueue;
-	struct task_struct *task;
-	struct timer_list timer;
-	atomic_t should_run;
-} compact_thread;
-
-static uint compact_interval_sec = 1800;
-module_param_named(interval, compact_interval_sec, uint,
-			S_IRUGO | S_IWUSR | S_IWGRP);
-
+#ifdef CONFIG_STATE_NOTIFIER
 static void compact_nodes(void);
 
-static int compact_thread_should_run(void)
-{
-	return atomic_read(&compact_thread.should_run);
-}
-
-static void compact_thread_wakeup(void)
-{
-	atomic_set(&compact_thread.should_run, 1);
-	wake_up(&compact_thread.waitqueue);
-}
-
-static void compact_thread_timer_func(unsigned long data)
-{
-	compact_thread_wakeup();
-	mod_timer(&compact_thread.timer,
-			jiffies + (HZ * compact_interval_sec));
-}
-
-static int compact_thread_func(void *data)
-{
-	set_freezable();
-	for (;;) {
-		wait_event_freezable(compact_thread.waitqueue,
-				compact_thread_should_run());
-		if (compact_thread_should_run()) {
-			compact_nodes();
-			atomic_set(&compact_thread.should_run, 0);
-		}
-	}
-	return 0;
-}
-
-static int compact_notifier(struct notifier_block *self,
+static int state_notifier_callback(struct notifier_block *this,
 				unsigned long event, void *data)
 {
-	struct fb_event *evdata = (struct fb_event *)data;
-
-	if ((event == FB_EVENT_BLANK) && evdata && evdata->data) {
-		int blank = *(int *)evdata->data;
-
-		if (blank == FB_BLANK_POWERDOWN) {
-			del_timer_sync(&compact_thread.timer);
-			compact_thread_wakeup();
-			return NOTIFY_OK;
-		} else if (blank == FB_BLANK_UNBLANK) {
-			if (!timer_pending(&compact_thread.timer))
-				mod_timer(&compact_thread.timer, jiffies +
-						(HZ * compact_interval_sec));
-			return NOTIFY_OK;
-		}
+	switch (event) {
+		case STATE_NOTIFIER_SUSPEND:
+			compact_nodes();
+			break;
+		default:
+			break;
 	}
-	return NOTIFY_DONE;
+
+	return NOTIFY_OK;
 }
 
 static struct notifier_block compact_notifier_block = {
-	.notifier_call = compact_notifier,
-.priority = -1,
+	.notifier_call = state_notifier_callback,
+	.priority = -1,
 };
+#endif
+
+#ifdef CONFIG_POWERSUSPEND
+static void compact_nodes(void);
+
+static void compact_power_suspend(struct power_suspend *handler)
+{
+	compact_nodes();
+}
+
+static void compact_power_resume(struct power_suspend *handler)
+{
+	//empty
+}
+
+static struct power_suspend compact_suspend = {
+	.suspend = compact_power_suspend,
+	.resume = compact_power_resume,
+};
+#endif
 
 /* Compact all zones within a node */
 static void __compact_pgdat(pg_data_t *pgdat, struct compact_control *cc)
@@ -1318,20 +1315,22 @@ void compaction_unregister_node(struct node *node)
 }
 #endif /* CONFIG_SYSFS && CONFIG_NUMA */
 
+#ifdef CONFIG_STATE_NOTIFIER
 static int  __init mem_compaction_init(void)
 {
-	struct sched_param param = { .sched_priority = 0 };
-
-	init_timer_deferrable(&compact_thread.timer);
-	compact_thread.timer.function = compact_thread_timer_func;
-	init_waitqueue_head(&compact_thread.waitqueue);
-	compact_thread.task = kthread_run(compact_thread_func, NULL,
-				"%s", "kcompact");
-	if (!IS_ERR(compact_thread.task))
-		sched_setscheduler(compact_thread.task, SCHED_IDLE, &param);
-
-	fb_register_client(&compact_notifier_block);
+	state_register_client(&compact_notifier_block);
 	return 0;
 }
 late_initcall(mem_compaction_init);
+#endif
+
+#ifdef CONFIG_POWERSUSPEND
+static int  __init mem_compaction_init(void)
+{
+	register_power_suspend(&compact_suspend);
+	return 0;
+}
+late_initcall(mem_compaction_init);
+#endif
+
 #endif /* CONFIG_COMPACTION */

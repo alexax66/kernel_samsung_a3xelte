@@ -39,9 +39,16 @@
 #ifdef CONFIG_POWERSUSPEND
 #include <linux/powersuspend.h>
 #endif
+#ifdef CONFIG_STATE_NOTIFIER
+#include <linux/state_notifier.h>
+#endif
 #include <linux/ratelimit.h>
 #include "internal.h"
 #include "mount.h"
+
+#ifdef CONFIG_STATE_NOTIFIER
+static struct notifier_block dcache_state_notif;
+#endif
 
 /*
  * Usage:
@@ -81,14 +88,10 @@
  *   dentry1->d_lock
  *     dentry2->d_lock
  */
-#ifdef CONFIG_POWERSUSPEND
 #define DEFAULT_VFS_CACHE_PRESSURE 100
 #define DEFAULT_VFS_SUSPEND_CACHE_PRESSURE 20
 int sysctl_vfs_cache_pressure __read_mostly, resume_cache_pressure;
 int sysctl_vfs_suspend_cache_pressure __read_mostly, suspend_cache_pressure;
-#else
-int sysctl_vfs_cache_pressure __read_mostly = 100;
-#endif
 
 EXPORT_SYMBOL_GPL(sysctl_vfs_cache_pressure);
 
@@ -3054,6 +3057,27 @@ static struct power_suspend cpressure_suspend = {
 };
 #endif
 
+#ifdef CONFIG_STATE_NOTIFIER
+static int state_notifier_callback(struct notifier_block *this,
+				unsigned long event, void *data)
+{
+
+	switch (event) {
+		case STATE_NOTIFIER_ACTIVE:
+			sysctl_vfs_cache_pressure = resume_cache_pressure;
+			break;
+		case STATE_NOTIFIER_SUSPEND:
+			sysctl_vfs_cache_pressure = suspend_cache_pressure;
+			break;
+		default:
+			break;
+	}
+
+	return NOTIFY_OK;
+
+}
+#endif
+
 static __initdata unsigned long dhash_entries;
 static int __init set_dhash_entries(char *str)
 {
@@ -3128,12 +3152,10 @@ EXPORT_SYMBOL(d_genocide);
 
 void __init vfs_caches_init_early(void)
 {
-#ifdef CONFIG_POWERSUSPEND
 	sysctl_vfs_cache_pressure = resume_cache_pressure =
 		DEFAULT_VFS_CACHE_PRESSURE;
 	sysctl_vfs_suspend_cache_pressure = suspend_cache_pressure =
 		DEFAULT_VFS_SUSPEND_CACHE_PRESSURE;
-#endif
 
 	dcache_init_early();
 	inode_init_early();
@@ -3162,4 +3184,12 @@ void __init vfs_caches_init(unsigned long mempages)
 #ifdef CONFIG_POWERSUSPEND
 	register_power_suspend(&cpressure_suspend);
 #endif
+
+#ifdef CONFIG_STATE_NOTIFIER
+	dcache_state_notif.notifier_call = state_notifier_callback;
+	if (state_register_client(&dcache_state_notif))
+		pr_err("%s: Failed to register State notifier callback\n",
+			__func__);
+#endif
+
 }

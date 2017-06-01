@@ -25,14 +25,21 @@
 
 static bool enable_wlan_rx_wake_ws = true;
 module_param(enable_wlan_rx_wake_ws, bool, 0644);
+
 static bool enable_wlan_ctrl_wake_ws = true;
 module_param(enable_wlan_ctrl_wake_ws, bool, 0644);
+
 static bool enable_wlan_wd_wake_ws = true;
 module_param(enable_wlan_wd_wake_ws, bool, 0644);
+
 static bool enable_wlan_wake_ws = true;
 module_param(enable_wlan_wake_ws, bool, 0644);
+
 static bool enable_netlink_ws = true;
 module_param(enable_netlink_ws, bool, 0644);
+
+static bool enable_power_manager_service_ws = true;
+module_param(enable_power_manager_service_ws, bool, 0644);
 
 /*
  * If set, the suspend/hibernate code will abort transitions to a sleep state
@@ -529,13 +536,15 @@ static bool wakeup_source_blocker(struct wakeup_source *ws)
 		if ((!enable_wlan_ctrl_wake_ws &&
 				!strncmp(ws->name, "wlan_ctrl_wake", wslen)) ||
 			(!enable_wlan_rx_wake_ws &&
-				!strncmp(ws->name, "wlan_rx_wakelock", wslen)) ||
+				!strncmp(ws->name, "wlan_rx_wake", wslen)) ||
 			(!enable_wlan_wd_wake_ws &&
-				!strncmp(ws->name, "wlan_wd_wakelock", wslen)) ||
+				!strncmp(ws->name, "wlan_wd_wake", wslen)) ||
 			(!enable_wlan_wake_ws &&
 				!strncmp(ws->name, "wlan_wake", wslen)) ||
 			(!enable_netlink_ws &&
-				!strncmp(ws->name, "NETLINK", wslen))) {
+				!strncmp(ws->name, "NETLINK", wslen)) ||
+			(!enable_power_manager_service_ws &&
+				!strncmp(ws->name, "PowerManagerService.WakeLocks", wslen))) {
 			if (ws->active) {
 				wakeup_source_deactivate(ws);
 				pr_info("forcefully deactivate wakeup source: %s\n",
