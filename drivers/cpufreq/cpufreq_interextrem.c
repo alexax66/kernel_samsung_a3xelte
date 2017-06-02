@@ -2546,7 +2546,7 @@ static
 struct cpufreq_governor cpufreq_gov_interextrem = {
 	.name = "interextrem",
 	.governor = cpufreq_governor_interextrem,
-	.max_transition_latency = 10000000,
+	.max_transition_latency = 100000,
 	.owner = THIS_MODULE,
 };
 
