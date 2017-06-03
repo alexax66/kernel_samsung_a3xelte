@@ -88,6 +88,8 @@ void ramoops_console_write_buf(const char *buf, size_t size);
  * @mem_address	physical memory address to contain ramoops
  */
 
+#define FTRACE_PER_CPU	BIT(0)
+
 struct ramoops_platform_data {
 	unsigned long	mem_size;
 	unsigned long	mem_address;
@@ -97,6 +99,7 @@ struct ramoops_platform_data {
 	unsigned long	ftrace_size;
 	unsigned long	pmsg_size;
 	int		dump_oops;
+	int		flags;
 	struct persistent_ram_ecc_info ecc_info;
 };
 
