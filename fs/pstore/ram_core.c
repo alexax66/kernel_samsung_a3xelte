@@ -49,13 +49,15 @@ static inline size_t buffer_start(struct persistent_ram_zone *prz)
 }
 
 /* increase and wrap the start pointer, returning the old value */
-static size_t buffer_start_add_atomic(struct persistent_ram_zone *prz, size_t a)
+static size_t buffer_start_add_atomic(struct persistent_ram_zone *prz, size_t a,
+					int lock)
 {
 	int old;
 	int new;
 	unsigned long flags;
 
-	raw_spin_lock_irqsave(&prz->buffer_lock, flags);
+	if (lock == PSTORE_RAM_LOCK)
+		raw_spin_lock_irqsave(&prz->buffer_lock, flags);
 
 	old = atomic_read(&prz->buffer->start);
 	new = old + a;
@@ -63,19 +65,21 @@ static size_t buffer_start_add_atomic(struct persistent_ram_zone *prz, size_t a)
 		new -= prz->buffer_size;
 	atomic_set(&prz->buffer->start, new);
 
-	raw_spin_unlock_irqrestore(&prz->buffer_lock, flags);
+	if (lock == PSTORE_RAM_LOCK)
+		raw_spin_unlock_irqrestore(&prz->buffer_lock, flags);
 
 	return old;
 }
 
 /* increase the size counter until it hits the max size */
-static void buffer_size_add_atomic(struct persistent_ram_zone *prz, size_t a)
+static void buffer_size_add_atomic(struct persistent_ram_zone *prz, size_t a, int lock)
 {
 	size_t old;
 	size_t new;
 	unsigned long flags;
 
-	raw_spin_lock_irqsave(&prz->buffer_lock, flags);
+	if (lock == PSTORE_RAM_LOCK)
+		raw_spin_lock_irqsave(&prz->buffer_lock, flags);
 
 	old = atomic_read(&prz->buffer->size);
 	if (old == prz->buffer_size)
@@ -87,7 +91,8 @@ static void buffer_size_add_atomic(struct persistent_ram_zone *prz, size_t a)
 	atomic_set(&prz->buffer->size, new);
 
 exit:
-	raw_spin_unlock_irqrestore(&prz->buffer_lock, flags);
+	if (lock == PSTORE_RAM_LOCK)
+		raw_spin_unlock_irqrestore(&prz->buffer_lock, flags);
 }
 
 /* increase and wrap the start pointer, returning the old value */
@@ -345,7 +350,7 @@ void persistent_ram_save_old(struct persistent_ram_zone *prz)
 }
 
 int notrace persistent_ram_write(struct persistent_ram_zone *prz,
-	const void *s, unsigned int count)
+	const void *s, unsigned int count, int lock)
 {
 	int rem;
 	int c = count;
@@ -356,9 +361,9 @@ int notrace persistent_ram_write(struct persistent_ram_zone *prz,
 		c = prz->buffer_size;
 	}
 
-	buffer_size_add(prz, c);
+	buffer_size_add_atomic(prz, c, lock);
 
-	start = buffer_start_add(prz, c);
+	start = buffer_start_add_atomic(prz, c, lock);
 
 	rem = prz->buffer_size - start;
 	if (unlikely(rem < c)) {
@@ -387,9 +392,9 @@ int notrace persistent_ram_write_user(struct persistent_ram_zone *prz,
 		c = prz->buffer_size;
 	}
 
-	buffer_size_add(prz, c);
+	buffer_size_add_atomic(prz, c, PSTORE_RAM_LOCK);
 
-	start = buffer_start_add(prz, c);
+	start = buffer_start_add_atomic(prz, c, PSTORE_RAM_LOCK);
 
 	rem = prz->buffer_size - start;
 	if (unlikely(rem < c)) {

@@ -213,7 +213,7 @@ static size_t ramoops_write_kmsg_hdr(struct persistent_ram_zone *prz)
 		(long)timestamp.tv_sec, (long)(timestamp.tv_nsec / 1000));
 	WARN_ON_ONCE(!hdr);
 	len = hdr ? strlen(hdr) : 0;
-	persistent_ram_write(prz, hdr, len);
+	persistent_ram_write(prz, hdr, len, PSTORE_RAM_LOCK);
 	kfree(hdr);
 
 	return len;
@@ -232,17 +232,17 @@ static int notrace ramoops_pstore_write_buf(enum pstore_type_id type,
 	if (type == PSTORE_TYPE_CONSOLE) {
 		if (!cxt->cprz)
 			return -ENOMEM;
-		persistent_ram_write(cxt->cprz, buf, size);
+		persistent_ram_write(cxt->cprz, buf, size, PSTORE_RAM_LOCK);
 		return 0;
 	} else if (type == PSTORE_TYPE_FTRACE) {
 		if (!cxt->fprz)
 			return -ENOMEM;
-		persistent_ram_write(cxt->fprz, buf, size);
+		persistent_ram_write(cxt->fprz, buf, size, PSTORE_RAM_LOCK);
 		return 0;
 	} else if (type == PSTORE_TYPE_PMSG) {
 		if (!cxt->mprz)
 			return -ENOMEM;
-		persistent_ram_write(cxt->mprz, buf, size);
+		persistent_ram_write(cxt->mprz, buf, size, PSTORE_RAM_LOCK);
 		return 0;
 	}
 
@@ -276,7 +276,7 @@ static int notrace ramoops_pstore_write_buf(enum pstore_type_id type,
 	hlen = ramoops_write_kmsg_hdr(prz);
 	if (size + hlen > prz->buffer_size)
 		size = prz->buffer_size - hlen;
-	persistent_ram_write(prz, buf, size);
+	persistent_ram_write(prz, buf, size, PSTORE_RAM_LOCK);
 
 	cxt->dump_write_cnt = (cxt->dump_write_cnt + 1) % cxt->max_dump_cnt;
 
@@ -295,7 +295,7 @@ static int notrace ramoops_pstore_write_buf_user(enum pstore_type_id type,
 
 		if (!cxt->mprz)
 			return -ENOMEM;
-		return persistent_ram_write_user(cxt->mprz, buf, size);
+		persistent_ram_write(cxt->mprz, buf, size, PSTORE_RAM_LOCK);
 	}
 
 	return -EINVAL;
@@ -435,7 +435,7 @@ static int ramoops_init_prz(struct device *dev, struct ramoops_context *cxt,
 void notrace ramoops_console_write_buf(const char *buf, size_t size)
 {
 	struct ramoops_context *cxt = &oops_cxt;
-	persistent_ram_write(cxt->cprz, buf, size);
+	persistent_ram_write(cxt->fprz, buf, size, PSTORE_RAM_LOCK);
 }
 
 static int ramoops_probe(struct platform_device *pdev)

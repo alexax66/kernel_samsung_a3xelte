@@ -24,6 +24,14 @@
 #include <linux/list.h>
 #include <linux/types.h>
 
+/*
+ * Choose whether access to the RAM zone requires locking or not.  If a zone
+ * can be written to from different CPUs like with ftrace for example, then
+ * PSTORE_RAM_LOCK is used. For all other cases, PSTORE_RAM_NOLOCK should be used.
+ */
+#define PSTORE_RAM_NOLOCK	0
+#define PSTORE_RAM_LOCK	1
+
 struct persistent_ram_buffer;
 struct rs_control;
 
@@ -61,7 +69,7 @@ void persistent_ram_free(struct persistent_ram_zone *prz);
 void persistent_ram_zap(struct persistent_ram_zone *prz);
 
 int persistent_ram_write(struct persistent_ram_zone *prz, const void *s,
-			 unsigned int count);
+			 unsigned int count, int lock);
 int persistent_ram_write_user(struct persistent_ram_zone *prz,
 			      const void __user *s, unsigned int count);
 
