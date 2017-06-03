@@ -84,7 +84,7 @@ config EXYNOS_SNAPSHOT_MBOX
 
 config EXYNOS_SNAPSHOT_HOOK_LOGGER
 	bool "Enable hooking android platform log for ramdump"
-	depends on EXYNOS_SNAPSHOT
+	depends on EXYNOS_SNAPSHOT && !EXYNOS_SNAPSHOT_PSTORE
 	default y
 
 config EXYNOS_SNAPSHOT_PSTORE
