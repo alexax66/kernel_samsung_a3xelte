@@ -415,8 +415,8 @@ static void *persistent_ram_vmap(phys_addr_t start, size_t size,
 	 */
 	prot = PAGE_KERNEL;
 #endif
-	pages = kmalloc_array(page_count, sizeof(struct page *), GFP_KERNEL);
 
+	pages = kmalloc_array(page_count, sizeof(struct page *), GFP_KERNEL);
 	if (!pages) {
 		pr_err("%s: Failed to allocate array for %u pages\n",
 		       __func__, page_count);
