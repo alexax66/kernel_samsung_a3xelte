@@ -240,10 +240,8 @@ static int notrace ramoops_pstore_write_buf(enum pstore_type_id type,
 		persistent_ram_write(cxt->fprz, buf, size, PSTORE_RAM_LOCK);
 		return 0;
 	} else if (type == PSTORE_TYPE_PMSG) {
-		if (!cxt->mprz)
-			return -ENOMEM;
-		persistent_ram_write(cxt->mprz, buf, size, PSTORE_RAM_LOCK);
-		return 0;
+		pr_warn_ratelimited("ramoops: warning: PMSG shouldn't call %s\n",
+				    __func__);
 	}
 
 	if (type != PSTORE_TYPE_DMESG)
