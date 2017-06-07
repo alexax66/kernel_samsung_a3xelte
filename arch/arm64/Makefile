@@ -49,7 +49,6 @@ LDFLAGS_vmlinux	+= --fix-cortex-a53-843419
   endif
 endif
 
-
 # exynos
 machine-$(CONFIG_ARCH_EXYNOS)		+= exynos
 plat-y		+= samsung
