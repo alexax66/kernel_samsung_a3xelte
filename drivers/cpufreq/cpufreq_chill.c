@@ -12,31 +12,36 @@
  * published by the Free Software Foundation.
  */
 
-#include <linux/slab.h>
-#include <linux/module.h>
-#include <linux/moduleparam.h>
+#include <linux/cpufreq.h>
 #include <linux/kernel_stat.h>
+#include <linux/module.h>
+
+#include <linux/slab.h>
+#include <linux/tick.h>
 #include "cpufreq_governor.h"
 #ifdef CONFIG_POWERSUSPEND
 #include <linux/powersuspend.h>
 #endif
 
 /* Chill version macros */
-#define CHILL_VERSION_MAJOR			(1)
-#define CHILL_VERSION_MINOR			(7)
+#define CHILL_VERSION_MAJOR			(2)
+#define CHILL_VERSION_MINOR			(10)
 
 /* Chill governor macros */
 #define DEF_FREQUENCY_UP_THRESHOLD		(85)
-#define DEF_FREQUENCY_DOWN_THRESHOLD		(30)
-#define DEF_FREQUENCY_DOWN_THRESHOLD_SUSPENDED	(20)
-#define DEF_FREQUENCY_STEP			(5)
+#define DEF_FREQUENCY_DOWN_THRESHOLD		(45)
+#define DEF_FREQUENCY_DOWN_THRESHOLD_SUSPENDED	(50)
+#define DEF_FREQUENCY_STEP			(9)
 #define DEF_SAMPLING_RATE			(20000)
 #define DEF_BOOST_ENABLED			(1)
-#define DEF_BOOST_COUNT				(7)
+#define DEF_BOOST_COUNT				(8)
+#define DEF_IGNORE_NICE_LOAD			(0)
+#define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(10000)
 
 static DEFINE_PER_CPU(struct cs_cpu_dbs_info_s, cs_cpu_dbs_info);
+static DEFINE_PER_CPU(struct cs_dbs_tuners *, cached_tuners);
 
-static unsigned int boost_counter = 0;
+unsigned int boost_counter = 0;
 
 static inline unsigned int get_freq_target(struct cs_dbs_tuners *cs_tuners,
 					   struct cpufreq_policy *policy)
@@ -68,9 +73,10 @@ static void cs_check_cpu(int cpu, unsigned int load)
 
 #ifdef CONFIG_POWERSUSPEND
 	/* Once min frequency is reached while screen off, stop taking load samples*/
-	if (power_suspend_active & policy->cur == policy->min)
+	if (power_suspend_active && policy->cur == policy->min)
 		return;
 #endif
+
 	/*
 	 * break out if we 'cannot' reduce the speed as the user might
 	 * want freq_step to be zero
@@ -78,38 +84,9 @@ static void cs_check_cpu(int cpu, unsigned int load)
 	if (cs_tuners->freq_step == 0)
 		return;
 
-	/* Check for frequency increase */
-	if (load > cs_tuners->up_threshold) {
-
-		/* if we are already at full speed then break out early */
-		if (dbs_info->requested_freq == policy->max)
-			return;
-
 #ifdef CONFIG_POWERSUSPEND
-		/* if power is suspended then break out early */
-		if (power_suspend_active)
-			return;
-#endif
-
-		/* Boost if count is reached, otherwise increase freq */
-		if (cs_tuners->boost_enabled && boost_counter >= cs_tuners->boost_count)
-			dbs_info->requested_freq = policy->max;
-		else
-			dbs_info->requested_freq += get_freq_target(cs_tuners, policy);
-
- 		/* Make sure max hasn't been reached, otherwise increment boost_counter */
-		if (dbs_info->requested_freq >= policy->max)
-			dbs_info->requested_freq = policy->max;
-		else
-			boost_counter++;
-
-		__cpufreq_driver_target(policy, dbs_info->requested_freq,
-			CPUFREQ_RELATION_H);
-		return;
-	}
-
 	/* Check for frequency decrease */
-	if (load < cs_tuners->down_threshold) {
+	if (!power_suspend_active && load < cs_tuners->down_threshold) {
 		unsigned int freq_target;
 		/*
 		 * if we cannot reduce the frequency anymore, break out early
@@ -125,6 +102,79 @@ static void cs_check_cpu(int cpu, unsigned int load)
 
 		__cpufreq_driver_target(policy, dbs_info->requested_freq,
 				CPUFREQ_RELATION_L);
+		return;
+	} else if (power_suspend_active && load <= cs_tuners->down_threshold_suspended) {
+		unsigned int freq_target;
+		/*
+		 * if we cannot reduce the frequency anymore, break out early
+		 */
+		if (policy->cur == policy->min)
+			return;
+
+		/* reduce boost count with frequency */
+		if (boost_counter > 0)
+			boost_counter--;
+
+		freq_target = get_freq_target(cs_tuners, policy);
+		if (dbs_info->requested_freq > freq_target)
+			dbs_info->requested_freq -= freq_target;
+		else {
+			dbs_info->requested_freq = policy->min;
+			boost_counter = 0;
+		}
+		__cpufreq_driver_target(policy, dbs_info->requested_freq,
+				CPUFREQ_RELATION_L);
+		return;
+	}
+
+#else
+	/* Check for frequency decrease */
+	if (load < cs_tuners->down_threshold) {
+		unsigned int freq_target;
+		/*
+		 * if we cannot reduce the frequency anymore, break out early
+		 */
+		if (policy->cur == policy->min)
+			return;
+
+		freq_target = get_freq_target(cs_tuners, policy);
+		if (dbs_info->requested_freq > freq_target)
+			dbs_info->requested_freq -= freq_target;
+		else {
+			dbs_info->requested_freq = policy->min;
+			boost_counter = 0;
+		}
+
+		__cpufreq_driver_target(policy, dbs_info->requested_freq,
+				CPUFREQ_RELATION_L);
+		return;
+	}
+#endif
+
+	/* Check for frequency increase */
+	if (load > cs_tuners->up_threshold) {
+
+		/* if we are already at full speed then break out early */
+		if (dbs_info->requested_freq == policy->max)
+			return;
+
+#ifdef CONFIG_POWERSUSPEND
+		/* if power is suspended then break out early */
+		if (power_suspend_active)
+			return;
+#endif
+
+		/* Boost if count is reached, otherwise increase freq */
+		if (cs_tuners->boost_enabled && boost_counter >= cs_tuners->boost_count) {
+			dbs_info->requested_freq = policy->max;
+			boost_counter = 0;
+		} else {
+			dbs_info->requested_freq += get_freq_target(cs_tuners, policy);
+			boost_counter++;
+		};
+
+		__cpufreq_driver_target(policy, dbs_info->requested_freq,
+			CPUFREQ_RELATION_H);
 		return;
 	}
 }
@@ -145,7 +195,7 @@ static void cs_dbs_timer(struct work_struct *work)
 
 	if (!need_load_eval(&core_dbs_info->cdbs, cs_tuners->sampling_rate))
 		modify_all = false;
-	else
+		else
 			dbs_check_cpu(dbs_data, cpu);
 
 	gov_queue_work(dbs_data, dbs_info->cdbs.cur_policy, delay, modify_all);
@@ -239,7 +289,7 @@ static ssize_t store_down_threshold_suspended(struct dbs_data *dbs_data, const c
 			input >= cs_tuners->up_threshold)
 		return -EINVAL;
 
-	cs_tuners->down_threshold = input;
+	cs_tuners->down_threshold_suspended = input;
 	return count;
 }
 
@@ -328,10 +378,7 @@ static ssize_t store_boost_count(struct dbs_data *dbs_data, const char *buf,
 	if (ret != 1)
 		return -EINVAL;
 
-	if (input >= 5)
-		input = 5;
-
-	if (input = 0)
+	if (input < 1)
 		input = 0;
 
 	cs_tuners->boost_count = input;
@@ -344,7 +391,6 @@ show_store_one(cs, down_threshold);
 show_store_one(cs, down_threshold_suspended);
 show_store_one(cs, ignore_nice_load);
 show_store_one(cs, freq_step);
-declare_show_sampling_rate_min(cs);
 show_store_one(cs, boost_enabled);
 show_store_one(cs, boost_count);
 
@@ -354,12 +400,10 @@ gov_sys_pol_attr_rw(down_threshold);
 gov_sys_pol_attr_rw(down_threshold_suspended);
 gov_sys_pol_attr_rw(ignore_nice_load);
 gov_sys_pol_attr_rw(freq_step);
-gov_sys_pol_attr_ro(sampling_rate_min);
 gov_sys_pol_attr_rw(boost_enabled);
 gov_sys_pol_attr_rw(boost_count);
 
 static struct attribute *dbs_attributes_gov_sys[] = {
-	&sampling_rate_min_gov_sys.attr,
 	&sampling_rate_gov_sys.attr,
 	&up_threshold_gov_sys.attr,
 	&down_threshold_gov_sys.attr,
@@ -377,7 +421,6 @@ static struct attribute_group cs_attr_group_gov_sys = {
 };
 
 static struct attribute *dbs_attributes_gov_pol[] = {
-	&sampling_rate_min_gov_pol.attr,
 	&sampling_rate_gov_pol.attr,
 	&up_threshold_gov_pol.attr,
 	&down_threshold_gov_pol.attr,
@@ -396,33 +439,93 @@ static struct attribute_group cs_attr_group_gov_pol = {
 
 /************************** sysfs end ************************/
 
-static int cs_init(struct dbs_data *dbs_data)
+static void save_tuners(struct cpufreq_policy *policy,
+			  struct cs_dbs_tuners *tuners)
+{
+	int cpu;
+
+	if (have_governor_per_policy())
+		cpu = cpumask_first(policy->related_cpus);
+	else
+		cpu = 0;
+
+	WARN_ON(per_cpu(cached_tuners, cpu) &&
+		per_cpu(cached_tuners, cpu) != tuners);
+	per_cpu(cached_tuners, cpu) = tuners;
+}
+
+static struct cs_dbs_tuners *alloc_tuners(struct cpufreq_policy *policy)
 {
 	struct cs_dbs_tuners *tuners;
 
 	tuners = kzalloc(sizeof(*tuners), GFP_KERNEL);
 	if (!tuners) {
 		pr_err("%s: kzalloc failed\n", __func__);
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 	}
 
 	tuners->up_threshold = DEF_FREQUENCY_UP_THRESHOLD;
 	tuners->down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD;
 	tuners->down_threshold_suspended = DEF_FREQUENCY_DOWN_THRESHOLD_SUSPENDED;
-	tuners->ignore_nice_load = 0;
+	tuners->ignore_nice_load = DEF_IGNORE_NICE_LOAD;
 	tuners->freq_step = DEF_FREQUENCY_STEP;
 	tuners->boost_enabled = DEF_BOOST_ENABLED;
 	tuners->boost_count = DEF_BOOST_COUNT;
 
+	save_tuners(policy, tuners);
+
+	return tuners;
+}
+
+static struct cs_dbs_tuners *restore_tuners(struct cpufreq_policy *policy)
+{
+	int cpu;
+
+	if (have_governor_per_policy())
+		cpu = cpumask_first(policy->related_cpus);
+	else
+		cpu = 0;
+
+	return per_cpu(cached_tuners, cpu);
+}
+
+static int cs_init(struct dbs_data *dbs_data, struct cpufreq_policy *policy)
+{
+	u64 idle_time;
+	int cpu;
+	struct cs_dbs_tuners *tuners;
+
+	tuners = restore_tuners(policy);
+	if (!tuners) {
+		tuners = alloc_tuners(policy);
+		if (IS_ERR(tuners))
+			return PTR_ERR(tuners);
+	}
+
+	cpu = get_cpu();
+	idle_time = get_cpu_idle_time_us(cpu, NULL);
+	put_cpu();
+	if (idle_time != -1ULL) {
+		/*
+		 * In nohz/micro accounting case we set the minimum frequency
+		 * not depending on HZ, but fixed (very low). The deferred
+		 * timer might skip some samples if idle/sleeping as needed.
+		*/
+		dbs_data->min_sampling_rate = MICRO_FREQUENCY_MIN_SAMPLE_RATE;
+	} else {
+		/* For correct statistics, we need 10 ticks for each measure */
+		dbs_data->min_sampling_rate =
+			MIN_SAMPLING_RATE_RATIO * jiffies_to_usecs(10);
+	}
+
 	dbs_data->tuners = tuners;
-	dbs_data->min_sampling_rate = DEF_SAMPLING_RATE;
 	mutex_init(&dbs_data->mutex);
 	return 0;
 }
 
 static void cs_exit(struct dbs_data *dbs_data)
 {
-	kfree(dbs_data->tuners);
+	//nothing to do
 }
 
 define_get_cpu_dbs_routines(cs_cpu_dbs_info);
@@ -471,7 +574,13 @@ static int __init cpufreq_gov_dbs_init(void)
 
 static void __exit cpufreq_gov_dbs_exit(void)
 {
+	int cpu;
+
 	cpufreq_unregister_governor(&cpufreq_gov_chill);
+	for_each_possible_cpu(cpu) {
+		kfree(per_cpu(cached_tuners, cpu));
+		per_cpu(cached_tuners, cpu) = NULL;
+	}
 }
 
 MODULE_AUTHOR("Alexander Clouter <alex@digriz.org.uk>");
