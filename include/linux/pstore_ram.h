@@ -17,11 +17,20 @@
 #ifndef __LINUX_PSTORE_RAM_H__
 #define __LINUX_PSTORE_RAM_H__
 
+#include <linux/compiler.h>
 #include <linux/device.h>
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
 #include <linux/types.h>
-#include <linux/init.h>
+
+/*
+ * Choose whether access to the RAM zone requires locking or not.  If a zone
+ * can be written to from different CPUs like with ftrace for example, then
+ * PSTORE_RAM_LOCK is used. For all other cases, PSTORE_RAM_NOLOCK should be used.
+ */
+#define PSTORE_RAM_NOLOCK	0
+#define PSTORE_RAM_LOCK	1
 
 struct persistent_ram_buffer;
 struct rs_control;
@@ -39,6 +48,7 @@ struct persistent_ram_zone {
 	void *vaddr;
 	struct persistent_ram_buffer *buffer;
 	size_t buffer_size;
+	raw_spinlock_t buffer_lock;
 
 	/* ECC correction */
 	char *par_buffer;
@@ -53,12 +63,15 @@ struct persistent_ram_zone {
 };
 
 struct persistent_ram_zone *persistent_ram_new(phys_addr_t start, size_t size,
-			u32 sig, struct persistent_ram_ecc_info *ecc_info);
+			u32 sig, struct persistent_ram_ecc_info *ecc_info,
+			unsigned int memtype);
 void persistent_ram_free(struct persistent_ram_zone *prz);
 void persistent_ram_zap(struct persistent_ram_zone *prz);
 
 int persistent_ram_write(struct persistent_ram_zone *prz, const void *s,
-	unsigned int count);
+			 unsigned int count, int lock);
+int persistent_ram_write_user(struct persistent_ram_zone *prz,
+			      const void __user *s, unsigned int count);
 
 void persistent_ram_save_old(struct persistent_ram_zone *prz);
 size_t persistent_ram_old_size(struct persistent_ram_zone *prz);
@@ -75,13 +88,18 @@ void ramoops_console_write_buf(const char *buf, size_t size);
  * @mem_address	physical memory address to contain ramoops
  */
 
+#define FTRACE_PER_CPU	BIT(0)
+
 struct ramoops_platform_data {
 	unsigned long	mem_size;
 	unsigned long	mem_address;
+	unsigned int	mem_type;
 	unsigned long	record_size;
 	unsigned long	console_size;
 	unsigned long	ftrace_size;
+	unsigned long	pmsg_size;
 	int		dump_oops;
+	int		flags;
 	struct persistent_ram_ecc_info ecc_info;
 };
 
