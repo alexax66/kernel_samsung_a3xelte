@@ -19,7 +19,9 @@
 #include <linux/cpu.h>
 #include <linux/cpumask.h>
 #include <linux/cpufreq.h>
+#if defined(CONFIG_CPU_THERMAL_IPA)
 #include <linux/ipa.h>
+#endif
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/rwsem.h>
@@ -32,7 +34,9 @@
 #include <linux/kthread.h>
 #include <linux/slab.h>
 #include <linux/kernel_stat.h>
+#ifdef CONFIG_POWERSUSPEND
 #include <linux/powersuspend.h>
+#endif
 #include <asm/cputime.h>
 
 #define CREATE_TRACE_POINTS
@@ -78,8 +82,10 @@ static int set_window_count;
 static int migration_register_count;
 static struct mutex sched_lock;
 
+#ifdef CONFIG_POWERSUSPEND
 /* boolean for determining screen on/off state */
 static bool suspended = false;
+#endif
 
 /* Target load.  Lower values result in higher CPU speeds. */
 #define DEFAULT_TARGET_LOAD 90
@@ -445,7 +451,11 @@ static void __cpufreq_cafactive_timer(unsigned long data, bool is_notif)
 	cpu_load = loadadjfreq / pcpu->policy->cur;
 	tunables->boosted = tunables->boost_val || now < tunables->boostpulse_endtime;
 
+#ifdef CONFIG_POWERSUSPEND
 	if ((cpu_load >= tunables->go_hispeed_load || tunables->boosted) && !suspended) {
+#else
+	if (cpu_load >= tunables->go_hispeed_load || tunables->boosted) {
+#endif
 		if (pcpu->policy->cur < tunables->hispeed_freq &&
 		    cpu_load <= MAX_LOCAL_LOAD) {
 			new_freq = tunables->hispeed_freq;
@@ -1202,6 +1212,7 @@ static struct attribute *cafactive_attributes_gov_pol[] = {
 	&io_is_busy_gov_pol.attr,
 	&max_freq_hysteresis_gov_pol.attr,
 	&align_windows_gov_pol.attr,
+	NULL,
 };
 
 static struct attribute_group cafactive_attr_group_gov_pol = {
@@ -1484,6 +1495,7 @@ static void cpufreq_cafactive_nop_timer(unsigned long data)
 {
 }
 
+#ifdef CONFIG_POWERSUSPEND
 static void cafactive_early_suspend(struct power_suspend *handler)
 {
 	suspended = true;
@@ -1500,6 +1512,7 @@ static struct power_suspend cafactive_suspend = {
 	.suspend = cafactive_early_suspend,
 	.resume = cafactive_late_resume,
 };
+#endif
 
 static int __init cpufreq_cafactive_init(void)
 {
@@ -1520,7 +1533,9 @@ static int __init cpufreq_cafactive_init(void)
 		init_rwsem(&pcpu->enable_sem);
 	}
 
+#ifdef CONFIG_POWERSUSPEND
 	register_power_suspend(&cafactive_suspend);
+#endif
 
 	spin_lock_init(&speedchange_cpumask_lock);
 	mutex_init(&gov_lock);
